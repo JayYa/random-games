@@ -4,16 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f7fb" />
-    <title>今天吃哪家</title>
+    <title>随机转盘</title>
   </head>
   <body>
-    <!-- 加载态：读到名单前先亮着，由 main.ts 换成转盘或错误提示。 -->
-    <div id="app">
-      <main class="wheel">
-        <h1 class="wheel__title">今天吃哪家</h1>
-        <p class="wheel__status">正在加载名单…</p>
-      </main>
-    </div>
+    <!-- 空壳：选主题页和转盘页都由 main.ts 按当前 hash 渲染进来。
+         这里不写死任何一个主题的标题，也不写加载态——首页不取名单，
+         「正在加载名单…」只有在转盘页才是真话。 -->
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -3,6 +3,8 @@
  */
 
 import { TAU } from './angles';
+import { escapeHtml } from '../../escapeHtml';
+import { THEME_PICKER_HASH, type Theme } from '../../themes';
 import {
   createWheelSession,
   type Candidate,
@@ -27,10 +29,10 @@ interface WheelElements {
   cardClose: HTMLButtonElement;
 }
 
-function buildDom(root: HTMLElement): WheelElements {
+function buildDom(root: HTMLElement, theme: Theme): WheelElements {
   root.innerHTML = `
     <main class="wheel" id="wheel-shell">
-      <h1 class="wheel__title">今天吃哪家</h1>
+      <h1 class="wheel__title">${escapeHtml(theme.title)}</h1>
       <p class="wheel__note" id="wheel-note"></p>
       <div class="wheel__stage">
         <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
@@ -39,11 +41,12 @@ function buildDom(root: HTMLElement): WheelElements {
       <button class="wheel__reshuffle" id="wheel-reshuffle" type="button">换一批</button>
       <div class="wheel__card" id="wheel-card" hidden role="dialog" aria-live="polite">
         <div class="wheel__card-inner">
-          <p class="wheel__card-label">今天就吃</p>
+          <p class="wheel__card-label">${escapeHtml(theme.resultPhrase)}</p>
           <p class="wheel__card-name" id="wheel-card-name"></p>
           <button class="wheel__card-close" id="wheel-card-close" type="button">再转一次</button>
         </div>
       </div>
+      ${homeLinkHtml()}
     </main>
   `;
 
@@ -65,8 +68,20 @@ function buildDom(root: HTMLElement): WheelElements {
   };
 }
 
-/** 名单文件在仓库里的位置，错误提示里要告诉人去改哪个文件。 */
-const ROSTER_FILE = 'public/restaurants.csv';
+/** 当前主题的名单文件在仓库里的位置，错误提示里要告诉人去改哪个文件。 */
+function rosterFile(theme: Theme): string {
+  return `public/${theme.rosterFile}`;
+}
+
+/**
+ * 回到选主题页的入口。转盘页和错误页各有一个。
+ *
+ * 是真链接不是按钮：分享出去的链接直接落在转盘页上，落进来的人得能中键新开、
+ * 长按看菜单、看到它的目标地址；一个坏掉的主题也不该把人困在那一页。
+ */
+function homeLinkHtml(): string {
+  return `<a class="wheel__home" href="${THEME_PICKER_HASH}">← 换个主题</a>`;
+}
 
 /**
  * 名单出问题时的页面呈现。
@@ -88,23 +103,16 @@ interface FailureView {
   readonly hint: string;
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function renderFailure(root: HTMLElement, view: FailureView): void {
+function renderFailure(root: HTMLElement, theme: Theme, view: FailureView): void {
   root.innerHTML = `
     <main class="wheel">
-      <h1 class="wheel__title">今天吃哪家</h1>
+      <h1 class="wheel__title">${escapeHtml(theme.title)}</h1>
       <div class="wheel__error" role="alert" data-error-kind="${view.kind}">
         <p class="wheel__error-title">${escapeHtml(view.title)}</p>
         <p class="wheel__error-detail">${escapeHtml(view.detail)}</p>
         <p class="wheel__error-hint">${escapeHtml(view.hint)}</p>
       </div>
+      ${homeLinkHtml()}
     </main>
   `;
 }
@@ -114,18 +122,18 @@ function renderFailure(root: HTMLElement, view: FailureView): void {
  *
  * 它和解析失败共用版式，但说的是另一回事：那边是文件读到了、某一行写坏了。
  */
-export function showRosterLoadFailure(root: HTMLElement, cause: unknown): void {
+export function showRosterLoadFailure(root: HTMLElement, theme: Theme, cause: unknown): void {
   const detail = cause instanceof Error ? cause.message : String(cause);
-  renderFailure(root, {
+  renderFailure(root, theme, {
     kind: 'load',
     title: '名单文件没取到',
-    detail: `读取 restaurants.csv 失败：${detail}`,
-    hint: `确认 ${ROSTER_FILE} 确实在仓库里并且已经部署，然后刷新页面重试。`,
+    detail: `读取 ${theme.rosterFile} 失败：${detail}`,
+    hint: `确认 ${rosterFile(theme)} 确实在仓库里并且已经部署，然后刷新页面重试。`,
   });
 }
 
 /** 文件取到了，但名单本身有毛病：三种情况各说各的。 */
-function rosterFailureView(session: WheelSession): FailureView | undefined {
+function rosterFailureView(session: WheelSession, theme: Theme): FailureView | undefined {
   switch (session.status) {
     case 'parse-error':
       return {
@@ -133,13 +141,13 @@ function rosterFailureView(session: WheelSession): FailureView | undefined {
         title: '名单里有一行读不懂',
         // session.error 带的是文件中的原始行号和这一行到底哪里不对，照着去改就行。
         detail: session.error ?? '名单解析失败',
-        hint: `打开 ${ROSTER_FILE}，按上面说的行号改掉那一行，再刷新页面。`,
+        hint: `打开 ${rosterFile(theme)}，按上面说的行号改掉那一行，再刷新页面。`,
       };
     case 'empty-file':
       return {
         kind: 'empty-file',
         title: '名单是空的',
-        detail: `${ROSTER_FILE} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
+        detail: `${rosterFile(theme)} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
         hint: '在文件里加上几行「名字,true」再刷新页面。',
       };
     case 'all-disabled':
@@ -156,19 +164,38 @@ function rosterFailureView(session: WheelSession): FailureView | undefined {
 
 export interface MountOptions {
   readonly csvText: string;
+  /** 当前主题：标题、结果卡片上那句话和错误提示里的文件名都从这里来。 */
+  readonly theme: Theme;
+}
+
+/**
+ * 名单还在路上时的转盘页。
+ *
+ * 只有进了转盘页才可能等名单——选主题页不发任何请求，所以「正在加载名单…」
+ * 写在这里才是真话，而不是首屏 HTML 里的一句摆设。
+ */
+export function showRosterLoading(root: HTMLElement, theme: Theme): void {
+  root.innerHTML = `
+    <main class="wheel">
+      <h1 class="wheel__title">${escapeHtml(theme.title)}</h1>
+      <p class="wheel__status">正在加载名单…</p>
+      ${homeLinkHtml()}
+    </main>
+  `;
 }
 
 export function mountWheel(root: HTMLElement, options: MountOptions): void {
+  const { theme } = options;
   const session: WheelSession = createWheelSession({ csvText: options.csvText });
 
   // 转不起来时不画转盘：空转盘看着像程序坏了，说不清到底是名单哪里出了问题。
-  const failure = rosterFailureView(session);
+  const failure = rosterFailureView(session, theme);
   if (failure) {
-    renderFailure(root, failure);
+    renderFailure(root, theme, failure);
     return;
   }
 
-  const elements = buildDom(root);
+  const elements = buildDom(root, theme);
 
   let rotation = 0;
   let spinning = false;

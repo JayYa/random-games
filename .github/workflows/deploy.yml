@@ -1,5 +1,5 @@
 # 推送到默认分支即部署：构建产物直接发布到 GitHub Pages（ADR-0001，不引入第三方托管）。
-# 只改 public/restaurants.csv 并推送，同样会走完整个流程，线上名单随之更新。
+# 只改 public/ 下的某份名单 CSV 并推送，同样会走完整个流程，线上名单随之更新。
 name: Deploy to GitHub Pages
 
 on:

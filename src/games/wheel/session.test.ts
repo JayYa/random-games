@@ -108,7 +108,7 @@ describe('解析错误', () => {
   });
 
   it('前部有整段注释与空行时，行号仍指向文件里的那一行', () => {
-    // 照着 public/restaurants.csv 的样子：文件开头是一大段说明注释和空行，
+    // 照着 public/eat.csv 的样子：文件开头是一大段说明注释和空行，
     // 真正的第一条记录在第 11 行，坏行在第 13 行。
     const session = createWheelSession({
       csvText: csv(
