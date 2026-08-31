@@ -112,3 +112,11 @@ body {
   font-size: 1rem;
   cursor: pointer;
 }
+
+/* 撒花：临时插入 body 的全屏画布，覆盖在结果卡片之上但不吃点击。 */
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}

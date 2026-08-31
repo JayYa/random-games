@@ -5,6 +5,7 @@
 import { createWheelSession, type WheelSession } from './session';
 import { drawWheel } from './wheelCanvas';
 import { animateSpin } from './spinAnimation';
+import { burstConfetti } from './confetti';
 
 const TAU = Math.PI * 2;
 
@@ -92,6 +93,7 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
   const showResult = (name: string) => {
     elements.cardName.textContent = name;
     elements.card.hidden = false;
+    burstConfetti();
     elements.cardClose.focus();
   };
 
