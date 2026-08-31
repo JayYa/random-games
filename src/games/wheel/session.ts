@@ -56,7 +56,10 @@ export type RosterStatus =
   | 'all-disabled';
 
 export interface WheelSession {
-  /** 本次画在转盘上的候选，长度 ≤ 12。 */
+  /**
+   * 本次画在转盘上的候选，长度 ≤ 12：启用的候选整体打乱后的前 12 个。
+   * 顺序与 CSV 的书写顺序无关，打乱只改变谁挨着谁，不影响谁中选。
+   */
   readonly lineup: readonly Candidate[];
   /**
    * 名单中启用的候选总数。注意它不是名单的规模：名单还包含停用的候选，
@@ -77,16 +80,16 @@ export interface WheelSession {
   spin(): SpinResult;
 }
 
-/** 从 `pool` 中随机抽出 `count` 个（部分 Fisher–Yates）。 */
-function sample(pool: readonly Candidate[], count: number, random: RandomSource): Candidate[] {
+/** Fisher–Yates：把 `pool` 整体打乱，返回新数组，不改动入参。 */
+function shuffle(pool: readonly Candidate[], random: RandomSource): Candidate[] {
   const items = pool.slice();
-  const picked: Candidate[] = [];
-  for (let i = 0; i < count && items.length > 0; i += 1) {
-    const index = Math.min(items.length - 1, Math.floor(random() * items.length));
-    picked.push(items[index]!);
-    items.splice(index, 1);
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.min(i, Math.floor(random() * (i + 1)));
+    const swap = items[i]!;
+    items[i] = items[j]!;
+    items[j] = swap;
   }
-  return picked;
+  return items;
 }
 
 /**
@@ -126,8 +129,9 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
         ? 'all-disabled'
         : 'ok';
 
-  const drawLineup = (): readonly Candidate[] =>
-    isSampled ? sample(enabled, MAX_SECTORS, random) : enabled.slice();
+  // 取上盘名单只有这一条路径：整体打乱，取前 12 个（ADR-0002）。
+  // 启用的候选超过 12 个时这就是随机抽样，不超过时全部上盘、只是座次被打乱了。
+  const drawLineup = (): readonly Candidate[] => shuffle(enabled, random).slice(0, MAX_SECTORS);
 
   let lineup = drawLineup();
 
