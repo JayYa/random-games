@@ -14,26 +14,26 @@ function scriptedRandom(values: number[]): () => number {
 }
 
 function names(lineup: readonly { name: string }[]): string[] {
-  return lineup.map((restaurant) => restaurant.name);
+  return lineup.map((candidate) => candidate.name);
 }
 
 function csv(...lines: string[]): string {
   return lines.join('\n');
 }
 
-/** 生成 n 家启用的饭店。 */
+/** 生成 n 个启用的候选。 */
 function roster(count: number): string {
   return Array.from({ length: count }, (_, i) => `店${i + 1},true`).join('\n');
 }
 
 describe('解析名单', () => {
-  it('读出普通行的店名', () => {
+  it('读出普通行的名字', () => {
     const session = createWheelSession({ csvText: csv('沙县小吃,true', '兰州拉面,true') });
     expect(names(session.lineup)).toEqual(['沙县小吃', '兰州拉面']);
     expect(session.error).toBeUndefined();
   });
 
-  it('双引号包裹的店名可以含逗号', () => {
+  it('双引号包裹的名字可以含逗号', () => {
     const session = createWheelSession({ csvText: csv('"老王烧烤, 二店",true') });
     expect(names(session.lineup)).toEqual(['老王烧烤, 二店']);
   });
@@ -66,7 +66,7 @@ describe('解析名单', () => {
     expect(names(session.lineup)).toEqual(['沙县小吃']);
   });
 
-  it('停用的饭店不进入上盘名单', () => {
+  it('停用的候选不进入上盘名单', () => {
     const session = createWheelSession({
       csvText: csv('沙县小吃,true', '关门大吉,false', '兰州拉面,no'),
     });
@@ -94,9 +94,9 @@ describe('解析错误', () => {
     // 真正的第一条记录在第 11 行，坏行在第 13 行。
     const session = createWheelSession({
       csvText: csv(
-        '# 名单：每行一家饭店，两列 name,enabled',
+        '# 名单：每行一个候选，两列 name,enabled',
         '#',
-        '# name    饭店名字',
+        '# name    候选的名字',
         '# enabled 写 false / 0 / no 算停用',
         '#',
         '# 空行和 # 开头的注释行会被跳过',
@@ -131,20 +131,20 @@ describe('解析错误', () => {
     expect(session.error).toContain('第 4 行');
   });
 
-  it('缺少店名的行也报出原始行号', () => {
+  it('缺少名字的行也报出原始行号', () => {
     const session = createWheelSession({
       csvText: csv('# 注释', '', '沙县小吃,true', ',true'),
     });
     expect(session.error).toContain('第 4 行');
   });
 
-  it('缺少店名的错误说得出是哪一行、这一行写了什么、该怎么改', () => {
+  it('缺少名字的错误说得出是哪一行、这一行写了什么、该怎么改', () => {
     // 一个手滑的逗号会让整页变成错误提示，那这条提示就得让人一眼知道去改哪里。
     const session = createWheelSession({
       csvText: csv('# 注释', '沙县小吃,true', ',true'),
     });
     expect(session.error).toContain('第 3 行');
-    expect(session.error).toContain('店名');
+    expect(session.error).toContain('名字');
     expect(session.error).toContain(',true');
   });
 
@@ -262,7 +262,7 @@ describe('上盘名单', () => {
     expect(new Set(names(session.lineup)).size).toBe(MAX_SECTORS);
   });
 
-  it('需要抽样时，停用的饭店也永远不进上盘名单', () => {
+  it('需要抽样时，停用的候选也永远不进上盘名单', () => {
     // 20 家启用 + 8 家停用交错排列：无论重抽多少次，停用的名字都不该出现。
     const rows: string[] = [];
     for (let i = 0; i < 20; i += 1) {
@@ -344,7 +344,7 @@ describe('转一次', () => {
     expect(names(session.lineup)).toEqual(before);
   });
 
-  it('给定随机数确定地选出预期的中选饭店', () => {
+  it('给定随机数确定地选出预期的中选候选', () => {
     const csvText = csv('沙县小吃,true', '兰州拉面,true', '黄焖鸡,true', '肯德基,true');
     // 第一次 random 选扇区：floor(r * 4)
     expect(

@@ -9,7 +9,7 @@
 
 import { TAU } from './angles';
 import { PALETTE } from './palette';
-import type { Restaurant } from './session';
+import type { Candidate } from './session';
 
 /**
  * 扇区 i 用的颜色。相邻扇区必然不同色，包括跨 0 度的首尾相邻。
@@ -29,7 +29,7 @@ function sectorColor(index: number, count: number): string {
 }
 
 /**
- * 把店名截到 `maxWidth` 以内，截过就加省略号。长店名绝不许溢出扇区。
+ * 把候选名字截到 `maxWidth` 以内，截过就加省略号。名字再长也绝不许溢出扇区。
  * 按码点截而不是按 UTF-16 单元，免得把 emoji 之类的代理对劈成半个字。
  * 连一个字加省略号都放不下时只留省略号。
  */
@@ -44,7 +44,7 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 }
 
 export interface DrawOptions {
-  readonly lineup: readonly Restaurant[];
+  readonly lineup: readonly Candidate[];
   /** 转盘逆时针转过的弧度。 */
   readonly rotation: number;
   /** 画布的 CSS 边长（正方形）。 */
