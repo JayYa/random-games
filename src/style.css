@@ -37,6 +37,14 @@ body {
   text-align: center;
 }
 
+/* 加载态与加载失败提示：转盘挂载前占位。 */
+.wheel__status {
+  margin: 0;
+  font-size: 1rem;
+  color: #6b6b7b;
+  text-align: center;
+}
+
 .wheel__stage {
   width: 100%;
   display: flex;
