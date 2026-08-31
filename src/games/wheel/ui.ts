@@ -9,6 +9,9 @@ import { burstConfetti } from './confetti';
 
 const TAU = Math.PI * 2;
 
+/** 再高的设备像素比也看不出差别，只会白烧一堆像素。 */
+const MAX_PIXEL_RATIO = 3;
+
 interface WheelElements {
   canvas: HTMLCanvasElement;
   spinButton: HTMLButtonElement;
@@ -66,26 +69,23 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
 
   let rotation = 0;
   let spinning = false;
-  let size = 0;
 
   const render = () => {
     const context = elements.canvas.getContext('2d');
     if (!context) return;
-    const ratio = window.devicePixelRatio || 1;
-    elements.canvas.width = Math.round(size * ratio);
-    elements.canvas.height = Math.round(size * ratio);
-    elements.canvas.style.width = `${size}px`;
-    elements.canvas.style.height = `${size}px`;
+    // 边长完全由 CSS 决定（见 .wheel__canvas：视口短边取正方形），
+    // 这里只负责把像素缓冲对齐到设备像素比，高分屏上才不糊。
+    const size = elements.canvas.clientWidth;
+    if (size === 0) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+    const pixels = Math.round(size * ratio);
+    // 改 width/height 会清空画布并重置上下文，尺寸没变就别动。
+    if (elements.canvas.width !== pixels || elements.canvas.height !== pixels) {
+      elements.canvas.width = pixels;
+      elements.canvas.height = pixels;
+    }
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     drawWheel(context, { lineup: session.lineup, rotation, size });
-  };
-
-  const resize = () => {
-    const stage = elements.canvas.parentElement;
-    const available = stage ? stage.clientWidth : 320;
-    // 转盘按视口短边取正方形，永远保持圆形。
-    size = Math.max(240, Math.min(available, window.innerHeight * 0.6));
-    render();
   };
 
   const setBusy = (busy: boolean) => {
@@ -158,6 +158,11 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     elements.note.textContent = `已从 ${session.rosterSize} 家中随机选出 ${session.lineup.length} 家`;
   }
 
-  window.addEventListener('resize', resize);
-  resize();
+  // 画布尺寸由 CSS 算，元素自己变大变小时重绘一次即可（转屏、地址栏收起都走这条）。
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => render()).observe(elements.canvas);
+  }
+  // 缩放或换屏时 devicePixelRatio 会变而 CSS 尺寸不变，ResizeObserver 收不到。
+  window.addEventListener('resize', render);
+  render();
 }
