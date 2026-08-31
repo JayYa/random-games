@@ -5,9 +5,9 @@
  * 约 5~8 圈 + easeOutCubic，约 3.5 秒。
  */
 
-const TAU = Math.PI * 2;
+import { TAU } from './angles';
 
-export const SPIN_DURATION_MS = 3500;
+const SPIN_DURATION_MS = 3500;
 const MIN_TURNS = 5;
 const MAX_TURNS = 8;
 
@@ -23,26 +23,26 @@ export interface SpinAnimationOptions {
   readonly onFrame: (rotation: number) => void;
   /** 动画结束时的最终角度，已归一化到 `[0, 2π)`。 */
   readonly onDone: (rotation: number) => void;
-  readonly random?: () => number;
 }
 
-/** 播放一次旋转动画。返回一个取消函数。 */
-export function animateSpin(options: SpinAnimationOptions): () => void {
-  const random = options.random ?? Math.random;
-  const turns = MIN_TURNS + Math.floor(random() * (MAX_TURNS - MIN_TURNS + 1));
+/**
+ * 播放一次旋转动画。
+ *
+ * 没有取消：转动期间两个按钮都不响应（故事 10），所以一段动画一旦开始
+ * 就一定会走到 `onDone`，没有谁需要半路把它掐掉。
+ */
+export function animateSpin(options: SpinAnimationOptions): void {
+  const turns = MIN_TURNS + Math.floor(Math.random() * (MAX_TURNS - MIN_TURNS + 1));
   const from = options.from;
   const delta = ((options.targetAngle - from) % TAU + TAU) % TAU + turns * TAU;
   const start = performance.now();
-  let frame = 0;
-  let cancelled = false;
 
   const tick = (now: number) => {
-    if (cancelled) return;
     const t = Math.min(1, (now - start) / SPIN_DURATION_MS);
     const rotation = from + delta * easeOutCubic(t);
     if (t < 1) {
       options.onFrame(rotation);
-      frame = requestAnimationFrame(tick);
+      requestAnimationFrame(tick);
       return;
     }
     const finalRotation = (from + delta) % TAU;
@@ -50,10 +50,5 @@ export function animateSpin(options: SpinAnimationOptions): () => void {
     options.onDone(finalRotation);
   };
 
-  frame = requestAnimationFrame(tick);
-
-  return () => {
-    cancelled = true;
-    cancelAnimationFrame(frame);
-  };
+  requestAnimationFrame(tick);
 }

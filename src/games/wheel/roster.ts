@@ -110,11 +110,16 @@ export function parseRoster(csvText: string): RosterParseResult {
       };
     }
 
+    // 没有店名的行不能悄悄跳过：那等于让一个手滑的逗号无声地删掉一家饭店，
+    // 而 enabled 列写错的后果应该是「这家店还在转盘上」（故事 20）。
+    // 所以报错，但把话说到位——是哪一行、这一行长什么样、怎么改。
     const name = (fields[0] ?? '').trim();
     if (name === '') {
       return {
         restaurants: [],
-        error: `第 ${lineNumber} 行格式有误：缺少饭店名称`,
+        error:
+          `第 ${lineNumber} 行没有店名：这一行是「${trimmed}」，第一个逗号前面是空的。` +
+          `把店名补在这一行开头（写成「店名,true」的样子），或者把整行删掉。`,
       };
     }
 

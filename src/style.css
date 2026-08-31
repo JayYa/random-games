@@ -19,7 +19,10 @@ body {
 .wheel {
   /* 转盘之外的固定部件（标题、提示、两个按钮和它们之间的间距）大致占掉的高度。
      用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。 */
-  --wheel-chrome: 296px;
+  --wheel-chrome-full: 296px;
+  /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
+  --wheel-reshuffle-height: 64px;
+  --wheel-chrome: var(--wheel-chrome-full);
   max-width: 640px;
   margin: 0 auto;
   padding: 24px calc(16px + env(safe-area-inset-right, 0px))
@@ -28,6 +31,12 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 16px;
+}
+
+/* 名单只有 12 家及以下时换一批按钮根本不存在（见 ui.ts），
+   那段高度不该继续替它留着——留着只会让转盘白白矮一截。 */
+.wheel--no-reshuffle {
+  --wheel-chrome: calc(var(--wheel-chrome-full) - var(--wheel-reshuffle-height));
 }
 
 .wheel__title {
@@ -43,7 +52,8 @@ body {
   text-align: center;
 }
 
-/* 加载态与加载失败提示：转盘挂载前占位。 */
+/* 加载态：index.html 里的占位文字，转盘挂载前显示。
+   加载失败不走这里，走整页的 .wheel__error。 */
 .wheel__status {
   margin: 0;
   font-size: 1rem;
@@ -86,7 +96,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.wheel__spin:disabled {
+/* 转动期间按钮是 aria-disabled 而不是 disabled：它得留在 tab 序里，
+   焦点才不会在开转的瞬间掉回 body（见 ui.ts 的 setBusy）。 */
+.wheel__spin[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
 }
@@ -104,7 +116,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.wheel__reshuffle:disabled {
+.wheel__reshuffle[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
 }
@@ -164,7 +176,9 @@ body {
 /* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给转盘。 */
 @media (max-height: 560px) {
   .wheel {
-    --wheel-chrome: 208px;
+    /* 只改这两个量，缺了换一批时该减多少由上面那条规则接着算。 */
+    --wheel-chrome-full: 208px;
+    --wheel-reshuffle-height: 60px;
     padding-top: 12px;
     gap: 12px;
   }
@@ -186,7 +200,7 @@ body {
   pointer-events: none;
 }
 
-/* 名单出错时的整页提示：三类错误共用这一套版式，只是文案不同。 */
+/* 名单出错时的整页提示：四类错误共用这一套版式，只是文案不同。 */
 .wheel__error {
   width: 100%;
   max-width: 32rem;
