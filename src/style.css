@@ -33,7 +33,7 @@ body {
   gap: 16px;
 }
 
-/* 名单只有 12 家及以下时换一批按钮根本不存在（见 ui.ts），
+/* 名单只有 12 个及以下时换一批按钮根本不存在（见 ui.ts），
    那段高度不该继续替它留着——留着只会让转盘白白矮一截。 */
 .wheel--no-reshuffle {
   --wheel-chrome: calc(var(--wheel-chrome-full) - var(--wheel-reshuffle-height));

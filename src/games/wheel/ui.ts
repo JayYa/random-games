@@ -5,7 +5,7 @@
 import { TAU } from './angles';
 import {
   createWheelSession,
-  type Restaurant,
+  type Candidate,
   type RosterStatus,
   type WheelSession,
 } from './session';
@@ -139,15 +139,15 @@ function rosterFailureView(session: WheelSession): FailureView | undefined {
       return {
         kind: 'empty-file',
         title: '名单是空的',
-        detail: `${ROSTER_FILE} 里一条饭店记录都没有——文件是空的，或者只剩空行和 # 注释。`,
-        hint: '在文件里加上几行「店名,true」再刷新页面。',
+        detail: `${ROSTER_FILE} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
+        hint: '在文件里加上几行「名字,true」再刷新页面。',
       };
     case 'all-disabled':
       return {
         kind: 'all-disabled',
-        title: '名单里的饭店全部停用',
-        detail: `名单里的 ${session.disabledCount} 家饭店全都写了 false / 0 / no，一家都没启用，转盘上没东西可放。`,
-        hint: '把想吃的那几家的 enabled 列改成 true，再刷新页面。',
+        title: '名单里的候选全部停用',
+        detail: `名单里的 ${session.disabledCount} 个候选全都写了 false / 0 / no，一个都没启用，转盘上没东西可放。`,
+        hint: '把想要的那几个的 enabled 列改成 true，再刷新页面。',
       };
     default:
       return undefined;
@@ -206,7 +206,7 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     elements.reshuffleButton.setAttribute('aria-disabled', String(busy));
   };
 
-  const showResult = (winner: Restaurant) => {
+  const showResult = (winner: Candidate) => {
     elements.cardName.textContent = winner.name;
     elements.card.hidden = false;
     burstConfetti();
@@ -227,7 +227,7 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     hideResult();
     setBusy(true);
 
-    // 中选饭店在动画开始前已确定，旋转只是把它演出来。
+    // 中选候选在动画开始前已确定，旋转只是把它演出来。
     const { winner, targetAngle } = session.spin();
 
     animateSpin({
@@ -261,9 +261,9 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
 
   if (session.isSampled) {
     // 走到这里名单一定是好的：有毛病的名单在上面已经换成整页的错误提示了。
-    elements.note.textContent = `已从 ${session.enabledCount} 家中随机选出 ${session.lineup.length} 家`;
+    elements.note.textContent = `已从 ${session.enabledCount} 个中随机选出 ${session.lineup.length} 个`;
   } else {
-    // ≤ 12 家时上盘名单不是抽出来的，换一批没有意义，按钮整个不存在。
+    // ≤ 12 个时上盘名单不是抽出来的，换一批没有意义，按钮整个不存在。
     // 按钮不在了，留给它的那段高度也得还给转盘，否则转盘白白矮一截。
     elements.reshuffleButton.remove();
     elements.shell.classList.add('wheel--no-reshuffle');
