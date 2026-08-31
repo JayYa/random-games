@@ -144,3 +144,35 @@ body {
   z-index: 10;
   pointer-events: none;
 }
+
+/* 名单出错时的整页提示：三类错误共用这一套版式，只是文案不同。 */
+.wheel__error {
+  width: 100%;
+  max-width: 32rem;
+  box-sizing: border-box;
+  padding: 1rem 1.1rem;
+  border: 1px solid #e6b4b4;
+  border-radius: 12px;
+  background: #fff6f6;
+  text-align: left;
+}
+
+.wheel__error-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #a12f2f;
+}
+
+.wheel__error-detail {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: #4a3a3a;
+  overflow-wrap: anywhere;
+}
+
+.wheel__error-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b6b7b;
+}

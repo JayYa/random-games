@@ -89,20 +89,136 @@ describe('解析错误', () => {
     expect(session.error).toContain('第 6 行');
   });
 
-  it('空文件解析成功但上盘名单为空', () => {
-    const session = createWheelSession({ csvText: '' });
-    expect(session.error).toBeUndefined();
+  it('前部有整段注释与空行时，行号仍指向文件里的那一行', () => {
+    // 照着 public/restaurants.csv 的样子：文件开头是一大段说明注释和空行，
+    // 真正的第一条记录在第 11 行，坏行在第 13 行。
+    const session = createWheelSession({
+      csvText: csv(
+        '# 名单：每行一家饭店，两列 name,enabled',
+        '#',
+        '# name    饭店名字',
+        '# enabled 写 false / 0 / no 算停用',
+        '#',
+        '# 空行和 # 开头的注释行会被跳过',
+        '',
+        '   ',
+        '\t',
+        '',
+        '沙县小吃,true',
+        '兰州拉面,true',
+        '"老王烧烤, 二店,true',
+        '黄焖鸡米饭,true',
+      ),
+    });
+    expect(session.error).toContain('第 13 行');
+    expect(session.error).not.toContain('第 3 行');
+  });
+
+  it('每一行都可能是坏行时，行号逐行对得上', () => {
+    // 把同一个坏行放在文件的每一个位置上，报出的行号必须跟着走。
+    for (let badLine = 1; badLine <= 8; badLine += 1) {
+      const rows = ['# 头注释', '', '沙县小吃,true', '', '# 中间注释', '兰州拉面,true', '', '黄焖鸡,true'];
+      rows[badLine - 1] = '"没关引号,true';
+      const session = createWheelSession({ csvText: csv(...rows) });
+      expect(session.error).toContain(`第 ${badLine} 行`);
+    }
+  });
+
+  it('CRLF 换行不会让行号错位', () => {
+    const session = createWheelSession({
+      csvText: ['# 注释', '', '沙县小吃,true', '"没关引号,true'].join('\r\n'),
+    });
+    expect(session.error).toContain('第 4 行');
+  });
+
+  it('缺少店名的行也报出原始行号', () => {
+    const session = createWheelSession({
+      csvText: csv('# 注释', '', '沙县小吃,true', ',true'),
+    });
+    expect(session.error).toContain('第 4 行');
+  });
+
+  it('引号闭合后有多余内容也算坏行', () => {
+    const session = createWheelSession({
+      csvText: csv('# 注释', '沙县小吃,true', '"老王烧烤" 二店,true'),
+    });
+    expect(session.error).toContain('第 3 行');
+  });
+
+  it('有多个坏行时报的是第一个', () => {
+    const session = createWheelSession({
+      csvText: csv('沙县小吃,true', '"坏一,true', '兰州拉面,true', '"坏二,true'),
+    });
+    expect(session.error).toContain('第 2 行');
+    expect(session.error).not.toContain('第 4 行');
+  });
+
+  it('坏行让上盘名单为空且状态是 parse-error', () => {
+    const session = createWheelSession({ csvText: csv('沙县小吃,true', '"没关引号,true') });
+    expect(session.status).toBe('parse-error');
     expect(session.lineup).toEqual([]);
     expect(session.rosterSize).toBe(0);
   });
+});
 
-  it('全部停用与解析失败是可区分的状态', () => {
+describe('转不起来的三种名单状态', () => {
+  it('空文件解析成功，状态是 empty-file', () => {
+    const session = createWheelSession({ csvText: '' });
+    expect(session.error).toBeUndefined();
+    expect(session.status).toBe('empty-file');
+    expect(session.lineup).toEqual([]);
+    expect(session.rosterSize).toBe(0);
+    expect(session.disabledCount).toBe(0);
+  });
+
+  it('只剩空行与注释的文件同样是 empty-file', () => {
+    const session = createWheelSession({
+      csvText: csv('# 名单说明', '', '   ', '# 这里本来有几家店'),
+    });
+    expect(session.status).toBe('empty-file');
+    expect(session.disabledCount).toBe(0);
+  });
+
+  it('全部停用的名单状态是 all-disabled，且数得出停用了几家', () => {
+    const session = createWheelSession({
+      csvText: csv('沙县小吃,false', '兰州拉面,0', '黄焖鸡,no'),
+    });
+    expect(session.error).toBeUndefined();
+    expect(session.status).toBe('all-disabled');
+    expect(session.rosterSize).toBe(0);
+    expect(session.disabledCount).toBe(3);
+  });
+
+  it('空文件与全部停用是两个可区分的状态', () => {
+    const emptyFile = createWheelSession({ csvText: '' });
     const allDisabled = createWheelSession({ csvText: csv('沙县小吃,false', '兰州拉面,0') });
-    expect(allDisabled.error).toBeUndefined();
-    expect(allDisabled.rosterSize).toBe(0);
 
+    // 两者的上盘名单都是空的，光看上盘名单分辨不出来——所以状态必须不同。
+    expect(emptyFile.lineup).toEqual([]);
+    expect(allDisabled.lineup).toEqual([]);
+    expect(emptyFile.status).not.toBe(allDisabled.status);
+    expect(emptyFile.disabledCount).toBe(0);
+    expect(allDisabled.disabledCount).toBe(2);
+  });
+
+  it('解析失败、空文件、全部停用三者的状态互不相同', () => {
     const broken = createWheelSession({ csvText: '"沙县小吃,false' });
+    const emptyFile = createWheelSession({ csvText: '\n\n# 只有注释\n' });
+    const allDisabled = createWheelSession({ csvText: csv('沙县小吃,false') });
+    const ok = createWheelSession({ csvText: csv('沙县小吃,true') });
+
+    const states = [broken.status, emptyFile.status, allDisabled.status, ok.status];
+    expect(new Set(states).size).toBe(4);
     expect(broken.error).toBeDefined();
+    expect(emptyFile.error).toBeUndefined();
+    expect(allDisabled.error).toBeUndefined();
+  });
+
+  it('名单好的时候状态是 ok', () => {
+    const session = createWheelSession({ csvText: csv('沙县小吃,true', '关门大吉,false') });
+    expect(session.status).toBe('ok');
+    expect(session.rosterSize).toBe(1);
+    expect(session.disabledCount).toBe(1);
   });
 });
 
