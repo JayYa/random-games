@@ -2,17 +2,22 @@
  * 渲染层：DOM 事件、Canvas 绘制、结果卡片。薄，不测。
  */
 
-import { createWheelSession, type WheelSession } from './session';
+import { TAU } from './angles';
+import {
+  createWheelSession,
+  type Restaurant,
+  type RosterStatus,
+  type WheelSession,
+} from './session';
 import { drawWheel } from './wheelCanvas';
 import { animateSpin } from './spinAnimation';
 import { burstConfetti } from './confetti';
-
-const TAU = Math.PI * 2;
 
 /** 再高的设备像素比也看不出差别，只会白烧一堆像素。 */
 const MAX_PIXEL_RATIO = 3;
 
 interface WheelElements {
+  shell: HTMLElement;
   canvas: HTMLCanvasElement;
   spinButton: HTMLButtonElement;
   reshuffleButton: HTMLButtonElement;
@@ -24,7 +29,7 @@ interface WheelElements {
 
 function buildDom(root: HTMLElement): WheelElements {
   root.innerHTML = `
-    <main class="wheel">
+    <main class="wheel" id="wheel-shell">
       <h1 class="wheel__title">今天吃哪家</h1>
       <p class="wheel__note" id="wheel-note"></p>
       <div class="wheel__stage">
@@ -49,6 +54,7 @@ function buildDom(root: HTMLElement): WheelElements {
   };
 
   return {
+    shell: byId<HTMLElement>('wheel-shell'),
     canvas: byId<HTMLCanvasElement>('wheel-canvas'),
     spinButton: byId<HTMLButtonElement>('wheel-spin'),
     reshuffleButton: byId<HTMLButtonElement>('wheel-reshuffle'),
@@ -70,8 +76,13 @@ const ROSTER_FILE = 'public/restaurants.csv';
  * 绝不留一个空转盘让人以为是转盘本身坏了。
  */
 interface FailureView {
-  /** 区分错误种类的标记，也方便在 DOM 里一眼认出是哪一种。 */
-  readonly kind: 'load' | 'parse' | 'empty-file' | 'all-disabled';
+  /**
+   * 区分错误种类的标记，也方便在 DOM 里一眼认出是哪一种。
+   *
+   * 三种名单毛病直接沿用会话的状态名，不另起一套叫法——否则两边迟早会各说各的。
+   * `'load'` 是多出来的那一种：文件根本没取回来，还没轮到会话，所以它不是名单状态。
+   */
+  readonly kind: Exclude<RosterStatus, 'ok'> | 'load';
   readonly title: string;
   readonly detail: string;
   readonly hint: string;
@@ -118,11 +129,11 @@ function rosterFailureView(session: WheelSession): FailureView | undefined {
   switch (session.status) {
     case 'parse-error':
       return {
-        kind: 'parse',
+        kind: 'parse-error',
         title: '名单里有一行读不懂',
-        // session.error 带的是文件中的原始行号，照着去改那一行就行。
+        // session.error 带的是文件中的原始行号和这一行到底哪里不对，照着去改就行。
         detail: session.error ?? '名单解析失败',
-        hint: `打开 ${ROSTER_FILE} 改掉这一行（多半是引号没闭合），再刷新页面。`,
+        hint: `打开 ${ROSTER_FILE}，按上面说的行号改掉那一行，再刷新页面。`,
       };
     case 'empty-file':
       return {
@@ -135,7 +146,7 @@ function rosterFailureView(session: WheelSession): FailureView | undefined {
       return {
         kind: 'all-disabled',
         title: '名单里的饭店全部停用',
-        detail: `名单里有 ${session.disabledCount} 家饭店，但每一家都写了 false / 0 / no，没有一家能上转盘。`,
+        detail: `名单里的 ${session.disabledCount} 家饭店全都写了 false / 0 / no，一家都没启用，转盘上没东西可放。`,
         hint: '把想吃的那几家的 enabled 列改成 true，再刷新页面。',
       };
     default:
@@ -180,15 +191,23 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     drawWheel(context, { lineup: session.lineup, rotation, size });
   };
 
+  /**
+   * 转动期间两个按钮都不响应。
+   *
+   * 用 `aria-disabled` 而不是 `disabled`：`disabled` 的按钮不可聚焦，
+   * 焦点会在按下"转"的瞬间掉回 `<body>`，键盘和读屏的人在 3.5 秒里
+   * 无处可去，转完还得重新找按钮。`aria-disabled` 同样宣告"现在按不动"，
+   * 但按钮还留在 tab 序里，焦点不会丢——真正的拦截由下面的守卫做。
+   */
   const setBusy = (busy: boolean) => {
     spinning = busy;
-    elements.spinButton.disabled = busy;
+    elements.spinButton.setAttribute('aria-disabled', String(busy));
     // 转动期间不能换一批：盘面绝不能在一次转动中途被换掉。
-    elements.reshuffleButton.disabled = busy;
+    elements.reshuffleButton.setAttribute('aria-disabled', String(busy));
   };
 
-  const showResult = (name: string) => {
-    elements.cardName.textContent = name;
+  const showResult = (winner: Restaurant) => {
+    elements.cardName.textContent = winner.name;
     elements.card.hidden = false;
     burstConfetti();
     elements.cardClose.focus();
@@ -198,11 +217,12 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     // 卡片本来就没开时什么都不做，免得抢走当前按钮的焦点。
     if (elements.card.hidden) return;
     elements.card.hidden = true;
+    // 卡片上的按钮即将从可聚焦的位置消失，焦点得有地方去：交回"转"。
     elements.spinButton.focus();
   };
 
-  elements.spinButton.addEventListener('click', () => {
-    // 转动期间按钮失效，连续点击不会叠加或打断动画。
+  const startSpin = () => {
+    // 转动期间不受理，连续点击不会叠加或打断动画。
     if (spinning || session.lineup.length === 0) return;
     hideResult();
     setBusy(true);
@@ -219,10 +239,12 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
       },
       onDone: () => {
         setBusy(false);
-        showResult(winner.name);
+        showResult(winner);
       },
     });
-  });
+  };
+
+  elements.spinButton.addEventListener('click', startSpin);
 
   elements.reshuffleButton.addEventListener('click', () => {
     if (spinning) return;
@@ -232,16 +254,19 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     render();
   });
 
-  elements.cardClose.addEventListener('click', hideResult);
+  // 卡片上的按钮写着"再转一次"，那它就得真的再转一次：收掉卡片并立刻开转。
+  // 转动期间它够不着——卡片只在转停之后才出现——但 startSpin 自己也拦着，
+  // 无论如何都叠不出第二次转动。
+  elements.cardClose.addEventListener('click', startSpin);
 
-  // ≤ 12 家时上盘名单不是抽出来的，换一批没有意义，按钮整个不存在。
-  if (!session.isSampled) {
-    elements.reshuffleButton.remove();
-  }
-
-  // 走到这里名单一定是好的：有毛病的名单在上面已经换成整页的错误提示了。
   if (session.isSampled) {
-    elements.note.textContent = `已从 ${session.rosterSize} 家中随机选出 ${session.lineup.length} 家`;
+    // 走到这里名单一定是好的：有毛病的名单在上面已经换成整页的错误提示了。
+    elements.note.textContent = `已从 ${session.enabledCount} 家中随机选出 ${session.lineup.length} 家`;
+  } else {
+    // ≤ 12 家时上盘名单不是抽出来的，换一批没有意义，按钮整个不存在。
+    // 按钮不在了，留给它的那段高度也得还给转盘，否则转盘白白矮一截。
+    elements.reshuffleButton.remove();
+    elements.shell.classList.add('wheel--no-reshuffle');
   }
 
   // 画布尺寸由 CSS 算，元素自己变大变小时重绘一次即可（转屏、地址栏收起都走这条）。

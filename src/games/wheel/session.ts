@@ -8,6 +8,7 @@
  * 注入的 `random` 是这个模块唯一的不确定性来源。
  */
 
+import { TAU } from './angles';
 import { parseRoster, type Restaurant } from './roster';
 
 export type { Restaurant };
@@ -57,23 +58,24 @@ export type RosterStatus =
 export interface WheelSession {
   /** 本次画在转盘上的饭店，长度 ≤ 12。 */
   readonly lineup: readonly Restaurant[];
-  /** 名单中启用的饭店总数。 */
-  readonly rosterSize: number;
+  /**
+   * 名单中启用的饭店总数。注意它不是名单的规模：名单还包含停用的饭店，
+   * 这个数只数得上转盘的那些。
+   */
+  readonly enabledCount: number;
   /** 名单中停用的饭店数。空文件与「全部停用」靠它区分得开。 */
   readonly disabledCount: number;
   /** 名单的状态，四种取值互不重叠。 */
   readonly status: RosterStatus;
-  /** 上盘名单是抽样得来的，即 `rosterSize > 12`。 */
+  /** 上盘名单是抽样得来的，即 `enabledCount > 12`。 */
   readonly isSampled: boolean;
   /** 解析失败的描述（含行号），或 undefined。 */
   readonly error?: string;
-  /** 换一批：重新抽取上盘名单。`rosterSize ≤ 12` 时无操作。 */
+  /** 换一批：重新抽取上盘名单。`enabledCount ≤ 12` 时无操作。 */
   reshuffle(): void;
   /** 转一次：选出中选饭店并反算目标角度。不改变上盘名单。 */
   spin(): SpinResult;
 }
-
-const TAU = Math.PI * 2;
 
 /** 从 `pool` 中随机抽出 `count` 家（部分 Fisher–Yates）。 */
 function sample(pool: readonly Restaurant[], count: number, random: RandomSource): Restaurant[] {
@@ -88,8 +90,19 @@ function sample(pool: readonly Restaurant[], count: number, random: RandomSource
 }
 
 /**
- * 把 `[0, 1)` 的随机数映射到扇区内的落点比例，
- * 留出边缘余量并且永远避开正中 0.5——否则每次都停得过于整齐。
+ * 把 `[0, 1)` 的随机数映射到扇区内的落点比例。
+ *
+ * 值域是 `[0.10, 0.48) ∪ [0.52, 0.90)`，两条带子各占扇区的 38%，
+ * 落在哪条、带子里的哪一点，都还是均匀的——中选饭店已经选完了，
+ * 这个映射只决定「停在这一格的什么位置」，不影响谁中选（故事 12）。
+ *
+ * 两头各留 10% 的边距：指针有实际宽度，落点贴着扇区边界时，
+ * 肉眼会觉得指针正卡在两家店中间，说不清到底转出了哪一家（故事 4）。
+ * 中间挖掉 0.48–0.52：规格只要求落点不恰好等于扇区正中（故事 6），
+ * 但只避开一个点仍会经常停在正中肉眼可辨的邻域里，看着像是摆好的。
+ *
+ * 这两个数字都是观感取舍，不是正确性约束；真正被测试钉住的是
+ * 「落点始终在扇区内部、离两边有余量、且不在正中」。
  */
 function sectorOffset(r: number): number {
   return r < 0.5 ? 0.1 + r * 0.76 : 0.52 + (r - 0.5) * 0.76;
@@ -99,9 +112,9 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
   const random = options.random ?? Math.random;
   const { restaurants, error } = parseRoster(options.csvText);
   const enabled = restaurants.filter((restaurant) => restaurant.enabled);
-  const rosterSize = enabled.length;
-  const disabledCount = restaurants.length - rosterSize;
-  const isSampled = rosterSize > MAX_SECTORS;
+  const enabledCount = enabled.length;
+  const disabledCount = restaurants.length - enabledCount;
+  const isSampled = enabledCount > MAX_SECTORS;
 
   // 空文件和「全部停用」都得到空的上盘名单，但它们是两种不同的毛病，
   // 得让渲染层说得出是哪一种。
@@ -109,7 +122,7 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
     ? 'parse-error'
     : restaurants.length === 0
       ? 'empty-file'
-      : rosterSize === 0
+      : enabledCount === 0
         ? 'all-disabled'
         : 'ok';
 
@@ -122,7 +135,7 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
     get lineup() {
       return lineup;
     },
-    rosterSize,
+    enabledCount,
     disabledCount,
     status,
     isSampled,

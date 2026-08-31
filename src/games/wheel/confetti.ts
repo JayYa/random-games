@@ -6,8 +6,8 @@
  * 保证它在存在期间也不会挡住结果卡片上的"再转一次"。
  */
 
-/** 与转盘扇区同一组调色板，让撒花看起来是从转盘里飞出来的。 */
-const COLORS = ['#f4736e', '#f7b267', '#f6d55c', '#7fc8a9', '#5aa9e6', '#b28ae0'];
+import { TAU } from './angles';
+import { PALETTE } from './palette';
 
 const PARTICLE_COUNT = 120;
 const DURATION_MS = 2200;
@@ -44,9 +44,9 @@ function createParticles(width: number, height: number, random: () => number): P
       vy: Math.sin(angle) * speed,
       width: 6 + random() * 6,
       height: 9 + random() * 8,
-      angle: random() * Math.PI * 2,
+      angle: random() * TAU,
       spin: (random() - 0.5) * 0.02,
-      color: COLORS[Math.floor(random() * COLORS.length)]!,
+      color: PALETTE[Math.floor(random() * PALETTE.length)]!,
     });
   }
   return particles;
@@ -56,16 +56,16 @@ let stopCurrent: (() => void) | null = null;
 
 /**
  * 放一阵撒花。重复调用会先收掉上一阵，所以连着转两次不会越堆越多。
- * 返回一个提前收场的函数。
  */
-export function burstConfetti(random: () => number = Math.random): () => void {
+export function burstConfetti(): void {
+  // 上一阵还没落完就又转了一次：先收掉旧的那块画布，纸屑才不会越积越厚。
   stopCurrent?.();
 
   const canvas = document.createElement('canvas');
   canvas.className = 'confetti';
   canvas.setAttribute('aria-hidden', 'true');
   const context = canvas.getContext('2d');
-  if (!context) return () => {};
+  if (!context) return;
 
   const ratio = window.devicePixelRatio || 1;
   const width = window.innerWidth;
@@ -77,7 +77,7 @@ export function burstConfetti(random: () => number = Math.random): () => void {
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   document.body.appendChild(canvas);
 
-  const particles = createParticles(width, height, random);
+  const particles = createParticles(width, height, Math.random);
   let frame = 0;
   let last = performance.now();
   const start = last;
@@ -128,5 +128,4 @@ export function burstConfetti(random: () => number = Math.random): () => void {
 
   frame = requestAnimationFrame(tick);
   stopCurrent = cleanUp;
-  return cleanUp;
 }

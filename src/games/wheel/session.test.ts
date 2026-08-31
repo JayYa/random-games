@@ -58,7 +58,7 @@ describe('解析名单', () => {
   it.each(['false', 'FALSE', ' False ', '0', 'no', 'NO', 'No'])('%s 算停用', (marker) => {
     const session = createWheelSession({ csvText: csv(`沙县小吃,${marker}`, '兰州拉面,true') });
     expect(names(session.lineup)).toEqual(['兰州拉面']);
-    expect(session.rosterSize).toBe(1);
+    expect(session.enabledCount).toBe(1);
   });
 
   it.each(['true', 'yes', '1', 'y', '随便写点什么', ' '])('%s 算启用', (marker) => {
@@ -71,7 +71,7 @@ describe('解析名单', () => {
       csvText: csv('沙县小吃,true', '关门大吉,false', '兰州拉面,no'),
     });
     expect(names(session.lineup)).toEqual(['沙县小吃']);
-    expect(session.rosterSize).toBe(1);
+    expect(session.enabledCount).toBe(1);
   });
 });
 
@@ -138,6 +138,16 @@ describe('解析错误', () => {
     expect(session.error).toContain('第 4 行');
   });
 
+  it('缺少店名的错误说得出是哪一行、这一行写了什么、该怎么改', () => {
+    // 一个手滑的逗号会让整页变成错误提示，那这条提示就得让人一眼知道去改哪里。
+    const session = createWheelSession({
+      csvText: csv('# 注释', '沙县小吃,true', ',true'),
+    });
+    expect(session.error).toContain('第 3 行');
+    expect(session.error).toContain('店名');
+    expect(session.error).toContain(',true');
+  });
+
   it('引号闭合后有多余内容也算坏行', () => {
     const session = createWheelSession({
       csvText: csv('# 注释', '沙县小吃,true', '"老王烧烤" 二店,true'),
@@ -157,7 +167,7 @@ describe('解析错误', () => {
     const session = createWheelSession({ csvText: csv('沙县小吃,true', '"没关引号,true') });
     expect(session.status).toBe('parse-error');
     expect(session.lineup).toEqual([]);
-    expect(session.rosterSize).toBe(0);
+    expect(session.enabledCount).toBe(0);
   });
 });
 
@@ -167,7 +177,7 @@ describe('转不起来的三种名单状态', () => {
     expect(session.error).toBeUndefined();
     expect(session.status).toBe('empty-file');
     expect(session.lineup).toEqual([]);
-    expect(session.rosterSize).toBe(0);
+    expect(session.enabledCount).toBe(0);
     expect(session.disabledCount).toBe(0);
   });
 
@@ -185,7 +195,7 @@ describe('转不起来的三种名单状态', () => {
     });
     expect(session.error).toBeUndefined();
     expect(session.status).toBe('all-disabled');
-    expect(session.rosterSize).toBe(0);
+    expect(session.enabledCount).toBe(0);
     expect(session.disabledCount).toBe(3);
   });
 
@@ -217,7 +227,7 @@ describe('转不起来的三种名单状态', () => {
   it('名单好的时候状态是 ok', () => {
     const session = createWheelSession({ csvText: csv('沙县小吃,true', '关门大吉,false') });
     expect(session.status).toBe('ok');
-    expect(session.rosterSize).toBe(1);
+    expect(session.enabledCount).toBe(1);
     expect(session.disabledCount).toBe(1);
   });
 });
@@ -227,7 +237,7 @@ describe('上盘名单', () => {
     const session = createWheelSession({ csvText: roster(12) });
     expect(session.lineup).toHaveLength(MAX_SECTORS);
     expect(session.isSampled).toBe(false);
-    expect(session.rosterSize).toBe(12);
+    expect(session.enabledCount).toBe(12);
   });
 
   it('12 家及以下时换一批不改变上盘名单', () => {
@@ -241,7 +251,7 @@ describe('上盘名单', () => {
     const session = createWheelSession({ csvText: roster(13), random: scriptedRandom([0.4]) });
     expect(session.lineup).toHaveLength(MAX_SECTORS);
     expect(session.isSampled).toBe(true);
-    expect(session.rosterSize).toBe(13);
+    expect(session.enabledCount).toBe(13);
   });
 
   it('抽样得到的上盘名单没有重复', () => {
@@ -264,7 +274,7 @@ describe('上盘名单', () => {
       csvText: csv(...rows),
       random: scriptedRandom([0.03, 0.97, 0.41, 0.6, 0.19, 0.78, 0.5, 0.26, 0.91]),
     });
-    expect(session.rosterSize).toBe(20);
+    expect(session.enabledCount).toBe(20);
     expect(session.isSampled).toBe(true);
 
     for (let round = 0; round < 30; round += 1) {
@@ -384,6 +394,28 @@ describe('转一次', () => {
       }
     }
   }
+
+  it('落点始终在扇区内部，离两条边界都有余量', () => {
+    // 指针有实际宽度：落点贴着扇区边界时，肉眼说不清转出的是哪一家（故事 4）。
+    // 这里要的是"离边界有余量"这条性质，所以只钉一个宽松的下限（扇区的 5%），
+    // 不去钉实现里那条具体的映射带。
+    const margin = 0.05;
+    for (const size of [1, 2, 3, 5, 12]) {
+      const sectorAngle = TAU / size;
+      for (let index = 0; index < size; index += 1) {
+        for (let step = 0; step <= 20; step += 1) {
+          const session = createWheelSession({
+            csvText: roster(size),
+            random: scriptedRandom([(index + 0.5) / size, Math.min(step / 20, 0.999999)]),
+          });
+          const { targetAngle } = session.spin();
+          const withinSector = targetAngle - index * sectorAngle;
+          expect(withinSector).toBeGreaterThanOrEqual(margin * sectorAngle);
+          expect(withinSector).toBeLessThanOrEqual((1 - margin) * sectorAngle);
+        }
+      }
+    }
+  });
 
   it('落点不恰好等于扇区正中', () => {
     const size = 8;

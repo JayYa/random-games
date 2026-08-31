@@ -7,17 +7,14 @@
  * 恰好是 `rotation mod 2π`。
  */
 
+import { TAU } from './angles';
+import { PALETTE } from './palette';
 import type { Restaurant } from './session';
-
-/** 固定调色板，扇区颜色按索引在其中循环。 */
-const PALETTE = ['#f4736e', '#f7b267', '#f6d55c', '#7fc8a9', '#5aa9e6', '#b28ae0'];
-
-const TAU = Math.PI * 2;
 
 /**
  * 扇区 i 用的颜色。相邻扇区必然不同色，包括跨 0 度的首尾相邻。
  */
-export function sectorColor(index: number, count: number): string {
+function sectorColor(index: number, count: number): string {
   const base = index % PALETTE.length;
   const isLast = index === count - 1 && count > 1;
   if (!isLast) return PALETTE[base]!;
