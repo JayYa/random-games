@@ -14,63 +14,119 @@ function scriptedRandom(values: number[]): () => number {
 }
 
 function names(lineup: readonly { name: string }[]): string[] {
-  return lineup.map((restaurant) => restaurant.name);
+  return lineup.map((candidate) => candidate.name);
+}
+
+/**
+ * 上盘名单总是打乱过的，所以名字只能按集合比。
+ * 顺序另有专门的用例去钉，这里不该顺带把 CSV 顺序又写死一遍。
+ */
+function expectSameNames(lineup: readonly { name: string }[], expected: string[]): void {
+  expect([...names(lineup)].sort()).toEqual([...expected].sort());
+}
+
+/**
+ * 一个「取上盘名单时随便给，转一次时给我排好的数」的随机源。
+ *
+ * 会话一建好，上盘名单就已经抽完了——它为此取了几个随机数是它自己的事，
+ * 用例既不知道也不该知道。`stage()` 排的两个数只会落到接下来那次 `spin()` 上：
+ * 先选扇区，再选扇区内的落点。
+ *
+ * 这样角度的用例才只钉「转一次」这件事本身，打乱怎么实现都动不了它们。
+ */
+interface StagedRandom {
+  /** 交给 `createWheelSession` 的随机源。 */
+  readonly random: () => number;
+  /** 排下一次 `spin()` 要用的两个数：选扇区的，和选扇区内落点的。 */
+  stage(sectorSeed: number, offsetSeed: number): void;
+}
+
+function stagedRandom(idle = 0.5): StagedRandom {
+  const queue: number[] = [];
+  return {
+    random: () => (queue.length > 0 ? queue.shift()! : idle),
+    stage(sectorSeed, offsetSeed) {
+      queue.length = 0;
+      queue.push(sectorSeed, offsetSeed);
+    },
+  };
+}
+
+/**
+ * 一个确定但各不相同的伪随机源（mulberry32）：种子不同，数列就不同，
+ * 同一个种子永远给出同一串数。用来把一条性质放在几十个种子上过一遍，
+ * 而不是只钉一个碰巧成立的种子。
+ */
+function seededRandom(seed: number): () => number {
+  let state = (seed * 0x6d2b79f5) >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function csv(...lines: string[]): string {
   return lines.join('\n');
 }
 
-/** 生成 n 家启用的饭店。 */
+/** 生成 n 个启用的候选。 */
 function roster(count: number): string {
-  return Array.from({ length: count }, (_, i) => `店${i + 1},true`).join('\n');
+  return Array.from({ length: count }, (_, i) => `候选${i + 1},true`).join('\n');
+}
+
+/** `roster(n)` 里那 n 个名字，按 CSV 里的书写顺序。 */
+function rosterNames(count: number): string[] {
+  return Array.from({ length: count }, (_, i) => `候选${i + 1}`);
 }
 
 describe('解析名单', () => {
-  it('读出普通行的店名', () => {
+  it('读出普通行的名字', () => {
     const session = createWheelSession({ csvText: csv('沙县小吃,true', '兰州拉面,true') });
-    expect(names(session.lineup)).toEqual(['沙县小吃', '兰州拉面']);
+    expectSameNames(session.lineup, ['沙县小吃', '兰州拉面']);
     expect(session.error).toBeUndefined();
   });
 
-  it('双引号包裹的店名可以含逗号', () => {
+  it('双引号包裹的名字可以含逗号', () => {
     const session = createWheelSession({ csvText: csv('"老王烧烤, 二店",true') });
-    expect(names(session.lineup)).toEqual(['老王烧烤, 二店']);
+    expectSameNames(session.lineup, ['老王烧烤, 二店']);
   });
 
   it('双写引号是一个引号', () => {
     const session = createWheelSession({ csvText: csv('"老王""烧烤""",true') });
-    expect(names(session.lineup)).toEqual(['老王"烧烤"']);
+    expectSameNames(session.lineup, ['老王"烧烤"']);
   });
 
   it('跳过空行与 # 注释行', () => {
     const session = createWheelSession({
       csvText: csv('# name,enabled', '', '沙县小吃,true', '   ', '# 下面是新店', '兰州拉面,true'),
     });
-    expect(names(session.lineup)).toEqual(['沙县小吃', '兰州拉面']);
+    expectSameNames(session.lineup, ['沙县小吃', '兰州拉面']);
   });
 
   it('缺少 enabled 列算启用', () => {
     const session = createWheelSession({ csvText: csv('沙县小吃', '兰州拉面,') });
-    expect(names(session.lineup)).toEqual(['沙县小吃', '兰州拉面']);
+    expectSameNames(session.lineup, ['沙县小吃', '兰州拉面']);
   });
 
   it.each(['false', 'FALSE', ' False ', '0', 'no', 'NO', 'No'])('%s 算停用', (marker) => {
     const session = createWheelSession({ csvText: csv(`沙县小吃,${marker}`, '兰州拉面,true') });
-    expect(names(session.lineup)).toEqual(['兰州拉面']);
+    expectSameNames(session.lineup, ['兰州拉面']);
     expect(session.enabledCount).toBe(1);
   });
 
   it.each(['true', 'yes', '1', 'y', '随便写点什么', ' '])('%s 算启用', (marker) => {
     const session = createWheelSession({ csvText: csv(`沙县小吃,${marker}`) });
-    expect(names(session.lineup)).toEqual(['沙县小吃']);
+    expectSameNames(session.lineup, ['沙县小吃']);
   });
 
-  it('停用的饭店不进入上盘名单', () => {
+  it('停用的候选不进入上盘名单', () => {
     const session = createWheelSession({
       csvText: csv('沙县小吃,true', '关门大吉,false', '兰州拉面,no'),
     });
-    expect(names(session.lineup)).toEqual(['沙县小吃']);
+    expectSameNames(session.lineup, ['沙县小吃']);
     expect(session.enabledCount).toBe(1);
   });
 });
@@ -90,13 +146,13 @@ describe('解析错误', () => {
   });
 
   it('前部有整段注释与空行时，行号仍指向文件里的那一行', () => {
-    // 照着 public/restaurants.csv 的样子：文件开头是一大段说明注释和空行，
+    // 照着 public/eat.csv 的样子：文件开头是一大段说明注释和空行，
     // 真正的第一条记录在第 11 行，坏行在第 13 行。
     const session = createWheelSession({
       csvText: csv(
-        '# 名单：每行一家饭店，两列 name,enabled',
+        '# 名单：每行一个候选，两列 name,enabled',
         '#',
-        '# name    饭店名字',
+        '# name    候选的名字',
         '# enabled 写 false / 0 / no 算停用',
         '#',
         '# 空行和 # 开头的注释行会被跳过',
@@ -131,20 +187,20 @@ describe('解析错误', () => {
     expect(session.error).toContain('第 4 行');
   });
 
-  it('缺少店名的行也报出原始行号', () => {
+  it('缺少名字的行也报出原始行号', () => {
     const session = createWheelSession({
       csvText: csv('# 注释', '', '沙县小吃,true', ',true'),
     });
     expect(session.error).toContain('第 4 行');
   });
 
-  it('缺少店名的错误说得出是哪一行、这一行写了什么、该怎么改', () => {
+  it('缺少名字的错误说得出是哪一行、这一行写了什么、该怎么改', () => {
     // 一个手滑的逗号会让整页变成错误提示，那这条提示就得让人一眼知道去改哪里。
     const session = createWheelSession({
       csvText: csv('# 注释', '沙县小吃,true', ',true'),
     });
     expect(session.error).toContain('第 3 行');
-    expect(session.error).toContain('店名');
+    expect(session.error).toContain('名字');
     expect(session.error).toContain(',true');
   });
 
@@ -183,13 +239,13 @@ describe('转不起来的三种名单状态', () => {
 
   it('只剩空行与注释的文件同样是 empty-file', () => {
     const session = createWheelSession({
-      csvText: csv('# 名单说明', '', '   ', '# 这里本来有几家店'),
+      csvText: csv('# 名单说明', '', '   ', '# 这里本来有几个候选'),
     });
     expect(session.status).toBe('empty-file');
     expect(session.disabledCount).toBe(0);
   });
 
-  it('全部停用的名单状态是 all-disabled，且数得出停用了几家', () => {
+  it('全部停用的名单状态是 all-disabled，且数得出停用了几个', () => {
     const session = createWheelSession({
       csvText: csv('沙县小吃,false', '兰州拉面,0', '黄焖鸡,no'),
     });
@@ -233,21 +289,75 @@ describe('转不起来的三种名单状态', () => {
 });
 
 describe('上盘名单', () => {
-  it('恰好 12 家时全部上盘且不是抽样', () => {
+  it('恰好 12 个时全部上盘且不是抽样', () => {
     const session = createWheelSession({ csvText: roster(12) });
     expect(session.lineup).toHaveLength(MAX_SECTORS);
     expect(session.isSampled).toBe(false);
     expect(session.enabledCount).toBe(12);
   });
 
-  it('12 家及以下时换一批不改变上盘名单', () => {
+  it('12 个及以下时上盘名单是全部启用候选的一个排列', () => {
+    // 个数相同、集合相同、无重复、无遗漏——被打乱的只是座次。
+    for (const count of [1, 2, 7, MAX_SECTORS]) {
+      const session = createWheelSession({
+        csvText: roster(count),
+        random: scriptedRandom([0.62, 0.11, 0.94, 0.37, 0.5, 0.08, 0.73]),
+      });
+      expect(session.lineup).toHaveLength(count);
+      expect(new Set(names(session.lineup)).size).toBe(count);
+      expectSameNames(session.lineup, rosterNames(count));
+      expect(session.isSampled).toBe(false);
+    }
+  });
+
+  it('12 个及以下时上盘名单的顺序也与 CSV 的顺序无关', () => {
+    // 照搬 CSV 的书写顺序会让盘面每次一模一样，看久了像是摆好的（ADR-0002）。
+    //
+    // 一个种子钉不住这条：一个「大多数时候原样返回」的假打乱，碰上那一个种子
+    // 恰好动了一下就蒙混过关了。所以换 60 个种子各建一次会话，看这 8 个候选
+    // 总共被摆出过多少种样子。
+    const size = 8;
+    const inCsvOrder = rosterNames(size).join(',');
+    const orders = Array.from({ length: 60 }, (_, seed) =>
+      names(createWheelSession({ csvText: roster(size), random: seededRandom(seed) }).lineup).join(','),
+    );
+
+    // 8 个候选有 40320 种排列，恰好摆成 CSV 那一种的概率是 1/40320。
+    // 60 次里出现哪怕一次，都不是巧合，是打乱压根没在打乱。
+    expect(orders.filter((order) => order === inCsvOrder)).toEqual([]);
+    // 而且这 60 次给出的是几十种各不相同的顺序，不是几种花样轮流坐庄。
+    expect(new Set(orders).size).toBeGreaterThanOrEqual(50);
+    // 每一个座次上都出现过不止一个候选：整体平移、只换头尾这类假打乱也过不去。
+    for (let seat = 0; seat < size; seat += 1) {
+      const seenAtSeat = new Set(orders.map((order) => order.split(',')[seat]));
+      expect(seenAtSeat.size).toBeGreaterThan(1);
+    }
+  });
+
+  it('不需要抽样时，打乱也不会把停用的候选带上盘', () => {
+    const session = createWheelSession({
+      csvText: csv('沙县小吃,true', '关门大吉,false', '兰州拉面,true', '停业,no'),
+      random: scriptedRandom([0.44, 0.09, 0.66, 0.28]),
+    });
+    expect(session.isSampled).toBe(false);
+    expectSameNames(session.lineup, ['沙县小吃', '兰州拉面']);
+  });
+
+  it('12 个及以下时，同一随机序列下打乱的结果可复现', () => {
+    const seed = [0.62, 0.11, 0.94, 0.37, 0.5, 0.08, 0.73];
+    const a = createWheelSession({ csvText: roster(9), random: scriptedRandom(seed) });
+    const b = createWheelSession({ csvText: roster(9), random: scriptedRandom(seed) });
+    expect(names(a.lineup)).toEqual(names(b.lineup));
+  });
+
+  it('12 个及以下时换一批不改变上盘名单', () => {
     const session = createWheelSession({ csvText: roster(5), random: scriptedRandom([0.7]) });
     const before = names(session.lineup);
     session.reshuffle();
     expect(names(session.lineup)).toEqual(before);
   });
 
-  it('13 家时抽 12 家上盘且是抽样', () => {
+  it('13 个时抽 12 个上盘且是抽样', () => {
     const session = createWheelSession({ csvText: roster(13), random: scriptedRandom([0.4]) });
     expect(session.lineup).toHaveLength(MAX_SECTORS);
     expect(session.isSampled).toBe(true);
@@ -262,12 +372,12 @@ describe('上盘名单', () => {
     expect(new Set(names(session.lineup)).size).toBe(MAX_SECTORS);
   });
 
-  it('需要抽样时，停用的饭店也永远不进上盘名单', () => {
-    // 20 家启用 + 8 家停用交错排列：无论重抽多少次，停用的名字都不该出现。
+  it('需要抽样时，停用的候选也永远不进上盘名单', () => {
+    // 20 个启用 + 8 个停用交错排列：无论重抽多少次，停用的名字都不该出现。
     const rows: string[] = [];
     for (let i = 0; i < 20; i += 1) {
-      rows.push(`店${i + 1},true`);
-      if (i < 8) rows.push(`关门${i + 1},false`);
+      rows.push(`候选${i + 1},true`);
+      if (i < 8) rows.push(`停用${i + 1},false`);
     }
 
     const session = createWheelSession({
@@ -280,22 +390,22 @@ describe('上盘名单', () => {
     for (let round = 0; round < 30; round += 1) {
       expect(session.lineup).toHaveLength(MAX_SECTORS);
       for (const name of names(session.lineup)) {
-        expect(name.startsWith('关门')).toBe(false);
+        expect(name.startsWith('停用')).toBe(false);
       }
       session.reshuffle();
     }
   });
 
   it('给定随机序列下重抽产生预期的另一批', () => {
-    // 随机源恒为 0：每次都取剩余候选中的第一家，于是上盘名单是前 12 家。
+    // 随机源恒为 0：打乱的每一步都确定，于是上盘名单也是确定的一批。
     const steady = createWheelSession({ csvText: roster(15), random: scriptedRandom([0]) });
-    const firstTwelve = Array.from({ length: MAX_SECTORS }, (_, i) => `店${i + 1}`);
-    expect(names(steady.lineup)).toEqual(firstTwelve);
+    const first = names(steady.lineup);
+    expect(first).toHaveLength(MAX_SECTORS);
 
-    // 随机序列没变，重抽仍从完整的 15 家里抽——说明重抽是重新抽样，
+    // 随机序列没变，重抽仍从完整的 15 个里抽——说明重抽是把整份名单重新打乱，
     // 而不是在旧上盘名单上做增量。
     steady.reshuffle();
-    expect(names(steady.lineup)).toEqual(firstTwelve);
+    expect(names(steady.lineup)).toEqual(first);
 
     // 换一个随机序列，重抽给出确实不同的一批。
     const session = createWheelSession({
@@ -344,47 +454,77 @@ describe('转一次', () => {
     expect(names(session.lineup)).toEqual(before);
   });
 
-  it('给定随机数确定地选出预期的中选饭店', () => {
+  it('给定随机数确定地选出预期的那个扇区上的候选', () => {
     const csvText = csv('沙县小吃,true', '兰州拉面,true', '黄焖鸡,true', '肯德基,true');
-    // 第一次 random 选扇区：floor(r * 4)
-    expect(
-      createWheelSession({ csvText, random: scriptedRandom([0.0, 0.3]) }).spin().winner.name,
-    ).toBe('沙县小吃');
-    expect(
-      createWheelSession({ csvText, random: scriptedRandom([0.3, 0.3]) }).spin().winner.name,
-    ).toBe('兰州拉面');
-    expect(
-      createWheelSession({ csvText, random: scriptedRandom([0.6, 0.3]) }).spin().winner.name,
-    ).toBe('黄焖鸡');
-    expect(
-      createWheelSession({ csvText, random: scriptedRandom([0.99, 0.3]) }).spin().winner.name,
-    ).toBe('肯德基');
+    // 转一次取的第一个数选的是扇区：`floor(r * 4)` 号扇区上坐着谁，转出来的就是谁。
+    // 因此断言的是「上盘名单里的第几个」而不是某个名字——谁坐第几个由打乱说了算，
+    // 与这条规格无关。
+    for (const [sectorSeed, index] of [
+      [0, 0],
+      [0.3, 1],
+      [0.6, 2],
+      [0.99, 3],
+    ] as const) {
+      const random = stagedRandom();
+      const session = createWheelSession({ csvText, random: random.random });
+      random.stage(sectorSeed, 0.3);
+      expect(session.spin().winner).toBe(session.lineup[index]);
+    }
   });
 
   it('随机数取到 1 的边界时不会越出上盘名单', () => {
+    const random = stagedRandom();
+    const session = createWheelSession({ csvText: roster(3), random: random.random });
+    random.stage(0.999999999999, 0.3);
+    expect(session.spin().winner).toBe(session.lineup[2]);
+  });
+
+  it('打乱之后中选仍然只来自上盘名单', () => {
     const session = createWheelSession({
-      csvText: roster(3),
-      random: scriptedRandom([0.999999999999, 0.3]),
+      csvText: roster(20),
+      random: scriptedRandom([0.13, 0.87, 0.02, 0.55, 0.99, 0.31, 0.68, 0.46]),
     });
-    expect(session.spin().winner.name).toBe('店3');
+    for (let i = 0; i < 50; i += 1) {
+      expect(names(session.lineup)).toContain(session.spin().winner.name);
+    }
+  });
+
+  it('打乱之后目标角度仍落在中选所在的扇区内', () => {
+    // 不注入「原样保持顺序」的随机源：这里要的正是被真正打乱过的上盘名单。
+    for (const size of [3, 5, 12, 20]) {
+      const session = createWheelSession({
+        csvText: roster(size),
+        random: scriptedRandom([0.17, 0.83, 0.44, 0.09, 0.66, 0.28, 0.95, 0.51]),
+      });
+      const sectorAngle = TAU / session.lineup.length;
+      for (let i = 0; i < 30; i += 1) {
+        const { winner, targetAngle } = session.spin();
+        const winnerIndex = names(session.lineup).indexOf(winner.name);
+        expect(winnerIndex).toBeGreaterThanOrEqual(0);
+        expect(targetAngle).toBeGreaterThan(winnerIndex * sectorAngle);
+        expect(targetAngle).toBeLessThan((winnerIndex + 1) * sectorAngle);
+      }
+    }
   });
 
   // 角度反算是这个项目唯一会算错且肉眼极难发现的地方：扫过全部下标，
   // 尤其是第一个和最后一个扇区（跨 0 度边界处）。
+  //
+  // 每个用例都拿会话真正产出的那份上盘名单说话：中选坐在名单的第几个，
+  // 目标角度就得落在第几个扇区里。名单是怎么排出来的与这条无关。
   for (const size of [1, 2, 3, 5, 12]) {
     for (let index = 0; index < size; index += 1) {
       for (const offsetSeed of [0, 0.25, 0.5, 0.75, 0.999999]) {
         it(`${size} 个扇区时，第 ${index + 1} 个扇区的目标角度落在该扇区内 (offset=${offsetSeed})`, () => {
-          const indexSeed = (index + 0.5) / size;
-          const session = createWheelSession({
-            csvText: roster(size),
-            random: scriptedRandom([indexSeed, offsetSeed]),
-          });
+          const random = stagedRandom();
+          const session = createWheelSession({ csvText: roster(size), random: random.random });
+          random.stage((index + 0.5) / size, offsetSeed);
           const { winner, targetAngle } = session.spin();
 
           const sectorAngle = TAU / size;
-          const winnerIndex = names(session.lineup).indexOf(winner.name);
-          expect(winnerIndex).toBe(index);
+          // 选的是第 index 号扇区，坐在那儿的正是上盘名单里的第 index 个。
+          expect(winner).toBe(session.lineup[index]);
+          const winnerIndex = session.lineup.indexOf(winner);
 
           expect(targetAngle).toBeGreaterThanOrEqual(winnerIndex * sectorAngle);
           expect(targetAngle).toBeLessThan((winnerIndex + 1) * sectorAngle);
@@ -396,7 +536,7 @@ describe('转一次', () => {
   }
 
   it('落点始终在扇区内部，离两条边界都有余量', () => {
-    // 指针有实际宽度：落点贴着扇区边界时，肉眼说不清转出的是哪一家（故事 4）。
+    // 指针有实际宽度：落点贴着扇区边界时，肉眼说不清转出的是哪一个（故事 4）。
     // 这里要的是"离边界有余量"这条性质，所以只钉一个宽松的下限（扇区的 5%），
     // 不去钉实现里那条具体的映射带。
     const margin = 0.05;
@@ -404,12 +544,12 @@ describe('转一次', () => {
       const sectorAngle = TAU / size;
       for (let index = 0; index < size; index += 1) {
         for (let step = 0; step <= 20; step += 1) {
-          const session = createWheelSession({
-            csvText: roster(size),
-            random: scriptedRandom([(index + 0.5) / size, Math.min(step / 20, 0.999999)]),
-          });
-          const { targetAngle } = session.spin();
-          const withinSector = targetAngle - index * sectorAngle;
+          const random = stagedRandom();
+          const session = createWheelSession({ csvText: roster(size), random: random.random });
+          random.stage((index + 0.5) / size, Math.min(step / 20, 0.999999));
+          const { winner, targetAngle } = session.spin();
+          // 落点相对的是中选自己那一格：它是名单里的第几个，就从第几格量起。
+          const withinSector = targetAngle - session.lineup.indexOf(winner) * sectorAngle;
           expect(withinSector).toBeGreaterThanOrEqual(margin * sectorAngle);
           expect(withinSector).toBeLessThanOrEqual((1 - margin) * sectorAngle);
         }
@@ -422,12 +562,12 @@ describe('转一次', () => {
     const sectorAngle = TAU / size;
     for (let index = 0; index < size; index += 1) {
       for (let step = 0; step <= 20; step += 1) {
-        const session = createWheelSession({
-          csvText: roster(size),
-          random: scriptedRandom([(index + 0.5) / size, step / 20 - 1e-12]),
-        });
-        const { targetAngle } = session.spin();
-        expect(targetAngle).not.toBe((index + 0.5) * sectorAngle);
+        const random = stagedRandom();
+        const session = createWheelSession({ csvText: roster(size), random: random.random });
+        random.stage((index + 0.5) / size, step / 20 - 1e-12);
+        const { winner, targetAngle } = session.spin();
+        const winnerIndex = session.lineup.indexOf(winner);
+        expect(targetAngle).not.toBe((winnerIndex + 0.5) * sectorAngle);
       }
     }
   });

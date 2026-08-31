@@ -3,9 +3,11 @@
  */
 
 import { TAU } from './angles';
+import { escapeHtml } from '../../escapeHtml';
+import { THEME_PICKER_HASH, type Theme } from '../../themes';
 import {
   createWheelSession,
-  type Restaurant,
+  type Candidate,
   type RosterStatus,
   type WheelSession,
 } from './session';
@@ -27,10 +29,35 @@ interface WheelElements {
   cardClose: HTMLButtonElement;
 }
 
-function buildDom(root: HTMLElement): WheelElements {
-  root.innerHTML = `
-    <main class="wheel" id="wheel-shell">
-      <h1 class="wheel__title">今天吃哪家</h1>
+/**
+ * 一页转盘页的外壳：当前主题的标题，加一个回到选主题页的入口。
+ *
+ * 加载态、四种错误页和转盘本身都从这里出。ADR-0005 要求**每一页**都带这两样东西
+ * ——标题让人知道自己在哪个转盘上，入口让从别人的链接落进来的人知道还有别的主题，
+ * 也让一个坏掉的主题困不住人。写在一处，才不会有哪一页漏掉。
+ *
+ * 入口是真链接不是按钮：能中键新开、能长按看菜单、能看到目标地址。
+ * 它和标题同占一行（见 style.css 的 .wheel__header）：转盘的高度是这一页最金贵的
+ * 东西，多一个入口不该让转盘矮一截。
+ *
+ * @param shellId 需要拿到 `<main>` 这个元素时给它一个 id；不需要就不给。
+ */
+function wheelPage(theme: Theme, body: string, shellId?: string): string {
+  return `
+    <main class="wheel"${shellId ? ` id="${shellId}"` : ''}>
+      <header class="wheel__header">
+        <a class="wheel__home" href="${THEME_PICKER_HASH}">← 换个主题</a>
+        <h1 class="wheel__title">${escapeHtml(theme.title)}</h1>
+      </header>
+      ${body}
+    </main>
+  `;
+}
+
+function buildDom(root: HTMLElement, theme: Theme): WheelElements {
+  root.innerHTML = wheelPage(
+    theme,
+    `
       <p class="wheel__note" id="wheel-note"></p>
       <div class="wheel__stage">
         <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
@@ -39,13 +66,14 @@ function buildDom(root: HTMLElement): WheelElements {
       <button class="wheel__reshuffle" id="wheel-reshuffle" type="button">换一批</button>
       <div class="wheel__card" id="wheel-card" hidden role="dialog" aria-live="polite">
         <div class="wheel__card-inner">
-          <p class="wheel__card-label">今天就吃</p>
+          <p class="wheel__card-label">${escapeHtml(theme.resultPhrase)}</p>
           <p class="wheel__card-name" id="wheel-card-name"></p>
           <button class="wheel__card-close" id="wheel-card-close" type="button">再转一次</button>
         </div>
       </div>
-    </main>
-  `;
+    `,
+    'wheel-shell',
+  );
 
   const byId = <T extends HTMLElement>(id: string): T => {
     const element = root.querySelector<T>(`#${id}`);
@@ -65,8 +93,16 @@ function buildDom(root: HTMLElement): WheelElements {
   };
 }
 
-/** 名单文件在仓库里的位置，错误提示里要告诉人去改哪个文件。 */
-const ROSTER_FILE = 'public/restaurants.csv';
+/**
+ * 当前主题的名单文件在仓库里的路径，错误提示里要告诉人去改哪个文件。
+ *
+ * 叫 `rosterPath` 而不是 `rosterFile`：`theme.rosterFile` 是 `public/` 下的文件名
+ * （`eat.csv`），这里给的是它在仓库里的位置（`public/eat.csv`）。同一条提示里两个
+ * 都要出现，同名会让人以为它们是一个东西。
+ */
+function rosterPath(theme: Theme): string {
+  return `public/${theme.rosterFile}`;
+}
 
 /**
  * 名单出问题时的页面呈现。
@@ -88,25 +124,17 @@ interface FailureView {
   readonly hint: string;
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function renderFailure(root: HTMLElement, view: FailureView): void {
-  root.innerHTML = `
-    <main class="wheel">
-      <h1 class="wheel__title">今天吃哪家</h1>
+function renderFailure(root: HTMLElement, theme: Theme, view: FailureView): void {
+  root.innerHTML = wheelPage(
+    theme,
+    `
       <div class="wheel__error" role="alert" data-error-kind="${view.kind}">
         <p class="wheel__error-title">${escapeHtml(view.title)}</p>
         <p class="wheel__error-detail">${escapeHtml(view.detail)}</p>
         <p class="wheel__error-hint">${escapeHtml(view.hint)}</p>
       </div>
-    </main>
-  `;
+    `,
+  );
 }
 
 /**
@@ -114,18 +142,18 @@ function renderFailure(root: HTMLElement, view: FailureView): void {
  *
  * 它和解析失败共用版式，但说的是另一回事：那边是文件读到了、某一行写坏了。
  */
-export function showRosterLoadFailure(root: HTMLElement, cause: unknown): void {
+export function showRosterLoadFailure(root: HTMLElement, theme: Theme, cause: unknown): void {
   const detail = cause instanceof Error ? cause.message : String(cause);
-  renderFailure(root, {
+  renderFailure(root, theme, {
     kind: 'load',
     title: '名单文件没取到',
-    detail: `读取 restaurants.csv 失败：${detail}`,
-    hint: `确认 ${ROSTER_FILE} 确实在仓库里并且已经部署，然后刷新页面重试。`,
+    detail: `读取 ${theme.rosterFile} 失败：${detail}`,
+    hint: `确认 ${rosterPath(theme)} 确实在仓库里并且已经部署，然后刷新页面重试。`,
   });
 }
 
 /** 文件取到了，但名单本身有毛病：三种情况各说各的。 */
-function rosterFailureView(session: WheelSession): FailureView | undefined {
+function rosterFailureView(session: WheelSession, theme: Theme): FailureView | undefined {
   switch (session.status) {
     case 'parse-error':
       return {
@@ -133,21 +161,21 @@ function rosterFailureView(session: WheelSession): FailureView | undefined {
         title: '名单里有一行读不懂',
         // session.error 带的是文件中的原始行号和这一行到底哪里不对，照着去改就行。
         detail: session.error ?? '名单解析失败',
-        hint: `打开 ${ROSTER_FILE}，按上面说的行号改掉那一行，再刷新页面。`,
+        hint: `打开 ${rosterPath(theme)}，按上面说的行号改掉那一行，再刷新页面。`,
       };
     case 'empty-file':
       return {
         kind: 'empty-file',
         title: '名单是空的',
-        detail: `${ROSTER_FILE} 里一条饭店记录都没有——文件是空的，或者只剩空行和 # 注释。`,
-        hint: '在文件里加上几行「店名,true」再刷新页面。',
+        detail: `${rosterPath(theme)} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
+        hint: '在文件里加上几行「名字,true」再刷新页面。',
       };
     case 'all-disabled':
       return {
         kind: 'all-disabled',
-        title: '名单里的饭店全部停用',
-        detail: `名单里的 ${session.disabledCount} 家饭店全都写了 false / 0 / no，一家都没启用，转盘上没东西可放。`,
-        hint: '把想吃的那几家的 enabled 列改成 true，再刷新页面。',
+        title: '名单里的候选全部停用',
+        detail: `名单里的 ${session.disabledCount} 个候选全都写了 false / 0 / no，一个都没启用，转盘上没东西可放。`,
+        hint: '把想要的那几个的 enabled 列改成 true，再刷新页面。',
       };
     default:
       return undefined;
@@ -156,19 +184,32 @@ function rosterFailureView(session: WheelSession): FailureView | undefined {
 
 export interface MountOptions {
   readonly csvText: string;
+  /** 当前主题：标题、结果卡片上那句话和错误提示里的文件名都从这里来。 */
+  readonly theme: Theme;
+}
+
+/**
+ * 名单还在路上时的转盘页。
+ *
+ * 只有进了转盘页才可能等名单——选主题页不发任何请求，所以「正在加载名单…」
+ * 写在这里才是真话，而不是首屏 HTML 里的一句摆设。
+ */
+export function showRosterLoading(root: HTMLElement, theme: Theme): void {
+  root.innerHTML = wheelPage(theme, `<p class="wheel__status">正在加载名单…</p>`);
 }
 
 export function mountWheel(root: HTMLElement, options: MountOptions): void {
+  const { theme } = options;
   const session: WheelSession = createWheelSession({ csvText: options.csvText });
 
   // 转不起来时不画转盘：空转盘看着像程序坏了，说不清到底是名单哪里出了问题。
-  const failure = rosterFailureView(session);
+  const failure = rosterFailureView(session, theme);
   if (failure) {
-    renderFailure(root, failure);
+    renderFailure(root, theme, failure);
     return;
   }
 
-  const elements = buildDom(root);
+  const elements = buildDom(root, theme);
 
   let rotation = 0;
   let spinning = false;
@@ -206,7 +247,7 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     elements.reshuffleButton.setAttribute('aria-disabled', String(busy));
   };
 
-  const showResult = (winner: Restaurant) => {
+  const showResult = (winner: Candidate) => {
     elements.cardName.textContent = winner.name;
     elements.card.hidden = false;
     burstConfetti();
@@ -227,7 +268,7 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     hideResult();
     setBusy(true);
 
-    // 中选饭店在动画开始前已确定，旋转只是把它演出来。
+    // 中选候选在动画开始前已确定，旋转只是把它演出来。
     const { winner, targetAngle } = session.spin();
 
     animateSpin({
@@ -261,9 +302,9 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
 
   if (session.isSampled) {
     // 走到这里名单一定是好的：有毛病的名单在上面已经换成整页的错误提示了。
-    elements.note.textContent = `已从 ${session.enabledCount} 家中随机选出 ${session.lineup.length} 家`;
+    elements.note.textContent = `已从 ${session.enabledCount} 个中随机选出 ${session.lineup.length} 个`;
   } else {
-    // ≤ 12 家时上盘名单不是抽出来的，换一批没有意义，按钮整个不存在。
+    // ≤ 12 个时上盘名单不是抽出来的，换一批没有意义，按钮整个不存在。
     // 按钮不在了，留给它的那段高度也得还给转盘，否则转盘白白矮一截。
     elements.reshuffleButton.remove();
     elements.shell.classList.add('wheel--no-reshuffle');

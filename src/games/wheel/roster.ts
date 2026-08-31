@@ -1,19 +1,19 @@
 /**
- * 名单 (Roster) 的解析：CSV 原文 → 饭店条目。
+ * 名单 (Roster) 的解析：CSV 原文 → 候选条目。
  *
  * 无头模块：不引用 DOM、不引用 Canvas、不发网络请求。
  */
 
 /** 名单中的一条记录。 */
-export interface Restaurant {
+export interface Candidate {
   readonly name: string;
-  /** 停用 (Disabled) 的饭店 `enabled` 为 false，不会进入上盘名单。 */
+  /** 停用 (Disabled) 的候选 `enabled` 为 false，不会进入上盘名单。 */
   readonly enabled: boolean;
 }
 
 export interface RosterParseResult {
-  /** 名单中的全部饭店，含停用的。解析失败时为空。 */
-  readonly restaurants: readonly Restaurant[];
+  /** 名单中的全部候选，含停用的。解析失败时为空。 */
+  readonly candidates: readonly Candidate[];
   /** 解析失败的描述（含原始行号），成功时为 undefined。 */
   readonly error?: string;
 }
@@ -91,7 +91,7 @@ function parseLine(line: string): string[] | undefined {
  * - 遇到第一个坏行即停止，返回带行号的错误。
  */
 export function parseRoster(csvText: string): RosterParseResult {
-  const restaurants: Restaurant[] = [];
+  const candidates: Candidate[] = [];
   const lines = csvText.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -105,27 +105,27 @@ export function parseRoster(csvText: string): RosterParseResult {
     const fields = parseLine(raw);
     if (fields === undefined) {
       return {
-        restaurants: [],
+        candidates: [],
         error: `第 ${lineNumber} 行格式有误：引号未闭合或引号外有多余内容`,
       };
     }
 
-    // 没有店名的行不能悄悄跳过：那等于让一个手滑的逗号无声地删掉一家饭店，
-    // 而 enabled 列写错的后果应该是「这家店还在转盘上」（故事 20）。
+    // 没有名字的行不能悄悄跳过：那等于让一个手滑的逗号无声地删掉一个候选，
+    // 而 enabled 列写错的后果应该是「这个候选还在转盘上」（故事 20）。
     // 所以报错，但把话说到位——是哪一行、这一行长什么样、怎么改。
     const name = (fields[0] ?? '').trim();
     if (name === '') {
       return {
-        restaurants: [],
+        candidates: [],
         error:
-          `第 ${lineNumber} 行没有店名：这一行是「${trimmed}」，第一个逗号前面是空的。` +
-          `把店名补在这一行开头（写成「店名,true」的样子），或者把整行删掉。`,
+          `第 ${lineNumber} 行没有名字：这一行是「${trimmed}」，第一个逗号前面是空的。` +
+          `把名字补在这一行开头（写成「名字,true」的样子），或者把整行删掉。`,
       };
     }
 
     const enabledField = (fields[1] ?? '').trim().toLowerCase();
-    restaurants.push({ name, enabled: !DISABLED_MARKERS.has(enabledField) });
+    candidates.push({ name, enabled: !DISABLED_MARKERS.has(enabledField) });
   }
 
-  return { restaurants };
+  return { candidates };
 }

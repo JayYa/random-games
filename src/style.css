@@ -18,7 +18,8 @@ body {
 
 .wheel {
   /* 转盘之外的固定部件（标题、提示、两个按钮和它们之间的间距）大致占掉的高度。
-     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。 */
+     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。
+     「换个主题」不占这里的一分一毫：它和标题同占一行（见 .wheel__header）。 */
   --wheel-chrome-full: 296px;
   /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
   --wheel-reshuffle-height: 64px;
@@ -33,15 +34,29 @@ body {
   gap: 16px;
 }
 
-/* 名单只有 12 家及以下时换一批按钮根本不存在（见 ui.ts），
+/* 名单只有 12 个及以下时换一批按钮根本不存在（见 ui.ts），
    那段高度不该继续替它留着——留着只会让转盘白白矮一截。 */
 .wheel--no-reshuffle {
   --wheel-chrome: calc(var(--wheel-chrome-full) - var(--wheel-reshuffle-height));
 }
 
+/* 页头：标题居中，回选主题页的入口靠左，两者同占一行。
+   三列 1fr auto 1fr——中间那列装标题，左右两列等宽，所以标题是相对整行居中的，
+   不是相对「链接右边剩下的地方」居中。右边那列空着，只为把标题顶回中间。
+   链接因此不占任何额外的竖向高度：这一行的高度由标题决定，转盘一个像素都没矮。 */
+.wheel__header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
 .wheel__title {
   margin: 0;
   font-size: 1.6rem;
+  grid-column: 2;
+  text-align: center;
 }
 
 .wheel__note {
@@ -52,13 +67,34 @@ body {
   text-align: center;
 }
 
-/* 加载态：index.html 里的占位文字，转盘挂载前显示。
+/* 加载态：进转盘页后、名单取回来之前显示（见 ui.ts 的 showRosterLoading）。
    加载失败不走这里，走整页的 .wheel__error。 */
 .wheel__status {
   margin: 0;
   font-size: 1rem;
   color: #6b6b7b;
   text-align: center;
+}
+
+/* 回到选主题页的入口。每一页转盘页都有一个，在页头标题的左边（见 ui.ts 的 wheelPage）。
+   是链接不是按钮：中键能新开、长按有菜单、地址看得见。
+   只占自己那几个字的宽（justify-self: start），下划线才不会拉成半行长；
+   竖向比标题矮，所以这一行的高度还是标题的高度。 */
+.wheel__home {
+  justify-self: start;
+  padding: 6px 0;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  color: #6b6b7b;
+  text-decoration: none;
+  border-bottom: 1px solid #d5d5df;
+}
+
+.wheel__home:hover,
+.wheel__home:focus-visible {
+  color: #2b2b33;
+  border-bottom-color: #2b2b33;
 }
 
 .wheel__stage {
@@ -187,6 +223,13 @@ body {
     font-size: 1.2rem;
   }
 
+  /* 标题矮了，页头这一行的高度就由它说了算——链接得跟着缩，
+     否则它反倒成了这一行最高的东西，把上面算好的那点高度又吃回去。 */
+  .wheel__home {
+    padding: 2px 0;
+    font-size: 0.85rem;
+  }
+
   .wheel__spin {
     min-height: 56px;
   }
@@ -230,4 +273,60 @@ body {
   margin: 0;
   font-size: 0.85rem;
   color: #6b6b7b;
+}
+
+/* 选主题页：站点的入口。条目由主题清单渲染（见 themePicker.ts），
+   加主题不必动这里的样式。 */
+.picker {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px calc(16px + env(safe-area-inset-right, 0px))
+    calc(32px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.picker__title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.picker__lead {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: #6b6b7b;
+}
+
+.picker__list {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 入口做成整块可点的链接：手指够得着，键盘 tab 得到，长按看得到地址。 */
+.picker__entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: 0 24px;
+  border: 1px solid #c8c8d4;
+  border-radius: 16px;
+  background: #fff;
+  color: #2b2b33;
+  font-size: 1.1rem;
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.picker__entry:hover,
+.picker__entry:focus-visible {
+  border-color: #2b2b33;
 }
