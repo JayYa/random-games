@@ -31,13 +31,19 @@ export function sectorColor(index: number, count: number): string {
   return PALETTE[base]!;
 }
 
+/**
+ * 把店名截到 `maxWidth` 以内，截过就加省略号。长店名绝不许溢出扇区。
+ * 按码点截而不是按 UTF-16 单元，免得把 emoji 之类的代理对劈成半个字。
+ * 连一个字加省略号都放不下时只留省略号。
+ */
 function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
-  let clipped = text;
-  while (clipped.length > 1 && ctx.measureText(`${clipped}…`).width > maxWidth) {
-    clipped = clipped.slice(0, -1);
+  const chars = Array.from(text);
+  let kept = chars.length - 1;
+  while (kept > 0 && ctx.measureText(`${chars.slice(0, kept).join('')}…`).width > maxWidth) {
+    kept -= 1;
   }
-  return `${clipped}…`;
+  return kept > 0 ? `${chars.slice(0, kept).join('')}…` : '…';
 }
 
 export interface DrawOptions {
@@ -62,7 +68,7 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
     ctx.arc(center, center, radius, 0, TAU);
     ctx.fill();
     ctx.restore();
-    drawPointer(ctx, center, center - radius);
+    drawPointer(ctx, center, center - radius, size);
     return;
   }
 
@@ -93,8 +99,9 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#2b2b33';
     ctx.font = `600 ${Math.max(11, Math.round(size * 0.038))}px system-ui, sans-serif`;
-    const maxWidth = radius * 0.68;
-    ctx.fillText(truncate(ctx, lineup[i]!.name, maxWidth), radius * 0.86, 0);
+    // 文字只占扇区外侧较宽的一段（0.30r ~ 0.90r），别探进靠近轴心的窄尖角里。
+    const maxWidth = radius * 0.6;
+    ctx.fillText(truncate(ctx, lineup[i]!.name, maxWidth), radius * 0.9, 0);
     ctx.restore();
   }
 
@@ -109,12 +116,17 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
 
   ctx.restore();
 
-  drawPointer(ctx, center, center - radius);
+  drawPointer(ctx, center, center - radius, size);
 }
 
 /** 指针固定在转盘顶部，旋转的是转盘本身。 */
-function drawPointer(ctx: CanvasRenderingContext2D, centerX: number, topY: number): void {
-  const width = Math.max(12, ctx.canvas.clientWidth * 0.045 || 16);
+function drawPointer(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  topY: number,
+  size: number,
+): void {
+  const width = Math.max(12, size * 0.045);
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(centerX - width / 2, topY - width * 0.7);

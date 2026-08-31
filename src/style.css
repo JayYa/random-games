@@ -12,12 +12,18 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-text-size-adjust: 100%;
 }
 
 .wheel {
+  /* 转盘之外的固定部件（标题、提示、两个按钮和它们之间的间距）大致占掉的高度。
+     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。 */
+  --wheel-chrome: 296px;
   max-width: 640px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 24px calc(16px + env(safe-area-inset-right, 0px))
+    calc(32px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -53,11 +59,21 @@ body {
 
 .wheel__canvas {
   display: block;
+  /* 边长取「容器宽度」和「首屏剩下的高度」里的小者，
+     aspect-ratio 保证它永远是正方形，所以转盘永远是圆的，不被裁切也不被压扁。 */
+  width: min(100%, max(200px, calc(100vh - var(--wheel-chrome))));
+  width: min(100%, max(200px, calc(100svh - var(--wheel-chrome))));
+  height: auto;
+  aspect-ratio: 1 / 1;
+  /* 转盘只看不点：去掉双击缩放的 300ms 延迟，同时不拦竖向滚动。
+     不做甩动手势（ADR-0003）。 */
+  touch-action: manipulation;
 }
 
 .wheel__spin {
-  min-width: 200px;
-  min-height: 56px;
+  /* 拇指目标：窄屏上铺满一行，最矮 64px。 */
+  width: min(100%, 320px);
+  min-height: 64px;
   padding: 0 32px;
   border: none;
   border-radius: 999px;
@@ -66,6 +82,8 @@ body {
   font-size: 1.25rem;
   font-weight: 700;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .wheel__spin:disabled {
@@ -74,14 +92,16 @@ body {
 }
 
 .wheel__reshuffle {
-  min-height: 44px;
-  padding: 0 20px;
+  min-height: 48px;
+  padding: 0 24px;
   border: 1px solid #c8c8d4;
   border-radius: 999px;
   background: transparent;
   color: #4a4a58;
   font-size: 0.95rem;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .wheel__reshuffle:disabled {
@@ -100,7 +120,9 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(20, 20, 28, 0.45);
-  padding: 24px;
+  padding: 24px calc(24px + env(safe-area-inset-right, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
+  overflow-y: auto;
 }
 
 .wheel__card-inner {
@@ -135,6 +157,25 @@ body {
   color: #fff;
   font-size: 1rem;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给转盘。 */
+@media (max-height: 560px) {
+  .wheel {
+    --wheel-chrome: 208px;
+    padding-top: 12px;
+    gap: 12px;
+  }
+
+  .wheel__title {
+    font-size: 1.2rem;
+  }
+
+  .wheel__spin {
+    min-height: 56px;
+  }
 }
 
 /* 撒花：临时插入 body 的全屏画布，覆盖在结果卡片之上但不吃点击。 */
