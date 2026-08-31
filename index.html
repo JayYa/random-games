@@ -6,7 +6,13 @@
     <title>今天吃哪家</title>
   </head>
   <body>
-    <div id="app"></div>
+    <!-- 加载态：读到名单前先亮着，由 main.ts 换成转盘或错误提示。 -->
+    <div id="app">
+      <main class="wheel">
+        <h1 class="wheel__title">今天吃哪家</h1>
+        <p class="wheel__status">正在加载名单…</p>
+      </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
