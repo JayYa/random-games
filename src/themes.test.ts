@@ -41,6 +41,14 @@ describe('主题清单', () => {
     }
   });
 
+  // slug 和 CSV 文件名说的是同一件事（`#/eat` ↔ `eat.csv`），却是记录里两个字段，
+  // 写岔了谁也不会报错：地址还是 `#/eat`，取的却是别人的名单。
+  it('每条记录的 CSV 文件名就是它的 slug 加 .csv', () => {
+    for (const theme of THEMES) {
+      expect(theme.rosterFile).toBe(`${theme.slug}.csv`);
+    }
+  });
+
   it('slug 不重复', () => {
     expect(new Set(THEMES.map((theme) => theme.slug)).size).toBe(THEMES.length);
   });

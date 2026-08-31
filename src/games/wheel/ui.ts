@@ -29,10 +29,35 @@ interface WheelElements {
   cardClose: HTMLButtonElement;
 }
 
+/**
+ * 一页转盘页的外壳：当前主题的标题，加一个回到选主题页的入口。
+ *
+ * 加载态、四种错误页和转盘本身都从这里出。ADR-0005 要求**每一页**都带这两样东西
+ * ——标题让人知道自己在哪个转盘上，入口让从别人的链接落进来的人知道还有别的主题，
+ * 也让一个坏掉的主题困不住人。写在一处，才不会有哪一页漏掉。
+ *
+ * 入口是真链接不是按钮：能中键新开、能长按看菜单、能看到目标地址。
+ * 它和标题同占一行（见 style.css 的 .wheel__header）：转盘的高度是这一页最金贵的
+ * 东西，多一个入口不该让转盘矮一截。
+ *
+ * @param shellId 需要拿到 `<main>` 这个元素时给它一个 id；不需要就不给。
+ */
+function wheelPage(theme: Theme, body: string, shellId?: string): string {
+  return `
+    <main class="wheel"${shellId ? ` id="${shellId}"` : ''}>
+      <header class="wheel__header">
+        <a class="wheel__home" href="${THEME_PICKER_HASH}">← 换个主题</a>
+        <h1 class="wheel__title">${escapeHtml(theme.title)}</h1>
+      </header>
+      ${body}
+    </main>
+  `;
+}
+
 function buildDom(root: HTMLElement, theme: Theme): WheelElements {
-  root.innerHTML = `
-    <main class="wheel" id="wheel-shell">
-      <h1 class="wheel__title">${escapeHtml(theme.title)}</h1>
+  root.innerHTML = wheelPage(
+    theme,
+    `
       <p class="wheel__note" id="wheel-note"></p>
       <div class="wheel__stage">
         <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
@@ -46,9 +71,9 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
           <button class="wheel__card-close" id="wheel-card-close" type="button">再转一次</button>
         </div>
       </div>
-      ${homeLinkHtml()}
-    </main>
-  `;
+    `,
+    'wheel-shell',
+  );
 
   const byId = <T extends HTMLElement>(id: string): T => {
     const element = root.querySelector<T>(`#${id}`);
@@ -68,19 +93,15 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
   };
 }
 
-/** 当前主题的名单文件在仓库里的位置，错误提示里要告诉人去改哪个文件。 */
-function rosterFile(theme: Theme): string {
-  return `public/${theme.rosterFile}`;
-}
-
 /**
- * 回到选主题页的入口。转盘页和错误页各有一个。
+ * 当前主题的名单文件在仓库里的路径，错误提示里要告诉人去改哪个文件。
  *
- * 是真链接不是按钮：分享出去的链接直接落在转盘页上，落进来的人得能中键新开、
- * 长按看菜单、看到它的目标地址；一个坏掉的主题也不该把人困在那一页。
+ * 叫 `rosterPath` 而不是 `rosterFile`：`theme.rosterFile` 是 `public/` 下的文件名
+ * （`eat.csv`），这里给的是它在仓库里的位置（`public/eat.csv`）。同一条提示里两个
+ * 都要出现，同名会让人以为它们是一个东西。
  */
-function homeLinkHtml(): string {
-  return `<a class="wheel__home" href="${THEME_PICKER_HASH}">← 换个主题</a>`;
+function rosterPath(theme: Theme): string {
+  return `public/${theme.rosterFile}`;
 }
 
 /**
@@ -104,17 +125,16 @@ interface FailureView {
 }
 
 function renderFailure(root: HTMLElement, theme: Theme, view: FailureView): void {
-  root.innerHTML = `
-    <main class="wheel">
-      <h1 class="wheel__title">${escapeHtml(theme.title)}</h1>
+  root.innerHTML = wheelPage(
+    theme,
+    `
       <div class="wheel__error" role="alert" data-error-kind="${view.kind}">
         <p class="wheel__error-title">${escapeHtml(view.title)}</p>
         <p class="wheel__error-detail">${escapeHtml(view.detail)}</p>
         <p class="wheel__error-hint">${escapeHtml(view.hint)}</p>
       </div>
-      ${homeLinkHtml()}
-    </main>
-  `;
+    `,
+  );
 }
 
 /**
@@ -128,7 +148,7 @@ export function showRosterLoadFailure(root: HTMLElement, theme: Theme, cause: un
     kind: 'load',
     title: '名单文件没取到',
     detail: `读取 ${theme.rosterFile} 失败：${detail}`,
-    hint: `确认 ${rosterFile(theme)} 确实在仓库里并且已经部署，然后刷新页面重试。`,
+    hint: `确认 ${rosterPath(theme)} 确实在仓库里并且已经部署，然后刷新页面重试。`,
   });
 }
 
@@ -141,13 +161,13 @@ function rosterFailureView(session: WheelSession, theme: Theme): FailureView | u
         title: '名单里有一行读不懂',
         // session.error 带的是文件中的原始行号和这一行到底哪里不对，照着去改就行。
         detail: session.error ?? '名单解析失败',
-        hint: `打开 ${rosterFile(theme)}，按上面说的行号改掉那一行，再刷新页面。`,
+        hint: `打开 ${rosterPath(theme)}，按上面说的行号改掉那一行，再刷新页面。`,
       };
     case 'empty-file':
       return {
         kind: 'empty-file',
         title: '名单是空的',
-        detail: `${rosterFile(theme)} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
+        detail: `${rosterPath(theme)} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
         hint: '在文件里加上几行「名字,true」再刷新页面。',
       };
     case 'all-disabled':
@@ -175,13 +195,7 @@ export interface MountOptions {
  * 写在这里才是真话，而不是首屏 HTML 里的一句摆设。
  */
 export function showRosterLoading(root: HTMLElement, theme: Theme): void {
-  root.innerHTML = `
-    <main class="wheel">
-      <h1 class="wheel__title">${escapeHtml(theme.title)}</h1>
-      <p class="wheel__status">正在加载名单…</p>
-      ${homeLinkHtml()}
-    </main>
-  `;
+  root.innerHTML = wheelPage(theme, `<p class="wheel__status">正在加载名单…</p>`);
 }
 
 export function mountWheel(root: HTMLElement, options: MountOptions): void {

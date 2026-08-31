@@ -2,6 +2,7 @@ import './style.css';
 import { mountWheel, showRosterLoadFailure, showRosterLoading } from './games/wheel/ui';
 import { fetchRosterCsv } from './games/wheel/loadRoster';
 import { renderThemePicker } from './themePicker';
+import { createRenderGuard } from './renderGuard';
 import { SITE_TITLE, resolveTheme } from './themes';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -17,14 +18,13 @@ const root: HTMLDivElement = app;
  */
 
 /**
- * 当前这次渲染的序号。名单在路上时 hash 可能已经变了，
- * 回来的 CSV 属于上一个主题，不能再往页面上贴。
+ * 名单在路上时 hash 可能已经变了，回来的 CSV 属于上一个主题，不能再往页面上贴。
+ * 判「我还是最新的那次吗」这件事本身在 `renderGuard.ts` 里，那里测得到。
  */
-let renderToken = 0;
+const guard = createRenderGuard();
 
 function render(): void {
-  renderToken += 1;
-  const token = renderToken;
+  const isCurrent = guard.begin();
 
   const theme = resolveTheme(window.location.hash);
   if (!theme) {
@@ -43,11 +43,11 @@ function render(): void {
   // 而且共用同一套版式：取不到文件在这里呈现，另外两类由 mountWheel 呈现。
   fetchRosterCsv(theme.rosterFile).then(
     (csvText) => {
-      if (token !== renderToken) return;
+      if (!isCurrent()) return;
       mountWheel(root, { csvText, theme });
     },
     (cause: unknown) => {
-      if (token !== renderToken) return;
+      if (!isCurrent()) return;
       showRosterLoadFailure(root, theme, cause);
     },
   );
