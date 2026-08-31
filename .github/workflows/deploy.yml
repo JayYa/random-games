@@ -1,0 +1,53 @@
+# 推送到默认分支即部署：构建产物直接发布到 GitHub Pages（ADR-0001，不引入第三方托管）。
+# 只改 public/restaurants.csv 并推送，同样会走完整个流程，线上名单随之更新。
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  # 允许在 Actions 页面手动重跑一次部署，不必为此造一个空提交。
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时刻只跑一个部署；排队中的旧任务可以丢弃，但不要打断正在进行的发布。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # 测试跑在构建之前：坏掉的改动不该有机会发布出去。
+      - run: npm test
+
+      - run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

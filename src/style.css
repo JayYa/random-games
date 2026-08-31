@@ -1,0 +1,233 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #2b2b33;
+  background: #f7f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-text-size-adjust: 100%;
+}
+
+.wheel {
+  /* 转盘之外的固定部件（标题、提示、两个按钮和它们之间的间距）大致占掉的高度。
+     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。 */
+  --wheel-chrome-full: 296px;
+  /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
+  --wheel-reshuffle-height: 64px;
+  --wheel-chrome: var(--wheel-chrome-full);
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px calc(16px + env(safe-area-inset-right, 0px))
+    calc(32px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* 名单只有 12 家及以下时换一批按钮根本不存在（见 ui.ts），
+   那段高度不该继续替它留着——留着只会让转盘白白矮一截。 */
+.wheel--no-reshuffle {
+  --wheel-chrome: calc(var(--wheel-chrome-full) - var(--wheel-reshuffle-height));
+}
+
+.wheel__title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.wheel__note {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 0.9rem;
+  color: #6b6b7b;
+  text-align: center;
+}
+
+/* 加载态：index.html 里的占位文字，转盘挂载前显示。
+   加载失败不走这里，走整页的 .wheel__error。 */
+.wheel__status {
+  margin: 0;
+  font-size: 1rem;
+  color: #6b6b7b;
+  text-align: center;
+}
+
+.wheel__stage {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.wheel__canvas {
+  display: block;
+  /* 边长取「容器宽度」和「首屏剩下的高度」里的小者，
+     aspect-ratio 保证它永远是正方形，所以转盘永远是圆的，不被裁切也不被压扁。 */
+  width: min(100%, max(200px, calc(100vh - var(--wheel-chrome))));
+  width: min(100%, max(200px, calc(100svh - var(--wheel-chrome))));
+  height: auto;
+  aspect-ratio: 1 / 1;
+  /* 转盘只看不点：去掉双击缩放的 300ms 延迟，同时不拦竖向滚动。
+     不做甩动手势（ADR-0003）。 */
+  touch-action: manipulation;
+}
+
+.wheel__spin {
+  /* 拇指目标：窄屏上铺满一行，最矮 64px。 */
+  width: min(100%, 320px);
+  min-height: 64px;
+  padding: 0 32px;
+  border: none;
+  border-radius: 999px;
+  background: #2b2b33;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 转动期间按钮是 aria-disabled 而不是 disabled：它得留在 tab 序里，
+   焦点才不会在开转的瞬间掉回 body（见 ui.ts 的 setBusy）。 */
+.wheel__spin[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wheel__reshuffle {
+  min-height: 48px;
+  padding: 0 24px;
+  border: 1px solid #c8c8d4;
+  border-radius: 999px;
+  background: transparent;
+  color: #4a4a58;
+  font-size: 0.95rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wheel__reshuffle[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wheel__card[hidden] {
+  display: none;
+}
+
+.wheel__card {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 20, 28, 0.45);
+  padding: 24px calc(24px + env(safe-area-inset-right, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
+  overflow-y: auto;
+}
+
+.wheel__card-inner {
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px 28px;
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+}
+
+.wheel__card-label {
+  margin: 0 0 8px;
+  color: #6b6b7b;
+  font-size: 0.9rem;
+}
+
+.wheel__card-name {
+  margin: 0 0 24px;
+  font-size: 1.8rem;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.wheel__card-close {
+  min-height: 48px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 999px;
+  background: #2b2b33;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给转盘。 */
+@media (max-height: 560px) {
+  .wheel {
+    /* 只改这两个量，缺了换一批时该减多少由上面那条规则接着算。 */
+    --wheel-chrome-full: 208px;
+    --wheel-reshuffle-height: 60px;
+    padding-top: 12px;
+    gap: 12px;
+  }
+
+  .wheel__title {
+    font-size: 1.2rem;
+  }
+
+  .wheel__spin {
+    min-height: 56px;
+  }
+}
+
+/* 撒花：临时插入 body 的全屏画布，覆盖在结果卡片之上但不吃点击。 */
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* 名单出错时的整页提示：四类错误共用这一套版式，只是文案不同。 */
+.wheel__error {
+  width: 100%;
+  max-width: 32rem;
+  box-sizing: border-box;
+  padding: 1rem 1.1rem;
+  border: 1px solid #e6b4b4;
+  border-radius: 12px;
+  background: #fff6f6;
+  text-align: left;
+}
+
+.wheel__error-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #a12f2f;
+}
+
+.wheel__error-detail {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: #4a3a3a;
+  overflow-wrap: anywhere;
+}
+
+.wheel__error-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b6b7b;
+}
