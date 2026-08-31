@@ -11,6 +11,7 @@ const TAU = Math.PI * 2;
 interface WheelElements {
   canvas: HTMLCanvasElement;
   spinButton: HTMLButtonElement;
+  reshuffleButton: HTMLButtonElement;
   note: HTMLParagraphElement;
   card: HTMLDivElement;
   cardName: HTMLParagraphElement;
@@ -26,6 +27,7 @@ function buildDom(root: HTMLElement): WheelElements {
         <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
       </div>
       <button class="wheel__spin" id="wheel-spin" type="button">转</button>
+      <button class="wheel__reshuffle" id="wheel-reshuffle" type="button">换一批</button>
       <div class="wheel__card" id="wheel-card" hidden role="dialog" aria-live="polite">
         <div class="wheel__card-inner">
           <p class="wheel__card-label">今天就吃</p>
@@ -45,6 +47,7 @@ function buildDom(root: HTMLElement): WheelElements {
   return {
     canvas: byId<HTMLCanvasElement>('wheel-canvas'),
     spinButton: byId<HTMLButtonElement>('wheel-spin'),
+    reshuffleButton: byId<HTMLButtonElement>('wheel-reshuffle'),
     note: byId<HTMLParagraphElement>('wheel-note'),
     card: byId<HTMLDivElement>('wheel-card'),
     cardName: byId<HTMLParagraphElement>('wheel-card-name'),
@@ -87,6 +90,8 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
   const setBusy = (busy: boolean) => {
     spinning = busy;
     elements.spinButton.disabled = busy;
+    // 转动期间不能换一批：盘面绝不能在一次转动中途被换掉。
+    elements.reshuffleButton.disabled = busy;
   };
 
   const showResult = (name: string) => {
@@ -96,6 +101,8 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
   };
 
   const hideResult = () => {
+    // 卡片本来就没开时什么都不做，免得抢走当前按钮的焦点。
+    if (elements.card.hidden) return;
     elements.card.hidden = true;
     elements.spinButton.focus();
   };
@@ -123,7 +130,20 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     });
   });
 
+  elements.reshuffleButton.addEventListener('click', () => {
+    if (spinning) return;
+    hideResult();
+    // 换一批只重抽上盘名单并重绘，不动当前的旋转角度。
+    session.reshuffle();
+    render();
+  });
+
   elements.cardClose.addEventListener('click', hideResult);
+
+  // ≤ 12 家时上盘名单不是抽出来的，换一批没有意义，按钮整个不存在。
+  if (!session.isSampled) {
+    elements.reshuffleButton.remove();
+  }
 
   if (session.error) {
     // 完整的错误界面由后续的票负责，这里先保证不静默失败。

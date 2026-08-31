@@ -120,6 +120,91 @@ describe('上盘名单', () => {
     session.reshuffle();
     expect(names(session.lineup)).toEqual(before);
   });
+
+  it('13 家时抽 12 家上盘且是抽样', () => {
+    const session = createWheelSession({ csvText: roster(13), random: scriptedRandom([0.4]) });
+    expect(session.lineup).toHaveLength(MAX_SECTORS);
+    expect(session.isSampled).toBe(true);
+    expect(session.rosterSize).toBe(13);
+  });
+
+  it('抽样得到的上盘名单没有重复', () => {
+    const session = createWheelSession({
+      csvText: roster(20),
+      random: scriptedRandom([0.13, 0.87, 0.02, 0.55, 0.99, 0.31, 0.68]),
+    });
+    expect(new Set(names(session.lineup)).size).toBe(MAX_SECTORS);
+  });
+
+  it('需要抽样时，停用的饭店也永远不进上盘名单', () => {
+    // 20 家启用 + 8 家停用交错排列：无论重抽多少次，停用的名字都不该出现。
+    const rows: string[] = [];
+    for (let i = 0; i < 20; i += 1) {
+      rows.push(`店${i + 1},true`);
+      if (i < 8) rows.push(`关门${i + 1},false`);
+    }
+
+    const session = createWheelSession({
+      csvText: csv(...rows),
+      random: scriptedRandom([0.03, 0.97, 0.41, 0.6, 0.19, 0.78, 0.5, 0.26, 0.91]),
+    });
+    expect(session.rosterSize).toBe(20);
+    expect(session.isSampled).toBe(true);
+
+    for (let round = 0; round < 30; round += 1) {
+      expect(session.lineup).toHaveLength(MAX_SECTORS);
+      for (const name of names(session.lineup)) {
+        expect(name.startsWith('关门')).toBe(false);
+      }
+      session.reshuffle();
+    }
+  });
+
+  it('给定随机序列下重抽产生预期的另一批', () => {
+    // 随机源恒为 0：每次都取剩余候选中的第一家，于是上盘名单是前 12 家。
+    const steady = createWheelSession({ csvText: roster(15), random: scriptedRandom([0]) });
+    const firstTwelve = Array.from({ length: MAX_SECTORS }, (_, i) => `店${i + 1}`);
+    expect(names(steady.lineup)).toEqual(firstTwelve);
+
+    // 随机序列没变，重抽仍从完整的 15 家里抽——说明重抽是重新抽样，
+    // 而不是在旧上盘名单上做增量。
+    steady.reshuffle();
+    expect(names(steady.lineup)).toEqual(firstTwelve);
+
+    // 换一个随机序列，重抽给出确实不同的一批。
+    const session = createWheelSession({
+      csvText: roster(15),
+      random: scriptedRandom([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.99]),
+    });
+    const before = names(session.lineup);
+    session.reshuffle();
+    const after = names(session.lineup);
+    expect(after).toHaveLength(MAX_SECTORS);
+    expect(after).not.toEqual(before);
+  });
+
+  it('同一随机序列下重抽的结果可复现', () => {
+    const seed = [0.62, 0.11, 0.94, 0.37, 0.5, 0.08, 0.73, 0.29, 0.86];
+    const a = createWheelSession({ csvText: roster(18), random: scriptedRandom(seed) });
+    const b = createWheelSession({ csvText: roster(18), random: scriptedRandom(seed) });
+    expect(names(a.lineup)).toEqual(names(b.lineup));
+    a.reshuffle();
+    b.reshuffle();
+    expect(names(a.lineup)).toEqual(names(b.lineup));
+  });
+
+  it('抽样后反复 spin() 也不会改变上盘名单', () => {
+    const session = createWheelSession({
+      csvText: roster(30),
+      random: scriptedRandom([0.17, 0.83, 0.44, 0.09, 0.66, 0.28, 0.95]),
+    });
+    expect(session.isSampled).toBe(true);
+    const before = names(session.lineup);
+    for (let i = 0; i < 50; i += 1) {
+      session.spin();
+      expect(names(session.lineup)).toEqual(before);
+    }
+  });
 });
 
 describe('转一次', () => {
