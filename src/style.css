@@ -73,6 +73,22 @@ body {
   cursor: default;
 }
 
+.wheel__reshuffle {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid #c8c8d4;
+  border-radius: 999px;
+  background: transparent;
+  color: #4a4a58;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.wheel__reshuffle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .wheel__card[hidden] {
   display: none;
 }
