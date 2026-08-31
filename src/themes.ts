@@ -30,7 +30,7 @@ export interface Theme {
 /**
  * 全部主题，按选主题页上的先后顺序排列。
  *
- * 现在只有「今天吃什么」，另外两个主题各自加一条记录即可。
+ * 加第四个主题就是往这里再加一条记录、再写一份同名的 CSV，别处一行不用改。
  */
 export const THEMES: readonly Theme[] = [
   {
@@ -39,6 +39,20 @@ export const THEMES: readonly Theme[] = [
     title: '今天吃哪家',
     entryLabel: '今天吃什么',
     resultPhrase: '今天就吃',
+  },
+  {
+    slug: 'play',
+    rosterFile: 'play.csv',
+    title: '今天玩哪个',
+    entryLabel: '今天玩什么',
+    resultPhrase: '今天就玩',
+  },
+  {
+    slug: 'work',
+    rosterFile: 'work.csv',
+    title: '今天干哪件',
+    entryLabel: '今天干什么',
+    resultPhrase: '今天就干',
   },
 ];
 
