@@ -1,6 +1,6 @@
 # 名单存为仓库内的 CSV，不做后端
 
-改名单的频率大约是几个月一次，为此引入数据库和 API 不划算。名单是 `public/restaurants.csv`，提交进仓库，网页在运行时 `fetch` 读取；改名单等于改文件并推送（也可以直接在 GitHub 网页上编辑该文件）。站点因此是纯静态的，部署在 GitHub Pages 上，由 Actions 构建。
+改名单的频率大约是几个月一次，为此引入数据库和 API 不划算。每个主题的名单是 `public/` 下的一个 CSV（`eat.csv` / `play.csv` / `work.csv`，见 [ADR-0005](./0005-one-csv-per-theme.md)），提交进仓库，网页在进入该主题的转盘页时运行时 `fetch` 读取；改名单等于改文件并推送（也可以直接在 GitHub 网页上编辑该文件）。站点因此是纯静态的，部署在 GitHub Pages 上，由 Actions 构建。
 
 ## Considered Options
 
