@@ -1,0 +1,114 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #2b2b33;
+  background: #f7f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.wheel {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.wheel__title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.wheel__note {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 0.9rem;
+  color: #6b6b7b;
+  text-align: center;
+}
+
+.wheel__stage {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.wheel__canvas {
+  display: block;
+}
+
+.wheel__spin {
+  min-width: 200px;
+  min-height: 56px;
+  padding: 0 32px;
+  border: none;
+  border-radius: 999px;
+  background: #2b2b33;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wheel__spin:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wheel__card[hidden] {
+  display: none;
+}
+
+.wheel__card {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 20, 28, 0.45);
+  padding: 24px;
+}
+
+.wheel__card-inner {
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px 28px;
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+}
+
+.wheel__card-label {
+  margin: 0 0 8px;
+  color: #6b6b7b;
+  font-size: 0.9rem;
+}
+
+.wheel__card-name {
+  margin: 0 0 24px;
+  font-size: 1.8rem;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.wheel__card-close {
+  min-height: 48px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 999px;
+  background: #2b2b33;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
