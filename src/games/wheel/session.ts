@@ -39,11 +39,30 @@ export interface SpinResult {
   readonly targetAngle: number;
 }
 
+/**
+ * 名单的状态：三类「转不起来」的毛病彼此可区分，渲染层照此给出不同的提示。
+ *
+ * 「取不到文件」不在这里——那发生在会话之前，由渲染层的取数负责（ADR-0001）。
+ */
+export type RosterStatus =
+  /** 至少有一家启用的饭店，可以转。 */
+  | 'ok'
+  /** 某一行读不懂，`error` 里带原始行号。 */
+  | 'parse-error'
+  /** 解析成功，但文件里一条饭店记录都没有（空文件，或只有空行与注释）。 */
+  | 'empty-file'
+  /** 解析成功且有记录，但每一家都被停用了。 */
+  | 'all-disabled';
+
 export interface WheelSession {
   /** 本次画在转盘上的饭店，长度 ≤ 12。 */
   readonly lineup: readonly Restaurant[];
   /** 名单中启用的饭店总数。 */
   readonly rosterSize: number;
+  /** 名单中停用的饭店数。空文件与「全部停用」靠它区分得开。 */
+  readonly disabledCount: number;
+  /** 名单的状态，四种取值互不重叠。 */
+  readonly status: RosterStatus;
   /** 上盘名单是抽样得来的，即 `rosterSize > 12`。 */
   readonly isSampled: boolean;
   /** 解析失败的描述（含行号），或 undefined。 */
@@ -81,7 +100,18 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
   const { restaurants, error } = parseRoster(options.csvText);
   const enabled = restaurants.filter((restaurant) => restaurant.enabled);
   const rosterSize = enabled.length;
+  const disabledCount = restaurants.length - rosterSize;
   const isSampled = rosterSize > MAX_SECTORS;
+
+  // 空文件和「全部停用」都得到空的上盘名单，但它们是两种不同的毛病，
+  // 得让渲染层说得出是哪一种。
+  const status: RosterStatus = error
+    ? 'parse-error'
+    : restaurants.length === 0
+      ? 'empty-file'
+      : rosterSize === 0
+        ? 'all-disabled'
+        : 'ok';
 
   const drawLineup = (): readonly Restaurant[] =>
     isSampled ? sample(enabled, MAX_SECTORS, random) : enabled.slice();
@@ -93,6 +123,8 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
       return lineup;
     },
     rosterSize,
+    disabledCount,
+    status,
     isSampled,
     error,
     reshuffle() {
