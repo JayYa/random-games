@@ -18,8 +18,9 @@ body {
 
 .wheel {
   /* 转盘之外的固定部件（标题、提示、两个按钮和它们之间的间距）大致占掉的高度。
-     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。 */
-  --wheel-chrome-full: 296px;
+     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。
+     其中 40px 是页脚那个「换个主题」链接连同它上面的间距。 */
+  --wheel-chrome-full: 336px;
   /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
   --wheel-reshuffle-height: 64px;
   --wheel-chrome: var(--wheel-chrome-full);
@@ -52,13 +53,30 @@ body {
   text-align: center;
 }
 
-/* 加载态：index.html 里的占位文字，转盘挂载前显示。
+/* 加载态：进转盘页后、名单取回来之前显示（见 ui.ts 的 showRosterLoading）。
    加载失败不走这里，走整页的 .wheel__error。 */
 .wheel__status {
   margin: 0;
   font-size: 1rem;
   color: #6b6b7b;
   text-align: center;
+}
+
+/* 回到选主题页的入口。转盘页和错误页各有一个，都在页脚位置。
+   是链接不是按钮：中键能新开、长按有菜单、地址看得见（见 ui.ts 的 homeLinkHtml）。 */
+.wheel__home {
+  margin-top: auto;
+  padding: 8px 4px;
+  font-size: 0.9rem;
+  color: #6b6b7b;
+  text-decoration: none;
+  border-bottom: 1px solid #d5d5df;
+}
+
+.wheel__home:hover,
+.wheel__home:focus-visible {
+  color: #2b2b33;
+  border-bottom-color: #2b2b33;
 }
 
 .wheel__stage {
@@ -230,4 +248,60 @@ body {
   margin: 0;
   font-size: 0.85rem;
   color: #6b6b7b;
+}
+
+/* 选主题页：站点的入口。条目由主题清单渲染（见 themePicker.ts），
+   加主题不必动这里的样式。 */
+.picker {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px calc(16px + env(safe-area-inset-right, 0px))
+    calc(32px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.picker__title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.picker__lead {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: #6b6b7b;
+}
+
+.picker__list {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 入口做成整块可点的链接：手指够得着，键盘 tab 得到，长按看得到地址。 */
+.picker__entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: 0 24px;
+  border: 1px solid #c8c8d4;
+  border-radius: 16px;
+  background: #fff;
+  color: #2b2b33;
+  font-size: 1.1rem;
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.picker__entry:hover,
+.picker__entry:focus-visible {
+  border-color: #2b2b33;
 }
