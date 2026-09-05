@@ -9,7 +9,7 @@
  * 注入的 `random` 是这个模块唯一的不确定性来源，名单会话与转一次共用它。
  */
 
-import { TAU } from './angles';
+import { TAU } from '../../angles';
 import {
   createLineupSession,
   type Candidate,
