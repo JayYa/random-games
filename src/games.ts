@@ -16,6 +16,8 @@ import type { RandomSource } from './lineupSession';
 import { resolveTheme, type Theme } from './themes';
 import { MAX_SECTORS } from './games/wheel/session';
 import { mountWheel } from './games/wheel/ui';
+import { BOARD } from './games/pinball/board';
+import { mountPinball } from './games/pinball/ui';
 
 /** 挂载一个玩法页需要的全部东西。玩法自己不取文件、不认得地址。 */
 export interface GameMountOptions {
@@ -58,6 +60,12 @@ export const GAMES: readonly Game[] = [
     slug: 'wheel',
     lineupCap: MAX_SECTORS,
     mount: mountWheel,
+  },
+  {
+    slug: 'pinball',
+    // 一格一个候选：上限就是盘面底部有几个落格，数目只有 board.ts 那张表说了算。
+    lineupCap: BOARD.slotCount,
+    mount: mountPinball,
   },
 ];
 
