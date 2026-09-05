@@ -25,6 +25,8 @@ export const MAX_SECTORS = 12;
 
 export interface WheelSessionOptions {
   readonly csvText: string;
+  /** 上盘名单上限，默认 `MAX_SECTORS`。由玩法清单里的那条记录给出（见 `src/games.ts`）。 */
+  readonly cap?: number;
   /** 默认为 `Math.random`。 */
   readonly random?: RandomSource;
 }
@@ -72,7 +74,7 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
   const random = options.random ?? Math.random;
   const lineupSession = createLineupSession({
     csvText: options.csvText,
-    cap: MAX_SECTORS,
+    cap: options.cap ?? MAX_SECTORS,
     random,
   });
 

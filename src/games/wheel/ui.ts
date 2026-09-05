@@ -186,6 +186,8 @@ export interface MountOptions {
   readonly csvText: string;
   /** 当前主题：标题、结果卡片上那句话和错误提示里的文件名都从这里来。 */
   readonly theme: Theme;
+  /** 上盘名单上限，由玩法清单里转盘那条记录给出（`src/games.ts`），值就是 `MAX_SECTORS`。 */
+  readonly cap: number;
 }
 
 /**
@@ -200,7 +202,10 @@ export function showRosterLoading(root: HTMLElement, theme: Theme): void {
 
 export function mountWheel(root: HTMLElement, options: MountOptions): void {
   const { theme } = options;
-  const session: WheelSession = createWheelSession({ csvText: options.csvText });
+  const session: WheelSession = createWheelSession({
+    csvText: options.csvText,
+    cap: options.cap,
+  });
 
   // 转不起来时不画转盘：空转盘看着像程序坏了，说不清到底是名单哪里出了问题。
   const failure = rosterFailureView(session, theme);

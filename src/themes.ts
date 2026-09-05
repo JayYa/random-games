@@ -19,7 +19,7 @@ export interface Theme {
   readonly slug: string;
   /** 名单文件在 `public/` 下的文件名。取数时拼在 `BASE_URL` 后面。 */
   readonly rosterFile: string;
-  /** 转盘页上的大标题，同时用作这一页的 `document.title`。 */
+  /** 玩法页上的大标题，同时用作这一页的 `document.title`。 */
   readonly title: string;
   /** 选主题页上这个入口的说法。 */
   readonly entryLabel: string;
