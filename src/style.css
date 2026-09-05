@@ -216,6 +216,114 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 弹球机：竖版盘面加一份图例。盘面上只有颜色和序号，候选的名字都在图例里
+   （见 games/pinball/ui.ts）。 */
+.pinball {
+  /* 盘面之外的固定部件（标题、图例、留白与间距）大致占掉的高度。
+     用它把盘面限制在首屏内：不滚动也能同时看见盘面和图例。
+     窄屏上图例排在盘面下面，占的高度多；宽到能并排时下面那条媒体查询会把它调小。 */
+  --pinball-chrome: 264px;
+}
+
+.pinball__note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6b6b7b;
+  text-align: center;
+}
+
+/* 没有抽样提示时它一个像素都不占：留着只会让盘面白白矮一截。 */
+.pinball__note:empty {
+  display: none;
+}
+
+.pinball__stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.pinball__board {
+  display: block;
+  /* 宽度取「容器宽度」和「首屏剩下的高度换算成的宽度」里的小者，
+     aspect-ratio 要跟 ui.ts 里裁掉天花板以上那一截之后的画面一致（360×540），
+     盘面才不被压扁。 */
+  width: min(100%, max(160px, calc((100vh - var(--pinball-chrome)) * 360 / 540)));
+  width: min(100%, max(160px, calc((100svh - var(--pinball-chrome)) * 360 / 540)));
+  height: auto;
+  aspect-ratio: 360 / 540;
+  border-radius: 18px;
+  /* 拉柱塞是竖向拖拽，所以这里是 none 而不是别处那个 manipulation：
+     manipulation 只免掉双击缩放，竖向拖拽仍会被浏览器当成滚动抢走。 */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+}
+
+/* 图例：颜色和序号与落格一一对应，一格一行。 */
+.pinball__legend {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 6px 12px;
+}
+
+.pinball__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pinball__legend-badge {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  /* 六个盘面颜色上都压得住的墨色，与落格里那几个序号是同一个。 */
+  color: #2b2b33;
+}
+
+.pinball__legend-name {
+  font-size: 0.95rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 宽到放得下时图例挪到盘面旁边：竖版盘面在桌面端居中留白即可，
+   图例竖排一列，盘面也就能长回首屏的高度。 */
+@media (min-width: 620px) {
+  .pinball {
+    --pinball-chrome: 140px;
+  }
+
+  .pinball__stage {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  .pinball__legend {
+    width: auto;
+    min-width: 8rem;
+    max-width: 16rem;
+    grid-template-columns: 1fr;
+    align-content: start;
+  }
+}
+
 /* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给转盘。 */
 @media (max-height: 560px) {
   .page {
@@ -227,6 +335,10 @@ body {
     /* 只改这两个量，缺了换一批时该减多少由上面那条规则接着算。 */
     --wheel-chrome-full: 208px;
     --wheel-reshuffle-height: 60px;
+  }
+
+  .pinball {
+    --pinball-chrome: 196px;
   }
 
   .page__title {
@@ -242,6 +354,14 @@ body {
 
   .wheel__spin {
     min-height: 56px;
+  }
+}
+
+/* 又矮又宽（横过来的手机）：图例在盘面旁边，不占竖向的一分一毫，
+   盘面能占的高度就只剩页头和留白之外的那点了。 */
+@media (max-height: 560px) and (min-width: 620px) {
+  .pinball {
+    --pinball-chrome: 118px;
   }
 }
 
