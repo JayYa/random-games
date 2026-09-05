@@ -1,6 +1,7 @@
 import './style.css';
-import { showRosterLoadFailure, showRosterLoading } from './games/wheel/ui';
-import { fetchRosterCsv } from './games/wheel/loadRoster';
+import { showRosterLoading } from './gamePage';
+import { showRosterLoadFailure } from './rosterFailure';
+import { fetchRosterCsv } from './loadRoster';
 import { renderThemePicker } from './themePicker';
 import { createRenderGuard } from './renderGuard';
 import { SITE_TITLE } from './themes';
@@ -68,7 +69,8 @@ function render(): void {
   // 玩法先定下来才知道上盘名单的上限是多少，所以抽签在这次取数之前就做完了。
   //
   // 三类错误——取不到文件、某行读不懂、没有一个候选能上盘——都落在页面上，
-  // 而且共用同一套版式：取不到文件在这里呈现，另外两类由玩法的挂载函数呈现。
+  // 而且共用同一套版式（`rosterFailure.ts`）：取不到文件在这里呈现，
+  // 另外两类在玩法的挂载函数里呈现。
   fetchRosterCsv(theme.rosterFile).then(
     (csvText) => {
       if (!isCurrent()) return;
