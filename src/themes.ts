@@ -7,11 +7,11 @@
  * 不必改路由、渲染或这个文件之外的任何代码。
  *
  * 主题只带面向使用者的文案。**错误提示不随主题变**，一律用中性的「候选」：错误页的
- * 读者是去改 CSV 的人，不是转转盘的人。
+ * 读者是去改 CSV 的人，不是来玩的人。
  */
 
 /** 站点级标题：没有选定主题时（选主题页）的 `document.title`。 */
-export const SITE_TITLE = '随机转盘';
+export const SITE_TITLE = '是但';
 
 /** 一个主题：一份名单，加一套面向使用者的说法。 */
 export interface Theme {
@@ -19,7 +19,7 @@ export interface Theme {
   readonly slug: string;
   /** 名单文件在 `public/` 下的文件名。取数时拼在 `BASE_URL` 后面。 */
   readonly rosterFile: string;
-  /** 转盘页上的大标题，同时用作这一页的 `document.title`。 */
+  /** 玩法页上的大标题，同时用作这一页的 `document.title`。 */
   readonly title: string;
   /** 选主题页上这个入口的说法。 */
   readonly entryLabel: string;

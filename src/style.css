@@ -16,14 +16,9 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-.wheel {
-  /* 转盘之外的固定部件（标题、提示、两个按钮和它们之间的间距）大致占掉的高度。
-     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。
-     「换个主题」不占这里的一分一毫：它和标题同占一行（见 .wheel__header）。 */
-  --wheel-chrome-full: 296px;
-  /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
-  --wheel-reshuffle-height: 64px;
-  --wheel-chrome: var(--wheel-chrome-full);
+/* 一页玩法页的版式：加载态、四类错误页和每个玩法的盘面都用它（见 gamePage.ts 的 gamePage）。
+   玩法自己的块名（.wheel 等）加在它后面，只用来挂那个玩法专有的东西。 */
+.page {
   max-width: 640px;
   margin: 0 auto;
   padding: 24px calc(16px + env(safe-area-inset-right, 0px))
@@ -34,7 +29,17 @@ body {
   gap: 16px;
 }
 
-/* 名单只有 12 个及以下时换一批按钮根本不存在（见 ui.ts），
+.wheel {
+  /* 转盘之外的固定部件（标题、提示、两个按钮和它们之间的间距）大致占掉的高度。
+     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。
+     「换个主题」不占这里的一分一毫：它和标题同占一行（见 .page__header）。 */
+  --wheel-chrome-full: 296px;
+  /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
+  --wheel-reshuffle-height: 64px;
+  --wheel-chrome: var(--wheel-chrome-full);
+}
+
+/* 名单只有 12 个及以下时换一批按钮根本不存在（见 games/wheel/ui.ts），
    那段高度不该继续替它留着——留着只会让转盘白白矮一截。 */
 .wheel--no-reshuffle {
   --wheel-chrome: calc(var(--wheel-chrome-full) - var(--wheel-reshuffle-height));
@@ -44,7 +49,7 @@ body {
    三列 1fr auto 1fr——中间那列装标题，左右两列等宽，所以标题是相对整行居中的，
    不是相对「链接右边剩下的地方」居中。右边那列空着，只为把标题顶回中间。
    链接因此不占任何额外的竖向高度：这一行的高度由标题决定，转盘一个像素都没矮。 */
-.wheel__header {
+.page__header {
   width: 100%;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -52,7 +57,7 @@ body {
   gap: 8px;
 }
 
-.wheel__title {
+.page__title {
   margin: 0;
   font-size: 1.6rem;
   grid-column: 2;
@@ -67,20 +72,20 @@ body {
   text-align: center;
 }
 
-/* 加载态：进转盘页后、名单取回来之前显示（见 ui.ts 的 showRosterLoading）。
-   加载失败不走这里，走整页的 .wheel__error。 */
-.wheel__status {
+/* 加载态：进玩法页后、名单取回来之前显示（见 gamePage.ts 的 showRosterLoading）。
+   加载失败不走这里，走整页的 .page__error。 */
+.page__status {
   margin: 0;
   font-size: 1rem;
   color: #6b6b7b;
   text-align: center;
 }
 
-/* 回到选主题页的入口。每一页转盘页都有一个，在页头标题的左边（见 ui.ts 的 wheelPage）。
+/* 回到选主题页的入口。每一页玩法页都有一个，在页头标题的左边（见 gamePage.ts 的 gamePage）。
    是链接不是按钮：中键能新开、长按有菜单、地址看得见。
    只占自己那几个字的宽（justify-self: start），下划线才不会拉成半行长；
    竖向比标题矮，所以这一行的高度还是标题的高度。 */
-.wheel__home {
+.page__home {
   justify-self: start;
   padding: 6px 0;
   line-height: 1.2;
@@ -91,8 +96,8 @@ body {
   border-bottom: 1px solid #d5d5df;
 }
 
-.wheel__home:hover,
-.wheel__home:focus-visible {
+.page__home:hover,
+.page__home:focus-visible {
   color: #2b2b33;
   border-bottom-color: #2b2b33;
 }
@@ -133,7 +138,7 @@ body {
 }
 
 /* 转动期间按钮是 aria-disabled 而不是 disabled：它得留在 tab 序里，
-   焦点才不会在开转的瞬间掉回 body（见 ui.ts 的 setBusy）。 */
+   焦点才不会在开转的瞬间掉回 body（见 games/wheel/ui.ts 的 setBusy）。 */
 .wheel__spin[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
@@ -157,11 +162,13 @@ body {
   cursor: default;
 }
 
-.wheel__card[hidden] {
+/* 结果卡片：两种玩法共用同一张（见 resultCard.ts），所以它是自己的块，
+   不挂在哪一个玩法的块名底下。 */
+.card[hidden] {
   display: none;
 }
 
-.wheel__card {
+.card {
   position: fixed;
   inset: 0;
   display: flex;
@@ -173,7 +180,7 @@ body {
   overflow-y: auto;
 }
 
-.wheel__card-inner {
+.card__inner {
   background: #fff;
   border-radius: 20px;
   padding: 32px 28px;
@@ -183,20 +190,20 @@ body {
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
 }
 
-.wheel__card-label {
+.card__label {
   margin: 0 0 8px;
   color: #6b6b7b;
   font-size: 0.9rem;
 }
 
-.wheel__card-name {
+.card__name {
   margin: 0 0 24px;
   font-size: 1.8rem;
   font-weight: 700;
   word-break: break-word;
 }
 
-.wheel__card-close {
+.card__close {
   min-height: 48px;
   padding: 0 24px;
   border: none;
@@ -209,23 +216,138 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 弹球机：竖版盘面加一份图例。盘面上只有颜色和序号，候选的名字都在图例里
+   （见 games/pinball/ui.ts）。 */
+.pinball {
+  /* 盘面之外的固定部件（标题、图例、留白与间距）大致占掉的高度。
+     用它把盘面限制在首屏内：不滚动也能同时看见盘面和图例。
+     窄屏上图例排在盘面下面，占的高度多；宽到能并排时下面那条媒体查询会把它调小。 */
+  --pinball-chrome: 264px;
+}
+
+.pinball__note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6b6b7b;
+  text-align: center;
+}
+
+/* 没有抽样提示时它一个像素都不占：留着只会让盘面白白矮一截。 */
+.pinball__note:empty {
+  display: none;
+}
+
+.pinball__stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.pinball__board {
+  display: block;
+  /* 宽度取「容器宽度」和「首屏剩下的高度换算成的宽度」里的小者，
+     aspect-ratio 要跟 ui.ts 里裁掉天花板以上那一截之后的画面一致（360×540），
+     盘面才不被压扁。 */
+  width: min(100%, max(160px, calc((100vh - var(--pinball-chrome)) * 360 / 540)));
+  width: min(100%, max(160px, calc((100svh - var(--pinball-chrome)) * 360 / 540)));
+  height: auto;
+  aspect-ratio: 360 / 540;
+  border-radius: 18px;
+  /* 拉柱塞是竖向拖拽，所以这里是 none 而不是别处那个 manipulation：
+     manipulation 只免掉双击缩放，竖向拖拽仍会被浏览器当成滚动抢走。 */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+}
+
+/* 图例：颜色和序号与落格一一对应，一格一行。 */
+.pinball__legend {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 6px 12px;
+}
+
+.pinball__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pinball__legend-badge {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  /* 六个盘面颜色上都压得住的墨色，与落格里那几个序号是同一个。 */
+  color: #2b2b33;
+}
+
+.pinball__legend-name {
+  font-size: 0.95rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 宽到放得下时图例挪到盘面旁边：竖版盘面在桌面端居中留白即可，
+   图例竖排一列，盘面也就能长回首屏的高度。 */
+@media (min-width: 620px) {
+  .pinball {
+    --pinball-chrome: 140px;
+  }
+
+  .pinball__stage {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  .pinball__legend {
+    width: auto;
+    min-width: 8rem;
+    max-width: 16rem;
+    grid-template-columns: 1fr;
+    align-content: start;
+  }
+}
+
 /* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给转盘。 */
 @media (max-height: 560px) {
-  .wheel {
-    /* 只改这两个量，缺了换一批时该减多少由上面那条规则接着算。 */
-    --wheel-chrome-full: 208px;
-    --wheel-reshuffle-height: 60px;
+  .page {
     padding-top: 12px;
     gap: 12px;
   }
 
-  .wheel__title {
+  .wheel {
+    /* 只改这两个量，缺了换一批时该减多少由上面那条规则接着算。 */
+    --wheel-chrome-full: 208px;
+    --wheel-reshuffle-height: 60px;
+  }
+
+  .pinball {
+    --pinball-chrome: 196px;
+  }
+
+  .page__title {
     font-size: 1.2rem;
   }
 
   /* 标题矮了，页头这一行的高度就由它说了算——链接得跟着缩，
      否则它反倒成了这一行最高的东西，把上面算好的那点高度又吃回去。 */
-  .wheel__home {
+  .page__home {
     padding: 2px 0;
     font-size: 0.85rem;
   }
@@ -235,7 +357,15 @@ body {
   }
 }
 
-/* 撒花：临时插入 body 的全屏画布，覆盖在结果卡片之上但不吃点击。 */
+/* 又矮又宽（横过来的手机）：图例在盘面旁边，不占竖向的一分一毫，
+   盘面能占的高度就只剩页头和留白之外的那点了。 */
+@media (max-height: 560px) and (min-width: 620px) {
+  .pinball {
+    --pinball-chrome: 118px;
+  }
+}
+
+/* 撒花：临时插入 body 的全屏画布，覆盖在结果卡片之上但不吃点击（见 confetti.ts）。 */
 .confetti {
   position: fixed;
   inset: 0;
@@ -243,8 +373,8 @@ body {
   pointer-events: none;
 }
 
-/* 名单出错时的整页提示：四类错误共用这一套版式，只是文案不同。 */
-.wheel__error {
+/* 名单出错时的整页提示：四类错误共用这一套版式，只是文案不同（见 rosterFailure.ts）。 */
+.page__error {
   width: 100%;
   max-width: 32rem;
   box-sizing: border-box;
@@ -255,21 +385,21 @@ body {
   text-align: left;
 }
 
-.wheel__error-title {
+.page__error-title {
   margin: 0 0 0.5rem;
   font-size: 1.05rem;
   font-weight: 700;
   color: #a12f2f;
 }
 
-.wheel__error-detail {
+.page__error-detail {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
   color: #4a3a3a;
   overflow-wrap: anywhere;
 }
 
-.wheel__error-hint {
+.page__error-hint {
   margin: 0;
   font-size: 0.85rem;
   color: #6b6b7b;
