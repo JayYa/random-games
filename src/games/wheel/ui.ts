@@ -9,6 +9,7 @@
 import { TAU } from '../../angles';
 import { gamePage } from '../../gamePage';
 import { showRosterFailure } from '../../rosterFailure';
+import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
 import type { Theme } from '../../themes';
 import { createWheelSession, type WheelSession } from './session';
@@ -38,7 +39,7 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
         <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
       </div>
       <button class="wheel__spin" id="wheel-spin" type="button">转</button>
-      <button class="wheel__reshuffle" id="wheel-reshuffle" type="button">换一批</button>
+      ${reshuffleButtonMarkup('wheel')}
       ${resultCardMarkup(theme, CLOSE_LABEL)}
     `,
     { block: 'wheel', shellId: 'wheel-shell' },
@@ -111,8 +112,9 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
   const setBusy = (busy: boolean) => {
     spinning = busy;
     elements.spinButton.setAttribute('aria-disabled', String(busy));
-    // 转动期间不能换一批：盘面绝不能在一次转动中途被换掉。
-    elements.reshuffleButton.setAttribute('aria-disabled', String(busy));
+    // 转动期间不能换一批：盘面绝不能在一次转动中途被换掉。这条规则两种玩法
+    // 是同一条，写在 reshuffleControl.ts 里，这里只告诉它「开摇了没有」。
+    reshuffle.setLocked(busy);
   };
 
   // 卡片上的按钮写着"再转一次"，那它就得真的再转一次：收掉卡片并立刻开转。
@@ -150,23 +152,20 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
 
   elements.spinButton.addEventListener('click', startSpin);
 
-  elements.reshuffleButton.addEventListener('click', () => {
-    if (spinning) return;
-    card.hide();
-    // 换一批只重抽上盘名单并重绘，不动当前的旋转角度。
-    session.reshuffle();
-    render();
+  // 抽样提示、「换一批」，以及「开摇之后就不能再换」那条两种玩法共用的规则，
+  // 都在 reshuffleControl.ts 里。≤ 12 个时上盘名单不是抽出来的，那边会把按钮整个撤掉。
+  const reshuffle = createReshuffleControl({
+    block: 'wheel',
+    shell: elements.shell,
+    note: elements.note,
+    button: elements.reshuffleButton,
+    session,
+    onReshuffle: () => {
+      card.hide();
+      // 换一批只重抽上盘名单并重绘，不动当前的旋转角度。
+      render();
+    },
   });
-
-  if (session.isSampled) {
-    // 走到这里名单一定是好的：有毛病的名单在上面已经换成整页的错误提示了。
-    elements.note.textContent = `已从 ${session.enabledCount} 个中随机选出 ${session.lineup.length} 个`;
-  } else {
-    // ≤ 12 个时上盘名单不是抽出来的，换一批没有意义，按钮整个不存在。
-    // 按钮不在了，留给它的那段高度也得还给转盘，否则转盘白白矮一截。
-    elements.reshuffleButton.remove();
-    elements.shell.classList.add('wheel--no-reshuffle');
-  }
 
   // 画布尺寸由 CSS 算，元素自己变大变小时重绘一次即可（转屏、地址栏收起都走这条）。
   if (typeof ResizeObserver === 'function') {
