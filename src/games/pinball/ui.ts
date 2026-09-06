@@ -415,16 +415,9 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     onDismiss: () => resetToReady(),
   });
 
-  /**
-   * 把「现在锁没锁」告诉换一批：开抽期间盘面锁死，球飞到一半盘面上的候选绝不会
-   * 被换掉，卡片挂着也照旧锁着（ADR-0002）。判据由开抽会话给，这里不再自己数阶段。
-   */
-  function syncReshuffleLock(): void {
-    reshuffle.setLocked(roll.state.phase !== 'idle');
-  }
-
   function resetToReady(): void {
-    syncReshuffleLock();
+    // 推过开抽会话就让换一批看一眼：锁没锁由它自己问会话，弹球机不掺和这条规则。
+    reshuffle.sync();
     power = 0;
     flight = undefined;
     drag = undefined;
@@ -517,7 +510,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     const winner = session.lineup[shot.slotIndex];
     // 交给开抽会话摇出中选，卡片由它弹。这一步前后都算已开抽，锁不会松一下。
     if (winner) roll.settle(winner);
-    syncReshuffleLock();
+    reshuffle.sync();
   }
 
   function frame(now: number): void {
@@ -581,7 +574,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   function launch(): void {
     // 发射这一刻才算开抽：球出去了就收不回来，盘面从此锁死（见 rollSession.ts）。
     if (!roll.begin()) return;
-    syncReshuffleLock();
+    reshuffle.sync();
 
     // 力度整段行程都有效：最轻的一发也绕得过顶弧，不存在「打空」（见 board.ts）。
     const shotPower = power;
@@ -656,15 +649,18 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   // 系统抢走指针（来电、手势返回）时按取消算，绝不糊里糊涂打出一发。
   elements.board.addEventListener('pointercancel', cancelDrag, listen);
 
-  // 抽样提示、「换一批」，以及「开摇之后就不能再换」那条两种玩法共用的规则，
-  // 都在 reshuffleControl.ts 里。候选不超过 8 个时上盘名单不是抽出来的，
-  // 那边会把按钮整个撤掉——按了只会换座次，与按钮上的字不符。
+  // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，
+  // 都在 reshuffleControl.ts 里：控件自己读开抽会话的阶段（球飞到一半盘面上的候选
+  // 绝不会被换掉，卡片挂着也照旧锁着，ADR-0002），弹球机不再自己数阶段。
+  // 候选不超过 8 个时上盘名单不是抽出来的，那边会把按钮整个撤掉——按了只会换座次，
+  // 与按钮上的字不符。
   const reshuffle = createReshuffleControl({
     block: 'pinball',
     shell: elements.shell,
     note: elements.note,
     button: elements.reshuffleButton,
     session,
+    roll,
     onReshuffle: () => {
       // 上盘的候选换了一批，图例得跟着重建：图例上的序号与落格一一对应，
       // 不重建的话球落进 3 号格，图例上写的还是上一批的第三个人。

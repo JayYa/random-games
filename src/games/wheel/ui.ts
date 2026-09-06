@@ -109,20 +109,36 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
     onDismiss: () => startSpin(),
   });
 
+  // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，
+  // 都在 reshuffleControl.ts 里：控件自己读开抽会话的阶段，转盘不掺和这条规则。
+  // ≤ 12 个时上盘名单不是抽出来的，那边会把按钮整个撤掉。
+  const reshuffle = createReshuffleControl({
+    block: 'wheel',
+    shell: elements.shell,
+    note: elements.note,
+    button: elements.reshuffleButton,
+    session,
+    roll,
+    onReshuffle: () => {
+      // 按得动就说明开抽会话还在「还没开抽」（否则控件自己就挡下了），
+      // 所以这里不必再收一次卡片。换一批只重抽上盘名单并重绘，不动当前的旋转角度。
+      render();
+    },
+  });
+
   /**
-   * 把两个按钮的可按状态对齐到开抽会话当前的阶段。
+   * 把两个按钮的可按表现对齐到开抽会话当前的阶段。
    *
    * “转”用 `aria-disabled` 而不用 `disabled`：`disabled` 的按钮不可聚焦，
    * 焦点会在按下“转”的瞬间掉回 `<body>`，键盘和读屏的人在 3.5 秒里
    * 无处可去，转完还得重新找按钮。`aria-disabled` 同样宣告“现在按不动”，
    * 但按钮还留在 tab 序里，焦点不会丢——真正的拦截由开抽会话做。
    *
-   * 换一批那一档目前仍只收一个布尔，由这里从阶段里读出来传进去；
-   * 待换一批控件自己读开抽会话后，这行转手就没了。
+   * 换一批那一档这里只说一声「看一眼」：锁没锁由控件自己问开抽会话。
    */
   const syncControls = () => {
     elements.spinButton.setAttribute('aria-disabled', String(roll.state.phase === 'rolling'));
-    reshuffle.setLocked(roll.state.phase !== 'idle');
+    reshuffle.sync();
   };
 
   const startSpin = () => {
@@ -152,21 +168,6 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   };
 
   elements.spinButton.addEventListener('click', startSpin);
-
-  // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，
-  // 都在 reshuffleControl.ts 里。≤ 12 个时上盘名单不是抽出来的，那边会把按钮整个撤掉。
-  const reshuffle = createReshuffleControl({
-    block: 'wheel',
-    shell: elements.shell,
-    note: elements.note,
-    button: elements.reshuffleButton,
-    session,
-    onReshuffle: () => {
-      // 按得动就说明开抽会话还在「还没开抽」（否则锁上了），所以这里不必再收一次卡片。
-      // 换一批只重抽上盘名单并重绘，不动当前的旋转角度。
-      render();
-    },
-  });
 
   // 画布尺寸由 CSS 算，元素自己变大变小时重绘一次即可（转屏、地址栏收起都走这条）。
   if (typeof ResizeObserver === 'function') {
