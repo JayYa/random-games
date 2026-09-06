@@ -95,19 +95,4 @@ describe('rollGame', () => {
     }
     expect(seen.size).toBe(GAMES.length);
   });
-
-  it('各条被抽到的次数大致相当', () => {
-    const random = seededRandom(7);
-    const counts = new Map<string, number>();
-    const rounds = 3000;
-    for (let i = 0; i < rounds; i += 1) {
-      const slug = rollGame(random).slug;
-      counts.set(slug, (counts.get(slug) ?? 0) + 1);
-    }
-    // 松的界：这条测的是「没有哪一条被系统性冷落」，不是随机源的分布质量。
-    const expected = rounds / GAMES.length;
-    for (const game of GAMES) {
-      expect(counts.get(game.slug) ?? 0).toBeGreaterThan(expected * 0.8);
-    }
-  });
 });

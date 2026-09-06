@@ -22,9 +22,10 @@ import {
   SLOT_FLOOR_Y,
   dividerPositions,
   pegPositions,
+  slotCenterX,
   slotIndexAtX,
 } from './board';
-import { seededRandom } from './seededRandom';
+import { seededRandom } from '../../seededRandom';
 
 /** 轨迹上的一帧：球心位置，外加两个风车当下的角度。 */
 export interface PinballFrame {
@@ -62,8 +63,8 @@ export interface PinballShot {
   /** 判定发生在第几帧：球心越过隔板顶部那一帧（ADR-0006 的「进格即定」）。 */
   readonly decidedAtFrame: number;
   /**
-   * 是否走了兜底：重试次数用尽仍没进格，落格是按球当下的横坐标就近判的。
-   * 正常的一发是 `false`。
+   * 是否走了兜底：重试次数用尽仍没进格，落格是按球到过的最低点就近判的，
+   * 轨迹的收尾那一段也是补出来的（见 `fallbackShot`）。正常的一发是 `false`。
    */
   readonly settledByFallback: boolean;
   /** 一帧对应多少毫秒。回放层按累积时间索引轨迹时要用。 */
@@ -338,12 +339,95 @@ function nextSeed(seed: number, attempt: number): number {
   return (Math.trunc(seed) + (attempt + 1) * 0x9e3779b9) >>> 0;
 }
 
+/** 补出来的那一段落格收尾有多少帧。约 0.4 秒，看得清是「掉进去了」就够。 */
+const FALLBACK_DROP_FRAMES = 48;
+
+/** 风车每一步转多少弧度：matter 的角速度口径是每 16.67ms 基准步。 */
+const WINDMILL_RADIANS_PER_STEP =
+  BOARD.windmillAngularVelocity * (BOARD.stepMs / (1000 / 60));
+
+/**
+ * 兜底那一发：重试全部用尽，谁也没进格。
+ *
+ * **失败那次模拟的帧不能原样交出去。** 它要么是球卡在钉子上原地抖了十几秒，
+ * 要么是球飞出了盘面；而它的结尾必然不在任何一个落格里，回放完就会从一个球
+ * 根本没进过的落格里弹出一个中选。ADR-0006 说「因为模拟在回放之前，用户看不到
+ * 这个过程」，指的正是这一段不该上屏——那就真的别把它交出去。story 27：
+ * 「球永远不会卡在盘面上不动」。
+ *
+ * 所以兜底重新拼一条能看的轨迹，两段：
+ *
+ * 1. **真的那一段**：截到球这一路上到过的最低点（第一次到达那个 y 的那一帧）。
+ *    这之前是实打实模拟出来的，照播不误；这之后正是它卡住或者飞出去的那一段，
+ *    丢掉。取「最低点」而不是「最后一帧」，是因为球一路往下打，卡住必定发生在
+ *    它到达最低点之后。
+ * 2. **补的那一段**：从这一点掉进落格。落格按最低点的横坐标就近判——球到过的
+ *    最深处离哪一格近就是哪一格。这一段不是物理算出来的，但兜底本来就已经不是
+ *    物理仲裁了（`settledByFallback` 如实说了这件事）；它唯一的职责是让用户
+ *    看见的球确实落进了最后宣布的那一格。
+ *
+ * 这条路在正常盘面上打不到：`simulate.test.ts` 里两百发一次都没走过兜底，只有
+ * 测试把 `maxSteps` 压到球出不了柱塞通道时才够得着。
+ */
+function fallbackShot(attempt: Attempt, slotCount: number): PinballShot {
+  const frames = attempt.frames;
+
+  // 球到过的最低点，只认可玩区域里、判定线以上的帧——柱塞通道里那一段和
+  // 飞出盘面那一段都不能拿来定落格。
+  let anchorIndex = -1;
+  let lowest = -Infinity;
+  for (let i = 0; i < frames.length; i += 1) {
+    const frame = frames[i]!;
+    const inPlayArea = frame.x >= BOARD.playLeft && frame.x <= BOARD.playRight;
+    if (inPlayArea && frame.y <= BOARD.dividerTopY && frame.y > lowest) {
+      lowest = frame.y;
+      anchorIndex = i;
+    }
+  }
+
+  // 一帧都够不上（球连盘面都没进）：只留发射那一帧，剩下的全靠补。
+  const kept = frames.slice(0, Math.max(1, anchorIndex + 1));
+  const anchor = kept[kept.length - 1] ?? {
+    x: LANE_CENTER_X,
+    y: BOARD.launchY,
+    windmillAngles: BOARD.windmillPivots.map(() => 0),
+  };
+
+  const slotIndex = slotIndexAtX(anchor.x, slotCount);
+  const targetX = slotCenterX(slotIndex, slotCount);
+  const targetY = SLOT_FLOOR_Y - BOARD.ballRadius;
+
+  const out: PinballFrame[] = [...kept];
+  let decidedAtFrame = -1;
+  for (let step = 1; step <= FALLBACK_DROP_FRAMES; step += 1) {
+    const t = step / FALLBACK_DROP_FRAMES;
+    // 竖直方向按自由落体的样子加速，横向匀速摆到格子中线——看着像掉下去，
+    // 而不是像被人拎过去。
+    const x = anchor.x + (targetX - anchor.x) * t;
+    const y = anchor.y + (targetY - anchor.y) * t * t;
+    const windmillAngles = anchor.windmillAngles.map(
+      (angle, i) => angle + (BOARD.windmillDirections[i] ?? 1) * WINDMILL_RADIANS_PER_STEP * step,
+    );
+    out.push({ x, y, windmillAngles });
+    // 进格即定：补出来的这一段也照同一条线判，回放层拿到的语义不变。
+    if (decidedAtFrame < 0 && y >= BOARD.dividerTopY) decidedAtFrame = out.length - 1;
+  }
+
+  return {
+    slotIndex,
+    frames: out,
+    decidedAtFrame: decidedAtFrame >= 0 ? decidedAtFrame : out.length - 1,
+    settledByFallback: true,
+    frameIntervalMs: BOARD.stepMs,
+  };
+}
+
 /**
  * 打一发：把整段模拟同步跑完，返回落格索引和完整轨迹。
  *
- * 卡住兜底：单次模拟超过步数上限就换种子重跑；重试次数用尽才把这一发判给
- * 球当下横坐标最近的那个落格。它不抛错，也不会死循环——因为模拟发生在回放
- * 之前，用户永远看不见卡住的球（ADR-0006）。
+ * 卡住兜底：单次模拟超过步数上限就换种子重跑；重试次数用尽才走 `fallbackShot`。
+ * 它不抛错，也不会死循环，而且**返回的轨迹永远是能给人看的**——卡住或者飞出
+ * 盘面的那一段绝不会被交出去，因为模拟发生在回放之前，用户永远看不见它（ADR-0006）。
  */
 export function simulateShot(input: PinballShotInput): PinballShot {
   const slotCount = Math.max(1, Math.trunc(input.slotCount ?? BOARD.slotCount));
@@ -370,13 +454,6 @@ export function simulateShot(input: PinballShotInput): PinballShot {
     }
   }
 
-  // 重试用尽：判给球当下横坐标最近的落格。
-  const last = attempt.frames[attempt.frames.length - 1];
-  return {
-    slotIndex: slotIndexAtX(last?.x ?? BOARD.playLeft, slotCount),
-    frames: attempt.frames,
-    decidedAtFrame: Math.max(0, attempt.frames.length - 1),
-    settledByFallback: true,
-    frameIntervalMs: BOARD.stepMs,
-  };
+  // 重试用尽：交出一条重新拼过的、能给人看的轨迹。
+  return fallbackShot(attempt, slotCount);
 }

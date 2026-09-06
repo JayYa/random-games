@@ -331,28 +331,10 @@ body {
   cursor: default;
 }
 
-/* 宽到放得下时图例挪到盘面旁边：竖版盘面在桌面端居中留白即可，
-   图例竖排一列，盘面也就能长回首屏的高度。 */
-@media (min-width: 620px) {
-  .pinball {
-    --pinball-chrome-full: 204px;
-  }
-
-  .pinball__stage {
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 24px;
-  }
-
-  .pinball__legend {
-    width: auto;
-    min-width: 8rem;
-    max-width: 16rem;
-    grid-template-columns: 1fr;
-    align-content: start;
-  }
-}
+/* 桌面端不另做一套横排：竖版盘面居中留白即可（本次的 Out of Scope 明确说了
+   不做横屏专属布局）。图例照旧排在盘面下面，靠 auto-fill 自己铺成几列——
+   宽屏上它变成横着的一两行，仍然一眼看得完。
+   `.pinball__stage` 的 column 与 `align-items: center` 就是这份居中留白。 */
 
 /* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给转盘。 */
 @media (max-height: 560px) {
@@ -386,14 +368,6 @@ body {
 
   .wheel__spin {
     min-height: 56px;
-  }
-}
-
-/* 又矮又宽（横过来的手机）：图例在盘面旁边，不占竖向的一分一毫，
-   盘面能占的高度就只剩页头和留白之外的那点了。 */
-@media (max-height: 560px) and (min-width: 620px) {
-  .pinball {
-    --pinball-chrome-full: 178px;
   }
 }
 
