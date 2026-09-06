@@ -6,6 +6,8 @@
  */
 
 import { expect } from 'vitest';
+import type { Candidate } from './lineupSession';
+import type { ResultCard } from './resultCard';
 
 /**
  * mulberry32：一个确定但各不相同的伪随机源。种子不同数列就不同，同一个种子
@@ -77,4 +79,57 @@ export function names(lineup: readonly { name: string }[]): string[] {
  */
 export function expectSameNames(lineup: readonly { name: string }[], expected: string[]): void {
   expect([...names(lineup)].sort()).toEqual([...expected].sort());
+}
+
+/**
+ * 一张记录调用的假结果卡片：开抽会话的用例用它当测试替身。
+ *
+ * 与 `scriptedRandom` / `stagedRandom` 同一性质——把一个真实依赖换成可预测、
+ * 可查问的替身，好让用例不必碰 DOM（真卡片要写节点、要撒花、要挪焦点）。
+ *
+ * 它照搬真卡片那一条口径：本来就没开时 `hide()` 什么都不做，所以 `hideCount`
+ * 数的是真的收起来过几次，而不是被调用过几次。
+ */
+export interface FakeResultCard extends ResultCard {
+  /** 卡片此刻是不是挂着。 */
+  readonly isOpen: boolean;
+  /** 最近一次被要求弹出时带的那个中选，从没弹过则为 undefined。 */
+  readonly shownWinner: Candidate | undefined;
+  /** 被要求弹出过几次。 */
+  readonly showCount: number;
+  /** 真的收起来过几次；本来就没开的那几次不计。 */
+  readonly hideCount: number;
+}
+
+export function fakeResultCard(): FakeResultCard {
+  let isOpen = false;
+  let shownWinner: Candidate | undefined;
+  let showCount = 0;
+  let hideCount = 0;
+
+  return {
+    get isOpen() {
+      return isOpen;
+    },
+    get shownWinner() {
+      return shownWinner;
+    },
+    get showCount() {
+      return showCount;
+    },
+    get hideCount() {
+      return hideCount;
+    },
+    show(winner) {
+      isOpen = true;
+      shownWinner = winner;
+      showCount += 1;
+    },
+    hide() {
+      // 与真卡片一致：本来就没开就什么都不做。
+      if (!isOpen) return;
+      isOpen = false;
+      hideCount += 1;
+    },
+  };
 }
