@@ -24,6 +24,7 @@ import { createLineupSession, type Candidate, type LineupSession } from '../../l
 import { PALETTE } from '../../palette';
 import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
+import { createRollSession } from '../../rollSession';
 import { showRosterFailure } from '../../rosterFailure';
 import type { Theme } from '../../themes';
 import {
@@ -89,14 +90,6 @@ const PLUNGER_TRAVEL = 18;
 const PLUNGER_COILS = 5;
 const LANE_INNER_LEFT = BOARD.laneWallX + BOARD.laneWallWidth;
 const LANE_INNER_RIGHT = BOARD.laneRight;
-
-/**
- * 一发的四个阶段。
- *
- * `ready` 之外的三个阶段都算「已发射」：柱塞不受理新的拖拽，盘面也不该在中途被
- * 换掉。上盘名单相关的操作（换一批）要挂锁的话，挂在 `phase !== 'ready'` 上。
- */
-type ShotPhase = 'ready' | 'charging' | 'flying' | 'result';
 
 interface PinballElements {
   readonly shell: HTMLElement;
@@ -377,7 +370,6 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   // 五个空格子既没有候选可对应，球掉进去也没有结果可报。
   const slotCount = Math.max(1, session.lineup.length);
 
-  let phase: ShotPhase = 'ready';
   let power = 0;
   /** 风车相位（弧度）。发射瞬间快照它，喂给模拟。 */
   let windmillPhase = 0;
@@ -393,6 +385,9 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
    *
    * `fullPullY` 在按下的那一刻就定死，之后 `pointermove` 一路照它算——同一次
    * 拖拽里力度的手感不该中途变。
+   *
+   * 它只管画柱塞，是弹球机自己的事，不进开抽会话：球还没出去，这一发随时可以
+   * 拖回原位作废，不满足「开抽之后盘面锁死」的语义（见 `src/rollSession.ts`）。
    */
   let drag:
     | { readonly pointerId: number; readonly startY: number; readonly fullPullY: number }
@@ -404,25 +399,25 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   let lastFrameAt = 0;
 
   const card = createResultCard(root, {
-    // 关掉卡片就回到能再打一发的状态：上盘名单和盘面都不变，换的只是球。
-    onClose: () => {
-      card.hide();
-      resetToReady();
-    },
+    // 「再打一发」经由开抽会话收场：卡片收掉、这一次开抽结束，才轮到下面的
+    // `onDismiss` 把盘面退回待发。
+    onClose: () => roll.dismiss(),
     // 弹球机整页没有可聚焦的操作（ADR-0006），焦点没有可交回的按钮。
   });
 
   /**
-   * 换一个阶段。`ready` 之外都算「已发射」，盘面锁死：换一批在这期间按不动，
-   * 球飞到一半盘面上的候选绝不会被换掉（ADR-0002）。规则本身在 reshuffleControl.ts。
+   * 这一次开抽走到哪一步了：阶段与「什么时候算已开抽」的规则都在
+   * `src/rollSession.ts`，这里只在发射、落格、收卡片三个时刻推它一把。
    */
-  function setPhase(next: ShotPhase): void {
-    phase = next;
-    reshuffle.setLocked(next !== 'ready');
-  }
+  const roll = createRollSession({
+    card,
+    // 收掉卡片就回到能再打一发的状态：上盘名单和盘面都不变，换的只是球。
+    onDismiss: () => resetToReady(),
+  });
 
   function resetToReady(): void {
-    setPhase('ready');
+    // 只把盘面退回待发。换一批按不按得动不必这里操心：控件订着开抽会话，
+    // 阶段一变它自己就重画了（见 reshuffleControl.ts）。
     power = 0;
     flight = undefined;
     drag = undefined;
@@ -509,12 +504,12 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
 
   function finishFlight(shot: PinballShot): void {
     flight = undefined;
-    setPhase('result');
     // 球停在哪个落格里，哪个候选就是中选：这里只做一次数组下标，不挑结果。
     // 风车接着转：相位从轨迹最后一帧接上，画面不跳。
     windmillPhase = phaseFromAngles(angles) ?? windmillPhase;
     const winner = session.lineup[shot.slotIndex];
-    if (winner) card.show(winner);
+    // 交给开抽会话摇出中选，卡片由它弹。这一步前后都算已开抽，锁不会松一下。
+    if (winner) roll.settle(winner);
   }
 
   function frame(now: number): void {
@@ -528,7 +523,8 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
       // 风车从挂载起就一直转，由真实时间驱动——用户挑得到自己想要的那个时机。
       windmillPhase += delta * WINDMILL_RADIANS_PER_MS;
       angles = anglesFromPhase(windmillPhase);
-      if (phase === 'ready' || phase === 'charging') {
+      // 没在开抽就是待发或正拖着柱塞，两种情形球都坐在柱塞头上。
+      if (roll.state.phase === 'idle') {
         // 球坐在柱塞头上，柱塞压下去它跟着走。
         ballX = LANE_CENTER_X;
         ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - 2;
@@ -563,13 +559,21 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     );
   }
 
+  /**
+   * 作废这一发：柱塞弹回原位，球还坐在上面。
+   *
+   * 三条作废的路（拖回原位、拖出有效区域、系统抢走指针）都走这里，而这里不碰
+   * 开抽会话——拖柱塞根本没进过开抽，自然也没什么可退的。
+   */
   function cancelDrag(): void {
     drag = undefined;
     power = 0;
-    if (phase === 'charging') setPhase('ready');
   }
 
   function launch(): void {
+    // 发射这一刻才算开抽：球出去了就收不回来，盘面从此锁死（见 rollSession.ts）。
+    if (!roll.begin()) return;
+
     // 力度整段行程都有效：最轻的一发也绕得过顶弧，不存在「打空」（见 board.ts）。
     const shotPower = power;
     const shot = simulateShot({
@@ -583,7 +587,6 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
 
     drag = undefined;
     power = 0;
-    setPhase('flying');
     // 整段模拟已经跑完了（几毫秒），剩下的只是把它放出来。卡住的球在这之前
     // 就被兜底处理掉了，用户看不到（ADR-0006）。
     flight = { shot, startedAt: performance.now() };
@@ -594,14 +597,15 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   elements.board.addEventListener(
     'pointerdown',
     (event: PointerEvent) => {
-      if (phase !== 'ready') return;
+      // 开抽期间（球在飞、卡片挂着）整块盘面都不受理；已经拖着一根指头时，
+      // 第二根指头按下去也不该抢走这一发。
+      if (drag || roll.state.phase !== 'idle') return;
       event.preventDefault();
       drag = {
         pointerId: event.pointerId,
         startY: event.clientY,
         fullPullY: event.clientY + FULL_PULL_PX,
       };
-      setPhase('charging');
       power = 0;
       elements.board.setPointerCapture(event.pointerId);
     },
@@ -643,15 +647,19 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   // 系统抢走指针（来电、手势返回）时按取消算，绝不糊里糊涂打出一发。
   elements.board.addEventListener('pointercancel', cancelDrag, listen);
 
-  // 抽样提示、「换一批」，以及「开摇之后就不能再换」那条两种玩法共用的规则，
-  // 都在 reshuffleControl.ts 里。候选不超过 8 个时上盘名单不是抽出来的，
-  // 那边会把按钮整个撤掉——按了只会换座次，与按钮上的字不符。
-  const reshuffle = createReshuffleControl({
+  // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，
+  // 都在 reshuffleControl.ts 里：控件自己读开抽会话的阶段（球飞到一半盘面上的候选
+  // 绝不会被换掉，卡片挂着也照旧锁着，ADR-0002），弹球机不再自己数阶段。
+  // 候选不超过 8 个时上盘名单不是抽出来的，那边会把按钮整个撤掉——按了只会换座次，
+  // 与按钮上的字不符。控件还自己订着开抽会话，阶段一变就重画自己，弹球机侧
+  // 一句转发锁状态的代码都没有。
+  createReshuffleControl({
     block: 'pinball',
     shell: elements.shell,
     note: elements.note,
     button: elements.reshuffleButton,
     session,
+    roll,
     onReshuffle: () => {
       // 上盘的候选换了一批，图例得跟着重建：图例上的序号与落格一一对应，
       // 不重建的话球落进 3 号格，图例上写的还是上一批的第三个人。
