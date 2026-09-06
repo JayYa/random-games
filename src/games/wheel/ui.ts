@@ -14,12 +14,13 @@ import { canvasPixelRatio } from '../../pixelRatio';
 import { showRosterFailure } from '../../rosterFailure';
 import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
+import { createRollSession } from '../../rollSession';
 import type { Theme } from '../../themes';
 import { createWheelSession, type WheelSession } from './session';
 import { drawWheel } from './wheelCanvas';
 import { animateSpin } from './spinAnimation';
 
-/** 卡片上那个按钮写着「再转一次」，那它就得真的再转一次（见下面接的是 startSpin）。 */
+/** 卡片上那个按钮写着「再转一次」，那它就得真的再转一次（见下面接给开抽会话的 onDismiss）。 */
 const CLOSE_LABEL = '再转一次';
 
 interface WheelElements {
@@ -69,9 +70,6 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   const elements = buildDom(root, theme);
 
   let rotation = 0;
-  let spinning = false;
-  /** 结果卡片还挂在屏幕上没收掉。它和「正在转」一样算「已经开摇」。 */
-  let cardUp = false;
 
   const render = () => {
     const context = elements.canvas.getContext('2d');
@@ -91,78 +89,71 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
     drawWheel(context, { lineup: session.lineup, rotation, size });
   };
 
-  /**
-   * 转动期间两个按钮都不响应。
-   *
-   * 用 `aria-disabled` 而不是 `disabled`：`disabled` 的按钮不可聚焦，
-   * 焦点会在按下"转"的瞬间掉回 `<body>`，键盘和读屏的人在 3.5 秒里
-   * 无处可去，转完还得重新找按钮。`aria-disabled` 同样宣告"现在按不动"，
-   * 但按钮还留在 tab 序里，焦点不会丢——真正的拦截由下面的守卫做。
-   */
-  const setBusy = (busy: boolean) => {
-    spinning = busy;
-    elements.spinButton.setAttribute('aria-disabled', String(busy));
-    syncReshuffleLock();
-  };
-
-  /**
-   * 告诉换一批「开摇了没有」。这条规则两种玩法是同一条，写在 reshuffleControl.ts
-   * 里：转盘在转、或者结果卡片还挂在屏幕上，都算已经开摇，盘面锁死。
-   *
-   * 卡片那一档不能漏。卡片上写着的中选，出处就是此刻盘面上的这批候选；这时候
-   * 把名单换掉，等于让人看着的那个结果失去依据（ADR-0002）。弹球机上同一条规则
-   * 由 `phase === 'result'` 表达，两边口径得一致。
-   */
-  const syncReshuffleLock = () => {
-    reshuffle.setLocked(spinning || cardUp);
-  };
-
-  // 卡片上的按钮写着"再转一次"，那它就得真的再转一次：收掉卡片并立刻开转。
-  // 转动期间它够不着——卡片只在转停之后才出现——但 startSpin 自己也拦着，
-  // 无论如何都叠不出第二次转动。
+  // 卡片上的按钮写着“再转一次”，那它就得真的再转一次：收掉卡片并立刻开转。
+  // 卡片的开合归开抽会话管，这里只把“用户收下了”这一下告诉它。
   //
-  // 卡片收起来时焦点交回"转"：卡片上的按钮马上就要够不着了，焦点得有地方去。
+  // 卡片收起来时焦点交回“转”：卡片上的按钮马上就要够不着了，焦点得有地方去。
   const card = createResultCard(root, {
-    onClose: () => startSpin(),
+    onClose: () => roll.dismiss(),
     returnFocusTo: elements.spinButton,
   });
 
-  /** 收卡片这件事只走这一条路，卡片的开合状态才跟锁对得上。 */
-  const hideCard = () => {
-    card.hide();
-    cardUp = false;
-    syncReshuffleLock();
+  /**
+   * 一次开抽走到哪一步了，全问它。转盘自己不再存「正在转」和「卡片挂着」。
+   *
+   * 「再转一次」就是收下中选之后的回调：会话先收卡片、回到「还没开抽」，
+   * 再调到这里，所以立刻再开一次抽一定受理。
+   */
+  const roll = createRollSession({
+    card,
+    onDismiss: () => startSpin(),
+  });
+
+  /**
+   * 把两个按钮的可按状态对齐到开抽会话当前的阶段。
+   *
+   * “转”用 `aria-disabled` 而不用 `disabled`：`disabled` 的按钮不可聚焦，
+   * 焦点会在按下“转”的瞬间掉回 `<body>`，键盘和读屏的人在 3.5 秒里
+   * 无处可去，转完还得重新找按钮。`aria-disabled` 同样宣告“现在按不动”，
+   * 但按钮还留在 tab 序里，焦点不会丢——真正的拦截由开抽会话做。
+   *
+   * 换一批那一档目前仍只收一个布尔，由这里从阶段里读出来传进去；
+   * 待换一批控件自己读开抽会话后，这行转手就没了。
+   */
+  const syncControls = () => {
+    elements.spinButton.setAttribute('aria-disabled', String(roll.state.phase === 'rolling'));
+    reshuffle.setLocked(roll.state.phase !== 'idle');
   };
 
   const startSpin = () => {
-    // 转动期间不受理，连续点击不会叠加或打断动画。
-    if (spinning || session.lineup.length === 0) return;
-    hideCard();
-    setBusy(true);
+    // 受不受理由开抽会话说了算：转动期间连点「转」只会被它静静退回，
+    // 不报错，也叠不出第二次转动。
+    if (session.lineup.length > 0 && roll.begin()) {
+      // 中选候选在动画开始前已确定，旋转只是把它演出来。
+      const { winner, targetAngle } = session.spin();
 
-    // 中选候选在动画开始前已确定，旋转只是把它演出来。
-    const { winner, targetAngle } = session.spin();
-
-    animateSpin({
-      from: rotation % TAU,
-      targetAngle,
-      onFrame: (next) => {
-        rotation = next;
-        render();
-      },
-      onDone: () => {
-        // 先记上「卡片要挂出来了」再解转动的锁：这两件事之间不该有一个换一批
-        // 短暂可用的缝。
-        cardUp = true;
-        setBusy(false);
-        card.show(winner);
-      },
-    });
+      animateSpin({
+        from: rotation % TAU,
+        targetAngle,
+        onFrame: (next) => {
+          rotation = next;
+          render();
+        },
+        onDone: () => {
+          // 一步过到「抽出了中选」并弹卡片：转完到卡片挂上之间不会有
+          // 一个换一批短暂可用的缝。
+          roll.settle(winner);
+          syncControls();
+        },
+      });
+    }
+    // 不论受不受理，按钮都跟着开抽会话此刻的阶段走一遍。
+    syncControls();
   };
 
   elements.spinButton.addEventListener('click', startSpin);
 
-  // 抽样提示、「换一批」，以及「开摇之后就不能再换」那条两种玩法共用的规则，
+  // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，
   // 都在 reshuffleControl.ts 里。≤ 12 个时上盘名单不是抽出来的，那边会把按钮整个撤掉。
   const reshuffle = createReshuffleControl({
     block: 'wheel',
@@ -171,7 +162,7 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
     button: elements.reshuffleButton,
     session,
     onReshuffle: () => {
-      // 按得动就说明卡片没挂着（挂着的时候锁上了），所以这里不必再收一次卡片。
+      // 按得动就说明开抽会话还在「还没开抽」（否则锁上了），所以这里不必再收一次卡片。
       // 换一批只重抽上盘名单并重绘，不动当前的旋转角度。
       render();
     },
