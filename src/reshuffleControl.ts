@@ -10,10 +10,12 @@
  * 另有一件也不该各写一遍的事：提示的文案。两种玩法说的是同一句话，抄两遍迟早会分叉。
  *
  * 玩法要做的只是把两个会话交给它：名单会话说这一批是怎么来的，开抽会话说这一刻锁没锁。
+ * 交完就没玩法的事了——控件自己订阅开抽会话，阶段一变就把自己重画一遍，玩法侧
+ * 没有任何一句转发锁状态的代码，也就没有「推了会话却忘了同步按钮」这种漏法。
  */
 
 import type { LineupSession } from './lineupSession';
-import type { RollSession } from './rollSession';
+import { isRollLocked, type RollSession } from './rollSession';
 
 /** 按钮上的字。换的是上盘的候选，不是它们的座次。 */
 const RESHUFFLE_LABEL = '换一批';
@@ -40,38 +42,30 @@ export interface ReshuffleControlOptions {
   /** 名单会话：这一批是不是抽出来的、从多少个里抽了多少个。 */
   readonly session: LineupSession;
   /**
-   * 开抽会话：按不按得动只看它的阶段。`state` 是个 getter，握住这个引用读到的
-   * 永远是此刻的阶段，而不是挂载那一瞬的快照。
+   * 开抽会话：按不按得动只看它此刻的阶段。控件握住它订阅变化，并在每次被叫到时
+   * 现读一次阶段，读到的永远是此刻的那一档，不是挂载那一瞬的快照。
    */
   readonly roll: RollSession;
   /** 真换了一批之后玩法要做的事：重绘盘面、重建图例——盘面上的东西得跟着新名单走。 */
   readonly onReshuffle: () => void;
 }
 
-export interface ReshuffleControl {
-  /**
-   * 把按钮的可按表现对齐到开抽会话此刻的阶段。玩法推过会话之后说一声「看一眼」就行，
-   * 不必也不该自己判断锁没锁——那条判据只住在开抽会话里。
-   */
-  sync(): void;
-}
-
-/** 把已经写进页面的抽样提示和「换一批」接上行为。 */
-export function createReshuffleControl(options: ReshuffleControlOptions): ReshuffleControl {
+/** 把已经写进页面的抽样提示和「换一批」接上行为。接完它自己照看自己，玩法不用再管。 */
+export function createReshuffleControl(options: ReshuffleControlOptions): void {
   const { block, shell, note, button, session, roll } = options;
 
   if (!session.isSampled) {
     // 候选没超过上限：上盘名单不是抽出来的，没有「另一批」可换。
     button.remove();
     shell.classList.add(`${block}--no-reshuffle`);
-    return { sync: () => {} };
+    return;
   }
 
   // 走到这里名单一定是好的：有毛病的名单在挂载前就换成整页的错误提示了。
   note.textContent = `已从 ${session.enabledCount} 个中随机选出 ${session.lineup.length} 个`;
 
   /** 已经开抽就按不动。哪些阶段算已经开抽由开抽会话说了算，这里不复述。 */
-  const locked = () => roll.state.phase !== 'idle';
+  const locked = () => isRollLocked(roll.state);
 
   button.addEventListener('click', () => {
     // 按下的这一刻现问一次阶段，真正的拦截在这里——`aria-disabled` 只是说给人看的。
@@ -80,14 +74,12 @@ export function createReshuffleControl(options: ReshuffleControlOptions): Reshuf
     options.onReshuffle();
   });
 
-  return {
-    /**
-     * 用 `aria-disabled` 而不是 `disabled`：`disabled` 的按钮不可聚焦，焦点会在开抽的
-     * 瞬间掉回 `<body>`，键盘和读屏的人在这几秒里无处可去。`aria-disabled` 同样宣告
-     * 「现在按不动」，但按钮还留在 tab 序里，焦点不会丢。
-     */
-    sync(): void {
-      button.setAttribute('aria-disabled', String(locked()));
-    },
-  };
+  /**
+   * 用 `aria-disabled` 而不是 `disabled`：`disabled` 的按钮不可聚焦，焦点会在开抽的
+   * 瞬间掉回 `<body>`，键盘和读屏的人在这几秒里无处可去。`aria-disabled` 同样宣告
+   * 「现在按不动」，但按钮还留在 tab 序里，焦点不会丢。
+   */
+  roll.subscribe(() => {
+    button.setAttribute('aria-disabled', String(locked()));
+  });
 }

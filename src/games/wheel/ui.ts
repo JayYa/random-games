@@ -14,7 +14,7 @@ import { canvasPixelRatio } from '../../pixelRatio';
 import { showRosterFailure } from '../../rosterFailure';
 import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
-import { createRollSession } from '../../rollSession';
+import { createRollSession, isRollLocked } from '../../rollSession';
 import type { Theme } from '../../themes';
 import { createWheelSession, type WheelSession } from './session';
 import { drawWheel } from './wheelCanvas';
@@ -89,10 +89,10 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
     drawWheel(context, { lineup: session.lineup, rotation, size });
   };
 
-  // 卡片上的按钮写着“再转一次”，那它就得真的再转一次：收掉卡片并立刻开转。
-  // 卡片的开合归开抽会话管，这里只把“用户收下了”这一下告诉它。
+  // 卡片上的按钮写着「再转一次」，那它就得真的再转一次：收掉卡片并立刻开转。
+  // 卡片的开合归开抽会话管，这里只把「用户收下了」这一下告诉它。
   //
-  // 卡片收起来时焦点交回“转”：卡片上的按钮马上就要够不着了，焦点得有地方去。
+  // 卡片收起来时焦点交回「转」：卡片上的按钮马上就要够不着了，焦点得有地方去。
   const card = createResultCard(root, {
     onClose: () => roll.dismiss(),
     returnFocusTo: elements.spinButton,
@@ -110,9 +110,10 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   });
 
   // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，
-  // 都在 reshuffleControl.ts 里：控件自己读开抽会话的阶段，转盘不掺和这条规则。
+  // 都在 reshuffleControl.ts 里：控件自己读开抽会话的阶段、自己订阅它的变化，
+  // 转盘一个字都不用管这条规则。
   // ≤ 12 个时上盘名单不是抽出来的，那边会把按钮整个撤掉。
-  const reshuffle = createReshuffleControl({
+  createReshuffleControl({
     block: 'wheel',
     shell: elements.shell,
     note: elements.note,
@@ -127,19 +128,21 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   });
 
   /**
-   * 把两个按钮的可按表现对齐到开抽会话当前的阶段。
+   * 「转」跟着开抽会话的阶段走：阶段一变它自己重画，不必谁来喊一声。
    *
-   * “转”用 `aria-disabled` 而不用 `disabled`：`disabled` 的按钮不可聚焦，
-   * 焦点会在按下“转”的瞬间掉回 `<body>`，键盘和读屏的人在 3.5 秒里
-   * 无处可去，转完还得重新找按钮。`aria-disabled` 同样宣告“现在按不动”，
-   * 但按钮还留在 tab 序里，焦点不会丢——真正的拦截由开抽会话做。
+   * 按不按得动的判据用的就是 `begin()` 那一句 `isRollLocked`——不是「正在转」而已：
+   * 结果卡片还挂着时 `begin()` 照样不受理，这里要是只锁「正在转」，按钮就会宣告
+   * 自己按得动、按下去却什么都不发生，键盘和读屏还能 Tab 到它。两处同一句话，
+   * 就不会再分叉。
    *
-   * 换一批那一档这里只说一声「看一眼」：锁没锁由控件自己问开抽会话。
+   * 用 `aria-disabled` 而不用 `disabled`：`disabled` 的按钮不可聚焦，焦点会在按下
+   * 「转」的瞬间掉回 `<body>`，键盘和读屏的人在这几秒里无处可去，转完还得重新找
+   * 按钮。`aria-disabled` 同样宣告「现在按不动」，但按钮还留在 tab 序里，焦点不会
+   * 丢——真正的拦截由开抽会话做。
    */
-  const syncControls = () => {
-    elements.spinButton.setAttribute('aria-disabled', String(roll.state.phase === 'rolling'));
-    reshuffle.sync();
-  };
+  roll.subscribe(() => {
+    elements.spinButton.setAttribute('aria-disabled', String(isRollLocked(roll.state)));
+  });
 
   const startSpin = () => {
     // 受不受理由开抽会话说了算：转动期间连点「转」只会被它静静退回，
@@ -157,14 +160,11 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
         },
         onDone: () => {
           // 一步过到「抽出了中选」并弹卡片：转完到卡片挂上之间不会有
-          // 一个换一批短暂可用的缝。
+          // 一个换一批短暂可用的缝。两个按钮都订着这个阶段，跟着自己重画。
           roll.settle(winner);
-          syncControls();
         },
       });
     }
-    // 不论受不受理，按钮都跟着开抽会话此刻的阶段走一遍。
-    syncControls();
   };
 
   elements.spinButton.addEventListener('click', startSpin);
