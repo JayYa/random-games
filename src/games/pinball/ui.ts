@@ -15,8 +15,11 @@
  * 不提供键盘操作，同样是 ADR-0006 里记录在案的取舍。
  */
 
+import { createById } from '../../byId';
 import { escapeHtml } from '../../escapeHtml';
+import type { GameMountOptions } from '../../games';
 import { gamePage } from '../../gamePage';
+import { canvasPixelRatio } from '../../pixelRatio';
 import { createLineupSession, type Candidate, type LineupSession } from '../../lineupSession';
 import { PALETTE } from '../../palette';
 import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
@@ -36,9 +39,6 @@ import { simulateShot, type PinballShot } from './simulate';
 
 /** 卡片上那个按钮写着「再打一发」，那按下去就得真的能再打一发。 */
 const CLOSE_LABEL = '再打一发';
-
-/** 再高的设备像素比也看不出差别，只会白烧一堆像素。 */
-const MAX_PIXEL_RATIO = 3;
 
 /**
  * 柱塞行程要拉多少屏幕像素才到满力度。
@@ -140,11 +140,7 @@ function buildDom(root: HTMLElement, theme: Theme, lineup: readonly Candidate[])
     { block: 'pinball', shellId: 'pinball-shell' },
   );
 
-  const byId = <T extends HTMLElement>(id: string): T => {
-    const element = root.querySelector<T>(`#${id}`);
-    if (!element) throw new Error(`缺少元素 #${id}`);
-    return element;
-  };
+  const byId = createById(root);
 
   return {
     shell: byId<HTMLElement>('pinball-shell'),
@@ -364,15 +360,7 @@ function drawPlunger(ctx: CanvasRenderingContext2D, power: number): void {
   ctx.stroke();
 }
 
-export interface MountOptions {
-  readonly csvText: string;
-  /** 当前主题：标题、结果卡片上那句话和错误提示里的文件名都从这里来。 */
-  readonly theme: Theme;
-  /** 上盘名单上限，由玩法清单里弹球机那条记录给出（`src/games.ts`），值是 8。 */
-  readonly cap: number;
-}
-
-export function mountPinball(root: HTMLElement, options: MountOptions): (() => void) | void {
+export function mountPinball(root: HTMLElement, options: GameMountOptions): (() => void) | void {
   const { theme } = options;
   const session: LineupSession = createLineupSession({
     csvText: options.csvText,
@@ -384,7 +372,9 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
 
   const elements = buildDom(root, theme, session.lineup);
 
-  // 落格数就是上盘名单的长度：候选不足 8 个时格子少几个、宽一点，不留空格。
+  // 落格数就是上盘名单的长度，不是常量表里那个 8——候选不足 8 个时格子少几个、
+  // 宽一点，不留空格。这是有意的：名单只有三个人时，盘面上就该只有三格，
+  // 五个空格子既没有候选可对应，球掉进去也没有结果可报。
   const slotCount = Math.max(1, session.lineup.length);
 
   let phase: ShotPhase = 'ready';
@@ -398,8 +388,15 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
   /** 正在回放的那一发：整段模拟在发射的瞬间就跑完了，这里只负责播。 */
   let flight: { readonly shot: PinballShot; readonly startedAt: number } | undefined;
 
-  /** 拖拽状态：按下的点、指针 id，抬手时用得着。 */
-  let drag: { readonly pointerId: number; readonly startY: number } | undefined;
+  /**
+   * 拖拽状态：按下的点、指针 id，还有这一次拖到哪儿算满力度。
+   *
+   * `fullPullY` 在按下的那一刻就定死，之后 `pointermove` 一路照它算——同一次
+   * 拖拽里力度的手感不该中途变。
+   */
+  let drag:
+    | { readonly pointerId: number; readonly startY: number; readonly fullPullY: number }
+    | undefined;
 
   const controller = new AbortController();
   const listen = { signal: controller.signal } as const;
@@ -440,6 +437,20 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
     );
   }
 
+  /**
+   * `anglesFromPhase` 的反函数：从叶片角度读回相位。
+   *
+   * 挑第一片来读，但要除掉它自己的转向——不除的话这里就悄悄假定了
+   * `BOARD.windmillDirections[0] === 1`，那张表里把它翻成 -1，回放结束之后
+   * 两片风车就会当场倒转。方向在别处都是显式乘上去的，这里也得显式除掉。
+   */
+  function phaseFromAngles(currentAngles: readonly number[]): number | undefined {
+    const angle = currentAngles[0];
+    const direction = BOARD.windmillDirections[0] ?? 1;
+    if (angle === undefined) return undefined;
+    return angle / direction;
+  }
+
   function draw(): void {
     const context = elements.board.getContext('2d');
     if (!context) return;
@@ -447,7 +458,7 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
     // 再把坐标系缩放成盘面自己的像素——于是下面所有绘制都能直接用 board.ts 的数字。
     const cssWidth = elements.board.clientWidth;
     if (cssWidth === 0) return;
-    const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+    const ratio = canvasPixelRatio();
     const pixelWidth = Math.round(cssWidth * ratio);
     const pixelHeight = Math.round(((cssWidth * VIEW_HEIGHT) / BOARD.width) * ratio);
     // 改 width/height 会清空画布并重置上下文，尺寸没变就别动。
@@ -501,7 +512,7 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
     setPhase('result');
     // 球停在哪个落格里，哪个候选就是中选：这里只做一次数组下标，不挑结果。
     // 风车接着转：相位从轨迹最后一帧接上，画面不跳。
-    windmillPhase = angles[0] ?? windmillPhase;
+    windmillPhase = phaseFromAngles(angles) ?? windmillPhase;
     const winner = session.lineup[shot.slotIndex];
     if (winner) card.show(winner);
   }
@@ -527,14 +538,28 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
     draw();
   }
 
-  /** 指针是不是还在有效区域里。拉出去太远就算这一发不打了。 */
-  function withinValidArea(event: PointerEvent): boolean {
+  /**
+   * 指针是不是还在有效区域里。拉出去太远就算这一发不打了（story 13：发射之前
+   * 永远有退路）。
+   *
+   * 下边界特殊：它从**按下的那一点**往下量，而不是从盘面底边往下量。
+   *
+   * 抓柱塞的区域是整块盘面——柱塞通道只有盘面宽度的一成上下，在手机上那是个
+   * 按不准的靶子，所以按在哪里都算抓住柱塞，这是有意的。可下边界要是仍旧钉在
+   * 盘面底边加一点余量上，从盘面下半截按下去的人根本拉不到满行程就先出界作废了，
+   * 与 story 14「柱塞的整个行程都能打出一发有效球」正相反。
+   *
+   * 所以下边界跟着按下点走：满行程之外再留一段余量，往下拖到那儿才算作废。
+   * 左右和上方仍旧照盘面算，「拖出界外取消」这条路没有丢。
+   */
+  function withinValidArea(event: PointerEvent, fullPullY: number): boolean {
     const rect = elements.board.getBoundingClientRect();
+    const bottom = Math.max(rect.bottom + CANCEL_MARGIN_PX, fullPullY + CANCEL_MARGIN_PX);
     return (
       event.clientX >= rect.left - CANCEL_MARGIN_PX &&
       event.clientX <= rect.right + CANCEL_MARGIN_PX &&
       event.clientY >= rect.top - CANCEL_MARGIN_PX &&
-      event.clientY <= rect.bottom + CANCEL_MARGIN_PX
+      event.clientY <= bottom
     );
   }
 
@@ -571,7 +596,11 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
     (event: PointerEvent) => {
       if (phase !== 'ready') return;
       event.preventDefault();
-      drag = { pointerId: event.pointerId, startY: event.clientY };
+      drag = {
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        fullPullY: event.clientY + FULL_PULL_PX,
+      };
       setPhase('charging');
       power = 0;
       elements.board.setPointerCapture(event.pointerId);
@@ -584,7 +613,7 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
     (event: PointerEvent) => {
       const current = drag;
       if (!current || event.pointerId !== current.pointerId) return;
-      if (!withinValidArea(event)) {
+      if (!withinValidArea(event, current.fullPullY)) {
         // 移出有效区域：这一发作废，柱塞弹回原位。发射之前永远有退路。
         cancelDrag();
         return;
@@ -602,7 +631,7 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
       if (!current || event.pointerId !== current.pointerId) return;
       const pulled = Math.max(0, event.clientY - current.startY);
       // 拖回原位（或者根本没拖）等于取消：抬手不发射。
-      if (pulled < REST_PULL_PX || !withinValidArea(event)) {
+      if (pulled < REST_PULL_PX || !withinValidArea(event, current.fullPullY)) {
         cancelDrag();
         return;
       }

@@ -7,6 +7,16 @@
 
 import { expect } from 'vitest';
 
+/**
+ * mulberry32：一个确定但各不相同的伪随机源。种子不同数列就不同，同一个种子
+ * 永远给出同一串数——用来把一条性质放在几十个种子上过一遍，而不是只钉一个
+ * 碰巧成立的种子。
+ *
+ * 它同时是弹球模拟的随机源，所以住在 `src/seededRandom.ts`，这里只转手一下：
+ * 测试与产品代码用的必须是同一份，两边分叉了「同样入参必得同样结果」就没了。
+ */
+export { seededRandom } from './seededRandom';
+
 /** 一个可预测的随机源：按顺序吐出给定的数，用完后从头循环。不碰全局 Math.random。 */
 export function scriptedRandom(values: number[]): () => number {
   let cursor = 0;
@@ -18,45 +28,28 @@ export function scriptedRandom(values: number[]): () => number {
 }
 
 /**
- * 一个「取上盘名单时随便给，转一次时给我排好的数」的随机源。
+ * 一个「建会话时随便给，摇那一次给我排好的数」的随机源。
  *
  * 会话一建好，上盘名单就已经抽完了——它为此取了几个随机数是它自己的事，
- * 用例既不知道也不该知道。`stage()` 排的两个数只会落到接下来那次 `spin()` 上：
- * 先选扇区，再选扇区内的落点。
+ * 用例既不知道也不该知道。`stage()` 排的两个数只会落到接下来那一次摇上。
  *
- * 这样角度的用例才只钉「转一次」这件事本身，打乱怎么实现都动不了它们。
+ * 这样摇的用例才只钉「摇一次」这件事本身，打乱怎么实现都动不了它们。
  */
 export interface StagedRandom {
-  /** 交给 `createWheelSession` 的随机源。 */
+  /** 交给会话的随机源。 */
   readonly random: () => number;
-  /** 排下一次 `spin()` 要用的两个数：选扇区的，和选扇区内落点的。 */
-  stage(sectorSeed: number, offsetSeed: number): void;
+  /** 排下一次摇要用的两个数，按被取用的先后。 */
+  stage(firstSeed: number, secondSeed: number): void;
 }
 
 export function stagedRandom(idle = 0.5): StagedRandom {
   const queue: number[] = [];
   return {
     random: () => (queue.length > 0 ? queue.shift()! : idle),
-    stage(sectorSeed, offsetSeed) {
+    stage(firstSeed, secondSeed) {
       queue.length = 0;
-      queue.push(sectorSeed, offsetSeed);
+      queue.push(firstSeed, secondSeed);
     },
-  };
-}
-
-/**
- * 一个确定但各不相同的伪随机源（mulberry32）：种子不同，数列就不同，
- * 同一个种子永远给出同一串数。用来把一条性质放在几十个种子上过一遍，
- * 而不是只钉一个碰巧成立的种子。
- */
-export function seededRandom(seed: number): () => number {
-  let state = (seed * 0x6d2b79f5) >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 

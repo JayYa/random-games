@@ -7,7 +7,10 @@
  */
 
 import { TAU } from '../../angles';
+import { createById } from '../../byId';
+import type { GameMountOptions } from '../../games';
 import { gamePage } from '../../gamePage';
+import { canvasPixelRatio } from '../../pixelRatio';
 import { showRosterFailure } from '../../rosterFailure';
 import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
@@ -15,9 +18,6 @@ import type { Theme } from '../../themes';
 import { createWheelSession, type WheelSession } from './session';
 import { drawWheel } from './wheelCanvas';
 import { animateSpin } from './spinAnimation';
-
-/** 再高的设备像素比也看不出差别，只会白烧一堆像素。 */
-const MAX_PIXEL_RATIO = 3;
 
 /** 卡片上那个按钮写着「再转一次」，那它就得真的再转一次（见下面接的是 startSpin）。 */
 const CLOSE_LABEL = '再转一次';
@@ -45,11 +45,7 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
     { block: 'wheel', shellId: 'wheel-shell' },
   );
 
-  const byId = <T extends HTMLElement>(id: string): T => {
-    const element = root.querySelector<T>(`#${id}`);
-    if (!element) throw new Error(`缺少元素 #${id}`);
-    return element;
-  };
+  const byId = createById(root);
 
   return {
     shell: byId<HTMLElement>('wheel-shell'),
@@ -60,15 +56,7 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
   };
 }
 
-export interface MountOptions {
-  readonly csvText: string;
-  /** 当前主题：标题、结果卡片上那句话和错误提示里的文件名都从这里来。 */
-  readonly theme: Theme;
-  /** 上盘名单上限，由玩法清单里转盘那条记录给出（`src/games.ts`），值就是 `MAX_SECTORS`。 */
-  readonly cap: number;
-}
-
-export function mountWheel(root: HTMLElement, options: MountOptions): void {
+export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   const { theme } = options;
   const session: WheelSession = createWheelSession({
     csvText: options.csvText,
@@ -82,6 +70,8 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
 
   let rotation = 0;
   let spinning = false;
+  /** 结果卡片还挂在屏幕上没收掉。它和「正在转」一样算「已经开摇」。 */
+  let cardUp = false;
 
   const render = () => {
     const context = elements.canvas.getContext('2d');
@@ -90,7 +80,7 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     // 这里只负责把像素缓冲对齐到设备像素比，高分屏上才不糊。
     const size = elements.canvas.clientWidth;
     if (size === 0) return;
-    const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+    const ratio = canvasPixelRatio();
     const pixels = Math.round(size * ratio);
     // 改 width/height 会清空画布并重置上下文，尺寸没变就别动。
     if (elements.canvas.width !== pixels || elements.canvas.height !== pixels) {
@@ -112,9 +102,19 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
   const setBusy = (busy: boolean) => {
     spinning = busy;
     elements.spinButton.setAttribute('aria-disabled', String(busy));
-    // 转动期间不能换一批：盘面绝不能在一次转动中途被换掉。这条规则两种玩法
-    // 是同一条，写在 reshuffleControl.ts 里，这里只告诉它「开摇了没有」。
-    reshuffle.setLocked(busy);
+    syncReshuffleLock();
+  };
+
+  /**
+   * 告诉换一批「开摇了没有」。这条规则两种玩法是同一条，写在 reshuffleControl.ts
+   * 里：转盘在转、或者结果卡片还挂在屏幕上，都算已经开摇，盘面锁死。
+   *
+   * 卡片那一档不能漏。卡片上写着的中选，出处就是此刻盘面上的这批候选；这时候
+   * 把名单换掉，等于让人看着的那个结果失去依据（ADR-0002）。弹球机上同一条规则
+   * 由 `phase === 'result'` 表达，两边口径得一致。
+   */
+  const syncReshuffleLock = () => {
+    reshuffle.setLocked(spinning || cardUp);
   };
 
   // 卡片上的按钮写着"再转一次"，那它就得真的再转一次：收掉卡片并立刻开转。
@@ -127,10 +127,17 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     returnFocusTo: elements.spinButton,
   });
 
+  /** 收卡片这件事只走这一条路，卡片的开合状态才跟锁对得上。 */
+  const hideCard = () => {
+    card.hide();
+    cardUp = false;
+    syncReshuffleLock();
+  };
+
   const startSpin = () => {
     // 转动期间不受理，连续点击不会叠加或打断动画。
     if (spinning || session.lineup.length === 0) return;
-    card.hide();
+    hideCard();
     setBusy(true);
 
     // 中选候选在动画开始前已确定，旋转只是把它演出来。
@@ -144,6 +151,9 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
         render();
       },
       onDone: () => {
+        // 先记上「卡片要挂出来了」再解转动的锁：这两件事之间不该有一个换一批
+        // 短暂可用的缝。
+        cardUp = true;
         setBusy(false);
         card.show(winner);
       },
@@ -161,7 +171,7 @@ export function mountWheel(root: HTMLElement, options: MountOptions): void {
     button: elements.reshuffleButton,
     session,
     onReshuffle: () => {
-      card.hide();
+      // 按得动就说明卡片没挂着（挂着的时候锁上了），所以这里不必再收一次卡片。
       // 换一批只重抽上盘名单并重绘，不动当前的旋转角度。
       render();
     },

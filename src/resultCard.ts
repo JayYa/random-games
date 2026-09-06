@@ -10,6 +10,7 @@
  * 卡片不必自己往 body 上插节点。
  */
 
+import { createById } from './byId';
 import { burstConfetti } from './confetti';
 import { escapeHtml } from './escapeHtml';
 import type { Candidate } from './lineupSession';
@@ -58,11 +59,7 @@ export interface ResultCard {
  * @param root 已经含有 `resultCardMarkup` 那段 HTML 的容器。
  */
 export function createResultCard(root: HTMLElement, options: ResultCardOptions): ResultCard {
-  const byId = <T extends HTMLElement>(id: string): T => {
-    const element = root.querySelector<T>(`#${id}`);
-    if (!element) throw new Error(`缺少元素 #${id}`);
-    return element;
-  };
+  const byId = createById(root);
 
   const card = byId<HTMLDivElement>('card');
   const cardName = byId<HTMLParagraphElement>('card-name');

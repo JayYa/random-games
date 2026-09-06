@@ -1,9 +1,38 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOARD, slotIndexAtX } from './board';
+import { BOARD, slotCenterX, slotIndexAtX } from './board';
 import { simulateShot, type PinballShot } from './simulate';
 
 const SLOT_COUNT = BOARD.slotCount;
+
+/**
+ * 下面几乎每条用例都拿 `slotIndexAtX` 当尺子量模拟的结果——尺子自己歪了，
+ * 那些用例会一起歪，而且歪得看不出来。所以先把尺子钉住。
+ *
+ * 它也是兜底路径唯一的落格来源（出界的横坐标被夹在两端），那一段是真行为，
+ * 不是常量表的复述。
+ */
+describe('横坐标反查落格', () => {
+  it('格内取自己，出界被夹在两端', () => {
+    for (let i = 0; i < SLOT_COUNT; i += 1) {
+      expect(slotIndexAtX(slotCenterX(i, SLOT_COUNT), SLOT_COUNT)).toBe(i);
+    }
+
+    expect(slotIndexAtX(-9999, SLOT_COUNT)).toBe(0);
+    expect(slotIndexAtX(9999, SLOT_COUNT)).toBe(SLOT_COUNT - 1);
+    expect(slotIndexAtX(BOARD.playLeft, SLOT_COUNT)).toBe(0);
+    expect(slotIndexAtX(BOARD.playRight, SLOT_COUNT)).toBe(SLOT_COUNT - 1);
+  });
+
+  // 落格数跟着上盘名单走（候选不足 8 个时格子少几个、宽一点），尺子得跟着变。
+  it('落格数变了尺子跟着变', () => {
+    for (const slotCount of [2, 5, 12]) {
+      for (let i = 0; i < slotCount; i += 1) {
+        expect(slotIndexAtX(slotCenterX(i, slotCount), slotCount)).toBe(i);
+      }
+    }
+  });
+});
 
 /** 一发的默认入参，各条用例只改自己关心的那一项。 */
 function shoot(overrides: Partial<Parameters<typeof simulateShot>[0]> = {}): PinballShot {
@@ -159,15 +188,48 @@ describe('弹球模拟', () => {
     expect(shot.settledByFallback).toBe(true);
     expect(shot.slotIndex).toBeGreaterThanOrEqual(0);
     expect(shot.slotIndex).toBeLessThan(SLOT_COUNT);
-    expect(shot.frames.length).toBe(5);
-    expect(shot.decidedAtFrame).toBe(shot.frames.length - 1);
   });
 
-  it('兜底判给球当下横坐标最近的落格', () => {
-    const shot = shoot({ maxSteps: 5 });
-    const last = shot.frames[shot.frames.length - 1]!;
+  it('兜底的轨迹也是能给人看的：球确实掉进它宣布的那一格', () => {
+    // 这是 story 27 的底线：用户绝不该看着一个卡住的球，更不该看见中选从一个
+    // 球没进过的落格里弹出来。兜底交出去的轨迹必须自己站得住。
+    for (const maxSteps of [5, 60, 300]) {
+      const shot = shoot({ maxSteps, seed: 4242 });
+      expect(shot.settledByFallback).toBe(true);
 
-    expect(shot.slotIndex).toBe(slotIndexAtX(last.x, SLOT_COUNT));
+      const last = shot.frames[shot.frames.length - 1]!;
+      // 收在判定出的那个落格里，而不是收在球卡住的地方。
+      expect(last.y).toBeGreaterThan(BOARD.dividerTopY);
+      expect(slotIndexAtX(last.x, SLOT_COUNT)).toBe(shot.slotIndex);
+
+      // 判定帧仍然是球心越过隔板顶线的那一帧，回放层拿到的语义与正常一发相同。
+      const decided = shot.frames[shot.decidedAtFrame]!;
+      expect(decided.y).toBeGreaterThanOrEqual(BOARD.dividerTopY);
+      expect(shot.decidedAtFrame).toBeLessThan(shot.frames.length);
+
+      // 帧与帧之间不瞬移：补出来的那一段也得看得下去。
+      for (let i = 1; i < shot.frames.length; i += 1) {
+        const previous = shot.frames[i - 1]!;
+        const current = shot.frames[i]!;
+        expect(Math.hypot(current.x - previous.x, current.y - previous.y)).toBeLessThan(
+          BOARD.ballRadius * 2,
+        );
+      }
+    }
+  });
+
+  it('兜底交出去的每一帧球都还在盘面里：飞出去的那一段截掉了', () => {
+    for (const maxSteps of [5, 60, 300]) {
+      const shot = shoot({ maxSteps, seed: 4242 });
+      expect(shot.settledByFallback).toBe(true);
+
+      for (const frame of shot.frames) {
+        expect(frame.x).toBeGreaterThan(0);
+        expect(frame.x).toBeLessThan(BOARD.width);
+        expect(frame.y).toBeGreaterThan(0);
+        expect(frame.y).toBeLessThan(BOARD.height);
+      }
+    }
   });
 
   it('力度超出 [0, 1] 会被夹住，不会打出一发怪球', () => {

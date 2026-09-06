@@ -2,7 +2,8 @@
  * mulberry32：一个种子进去，一串 `[0, 1)` 出来。
  *
  * 弹球模拟的唯一随机来源（ADR-0006）：物理本身是确定性的，种子只负责
- * 对开局做微扰。测试里的 `seededRandom` 用的是同一套算法，两边别分叉。
+ * 对开局做微扰。测试里把一条性质放在几十个种子上过一遍时用的也是它——
+ * 只此一份，两边分叉不了。
  */
 export function seededRandom(seed: number): () => number {
   let state = (seed * 0x6d2b79f5) >>> 0;
