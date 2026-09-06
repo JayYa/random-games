@@ -219,10 +219,20 @@ body {
 /* 弹球机：竖版盘面加一份图例。盘面上只有颜色和序号，候选的名字都在图例里
    （见 games/pinball/ui.ts）。 */
 .pinball {
-  /* 盘面之外的固定部件（标题、图例、留白与间距）大致占掉的高度。
+  /* 盘面之外的固定部件（标题、提示、图例、换一批、留白与间距）大致占掉的高度。
      用它把盘面限制在首屏内：不滚动也能同时看见盘面和图例。
      窄屏上图例排在盘面下面，占的高度多；宽到能并排时下面那条媒体查询会把它调小。 */
-  --pinball-chrome: 264px;
+  --pinball-chrome-full: 340px;
+  /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
+  --pinball-reshuffle-height: 64px;
+  --pinball-chrome: var(--pinball-chrome-full);
+}
+
+/* 候选不超过 8 个时换一批按钮根本不存在（见 reshuffleControl.ts），
+   那段高度不该继续替它留着——留着只会让盘面白白矮一截。
+   弹球机多数时候走的正是这条：候选没超过上限。 */
+.pinball--no-reshuffle {
+  --pinball-chrome: calc(var(--pinball-chrome-full) - var(--pinball-reshuffle-height));
 }
 
 .pinball__note {
@@ -301,11 +311,31 @@ body {
   text-overflow: ellipsis;
 }
 
+/* 换一批：与转盘上那个同一副长相——同一个动作在两种玩法上不该长得不一样。 */
+.pinball__reshuffle {
+  min-height: 48px;
+  padding: 0 24px;
+  border: 1px solid #c8c8d4;
+  border-radius: 999px;
+  background: transparent;
+  color: #4a4a58;
+  font-size: 0.95rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 发射之后按不动，同样是 aria-disabled 而不是 disabled（见 reshuffleControl.ts）。 */
+.pinball__reshuffle[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* 宽到放得下时图例挪到盘面旁边：竖版盘面在桌面端居中留白即可，
    图例竖排一列，盘面也就能长回首屏的高度。 */
 @media (min-width: 620px) {
   .pinball {
-    --pinball-chrome: 140px;
+    --pinball-chrome-full: 204px;
   }
 
   .pinball__stage {
@@ -338,7 +368,9 @@ body {
   }
 
   .pinball {
-    --pinball-chrome: 196px;
+    /* 只改这两个量，缺了换一批时该减多少由上面那条规则接着算。 */
+    --pinball-chrome-full: 256px;
+    --pinball-reshuffle-height: 60px;
   }
 
   .page__title {
@@ -361,7 +393,7 @@ body {
    盘面能占的高度就只剩页头和留白之外的那点了。 */
 @media (max-height: 560px) and (min-width: 620px) {
   .pinball {
-    --pinball-chrome: 118px;
+    --pinball-chrome-full: 178px;
   }
 }
 

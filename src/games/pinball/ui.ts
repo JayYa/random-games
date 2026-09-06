@@ -19,6 +19,7 @@ import { escapeHtml } from '../../escapeHtml';
 import { gamePage } from '../../gamePage';
 import { createLineupSession, type Candidate, type LineupSession } from '../../lineupSession';
 import { PALETTE } from '../../palette';
+import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
 import { showRosterFailure } from '../../rosterFailure';
 import type { Theme } from '../../themes';
@@ -98,9 +99,11 @@ const LANE_INNER_RIGHT = BOARD.laneRight;
 type ShotPhase = 'ready' | 'charging' | 'flying' | 'result';
 
 interface PinballElements {
+  readonly shell: HTMLElement;
   readonly board: HTMLCanvasElement;
   readonly legend: HTMLOListElement;
   readonly note: HTMLParagraphElement;
+  readonly reshuffleButton: HTMLButtonElement;
 }
 
 /** 落格 i 的颜色。落格排成一条线，首尾不相邻，所以不需要转盘那套接缝补丁。 */
@@ -131,6 +134,7 @@ function buildDom(root: HTMLElement, theme: Theme, lineup: readonly Candidate[])
         <canvas class="pinball__board" id="pinball-board"></canvas>
         <ol class="pinball__legend" id="pinball-legend">${legendMarkup(lineup)}</ol>
       </div>
+      ${reshuffleButtonMarkup('pinball')}
       ${resultCardMarkup(theme, CLOSE_LABEL)}
     `,
     { block: 'pinball', shellId: 'pinball-shell' },
@@ -143,9 +147,11 @@ function buildDom(root: HTMLElement, theme: Theme, lineup: readonly Candidate[])
   };
 
   return {
+    shell: byId<HTMLElement>('pinball-shell'),
     board: byId<HTMLCanvasElement>('pinball-board'),
     legend: byId<HTMLOListElement>('pinball-legend'),
     note: byId<HTMLParagraphElement>('pinball-note'),
+    reshuffleButton: byId<HTMLButtonElement>('pinball-reshuffle'),
   };
 }
 
@@ -409,8 +415,17 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
     // 弹球机整页没有可聚焦的操作（ADR-0006），焦点没有可交回的按钮。
   });
 
+  /**
+   * 换一个阶段。`ready` 之外都算「已发射」，盘面锁死：换一批在这期间按不动，
+   * 球飞到一半盘面上的候选绝不会被换掉（ADR-0002）。规则本身在 reshuffleControl.ts。
+   */
+  function setPhase(next: ShotPhase): void {
+    phase = next;
+    reshuffle.setLocked(next !== 'ready');
+  }
+
   function resetToReady(): void {
-    phase = 'ready';
+    setPhase('ready');
     power = 0;
     flight = undefined;
     drag = undefined;
@@ -483,7 +498,7 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
 
   function finishFlight(shot: PinballShot): void {
     flight = undefined;
-    phase = 'result';
+    setPhase('result');
     // 球停在哪个落格里，哪个候选就是中选：这里只做一次数组下标，不挑结果。
     // 风车接着转：相位从轨迹最后一帧接上，画面不跳。
     windmillPhase = angles[0] ?? windmillPhase;
@@ -526,7 +541,7 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
   function cancelDrag(): void {
     drag = undefined;
     power = 0;
-    if (phase === 'charging') phase = 'ready';
+    if (phase === 'charging') setPhase('ready');
   }
 
   function launch(): void {
@@ -543,7 +558,7 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
 
     drag = undefined;
     power = 0;
-    phase = 'flying';
+    setPhase('flying');
     // 整段模拟已经跑完了（几毫秒），剩下的只是把它放出来。卡住的球在这之前
     // 就被兜底处理掉了，用户看不到（ADR-0006）。
     flight = { shot, startedAt: performance.now() };
@@ -557,7 +572,7 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
       if (phase !== 'ready') return;
       event.preventDefault();
       drag = { pointerId: event.pointerId, startY: event.clientY };
-      phase = 'charging';
+      setPhase('charging');
       power = 0;
       elements.board.setPointerCapture(event.pointerId);
     },
@@ -599,9 +614,22 @@ export function mountPinball(root: HTMLElement, options: MountOptions): (() => v
   // 系统抢走指针（来电、手势返回）时按取消算，绝不糊里糊涂打出一发。
   elements.board.addEventListener('pointercancel', cancelDrag, listen);
 
-  // 抽样提示（`session.isSampled` 时的「已从 N 个中随机选出 8 个」）和「换一批」
-  // 还没接上：提示写进 #pinball-note，按钮加在盘面下面，锁的条件是
-  // `phase !== 'ready'`——已发射就不能再换盘面。
+  // 抽样提示、「换一批」，以及「开摇之后就不能再换」那条两种玩法共用的规则，
+  // 都在 reshuffleControl.ts 里。候选不超过 8 个时上盘名单不是抽出来的，
+  // 那边会把按钮整个撤掉——按了只会换座次，与按钮上的字不符。
+  const reshuffle = createReshuffleControl({
+    block: 'pinball',
+    shell: elements.shell,
+    note: elements.note,
+    button: elements.reshuffleButton,
+    session,
+    onReshuffle: () => {
+      // 上盘的候选换了一批，图例得跟着重建：图例上的序号与落格一一对应，
+      // 不重建的话球落进 3 号格，图例上写的还是上一批的第三个人。
+      // 盘面由那个一直在跑的 rAF 下一帧就重画，这里不必自己画。
+      elements.legend.innerHTML = legendMarkup(session.lineup);
+    },
+  });
 
   rafId = requestAnimationFrame((now) => {
     lastFrameAt = now;
