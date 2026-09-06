@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createRollSession, type Candidate, type RollSession } from './rollSession';
+import { createRollSession, isRollLocked, type Candidate, type RollSession } from './rollSession';
 import { fakeResultCard, type FakeResultCard } from './testHelpers';
 
 const shaxian: Candidate = { name: '沙县小吃', enabled: true };
@@ -135,23 +135,97 @@ describe('收下中选', () => {
     expect(session.state.phase).toBe('rolling');
   });
 
-  it('卡片本来就没开时不重复收', () => {
-    // 沿用现有卡片模块的口径：本来就没开就什么都不做，免得抢走当前按钮的焦点。
+  it('还没开抽时收下中选整件事都不发生', () => {
+    // 那一刻没有中选可收，卡片也没挂着：收下去只会平白叫一次玩法的回调，
+    // 而在转盘上那个回调就是「立刻再转一次」——「收下中选」却没有中选。
     const { session, card, onDismiss } = makeSession();
 
     session.dismiss();
     expect(card.hideCount).toBe(0);
     expect(session.state.phase).toBe('idle');
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it('卡片本来就没开时不重复收', () => {
+    // 沿用现有卡片模块的口径：本来就没开就什么都不做，免得抢走当前按钮的焦点。
+    const { session, card, onDismiss } = makeSession();
 
     session.begin();
     session.settle(shaxian);
     session.dismiss();
     expect(card.hideCount).toBe(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
 
-    // 已经收过一次之后再收，卡片不会被第二次收起来。
+    // 已经收过一次之后再收，卡片不会被第二次收起来，回调也不会再叫一遍。
     session.dismiss();
     expect(card.hideCount).toBe(1);
     expect(card.isOpen).toBe(false);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('订阅阶段变化', () => {
+  it('每一次阶段变化都叫一遍订阅者，订阅者读到的是变化之后的阶段', () => {
+    // 换一批和「转」就是这么把自己重画的：玩法不必在推过会话之后手工补一句同步。
+    const { session } = makeSession();
+    const seen: string[] = [];
+    session.subscribe(() => seen.push(session.state.phase));
+
+    session.begin();
+    session.settle(shaxian);
+    session.dismiss();
+
+    expect(seen).toEqual(['rolling', 'settled', 'idle']);
+  });
+
+  it('不受理的那些推法不算变化，订阅者也就不会被叫', () => {
+    const { session } = makeSession();
+    const observe = vi.fn();
+    session.subscribe(observe);
+
+    // 还没开抽时收下中选：整件事都不发生。
+    session.dismiss();
+    expect(observe).not.toHaveBeenCalled();
+
+    session.begin();
+    expect(observe).toHaveBeenCalledTimes(1);
+
+    // 连点：不受理，阶段没变，订阅者不该被惊动。
+    session.begin();
+    session.begin();
+    expect(observe).toHaveBeenCalledTimes(1);
+  });
+
+  it('几个订阅者都会被叫到', () => {
+    const { session } = makeSession();
+    const first = vi.fn();
+    const second = vi.fn();
+    session.subscribe(first);
+    session.subscribe(second);
+
+    session.begin();
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('「已经开抽」的判据', () => {
+  it('与 begin() 受不受理是同一句话', () => {
+    // 两处各写一遍就会分叉：按钮宣告自己按得动，按下去却被 begin() 静静退回。
+    const { session } = makeSession();
+    expect(isRollLocked(session.state)).toBe(false);
+
+    session.begin();
+    expect(isRollLocked(session.state)).toBe(true);
+    expect(session.begin()).toBe(false);
+
+    session.settle(shaxian);
+    expect(isRollLocked(session.state)).toBe(true);
+    expect(session.begin()).toBe(false);
+
+    session.dismiss();
+    expect(isRollLocked(session.state)).toBe(false);
+    expect(session.begin()).toBe(true);
   });
 });

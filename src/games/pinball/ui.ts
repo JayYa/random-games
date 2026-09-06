@@ -416,8 +416,8 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   });
 
   function resetToReady(): void {
-    // 推过开抽会话就让换一批看一眼：锁没锁由它自己问会话，弹球机不掺和这条规则。
-    reshuffle.sync();
+    // 只把盘面退回待发。换一批按不按得动不必这里操心：控件订着开抽会话，
+    // 阶段一变它自己就重画了（见 reshuffleControl.ts）。
     power = 0;
     flight = undefined;
     drag = undefined;
@@ -510,7 +510,6 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     const winner = session.lineup[shot.slotIndex];
     // 交给开抽会话摇出中选，卡片由它弹。这一步前后都算已开抽，锁不会松一下。
     if (winner) roll.settle(winner);
-    reshuffle.sync();
   }
 
   function frame(now: number): void {
@@ -574,7 +573,6 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   function launch(): void {
     // 发射这一刻才算开抽：球出去了就收不回来，盘面从此锁死（见 rollSession.ts）。
     if (!roll.begin()) return;
-    reshuffle.sync();
 
     // 力度整段行程都有效：最轻的一发也绕得过顶弧，不存在「打空」（见 board.ts）。
     const shotPower = power;
@@ -653,8 +651,9 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   // 都在 reshuffleControl.ts 里：控件自己读开抽会话的阶段（球飞到一半盘面上的候选
   // 绝不会被换掉，卡片挂着也照旧锁着，ADR-0002），弹球机不再自己数阶段。
   // 候选不超过 8 个时上盘名单不是抽出来的，那边会把按钮整个撤掉——按了只会换座次，
-  // 与按钮上的字不符。
-  const reshuffle = createReshuffleControl({
+  // 与按钮上的字不符。控件还自己订着开抽会话，阶段一变就重画自己，弹球机侧
+  // 一句转发锁状态的代码都没有。
+  createReshuffleControl({
     block: 'pinball',
     shell: elements.shell,
     note: elements.note,
