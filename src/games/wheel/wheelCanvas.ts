@@ -7,8 +7,8 @@
  * 恰好是 `rotation mod 2π`。
  */
 
-import { TAU } from './angles';
-import { PALETTE } from './palette';
+import { TAU } from '../../angles';
+import { PALETTE } from '../../palette';
 import type { Candidate } from './session';
 
 /**

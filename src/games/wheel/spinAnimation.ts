@@ -5,7 +5,7 @@
  * 约 5~8 圈 + easeOutCubic，约 3.5 秒。
  */
 
-import { TAU } from './angles';
+import { TAU } from '../../angles';
 
 const SPIN_DURATION_MS = 3500;
 const MIN_TURNS = 5;
