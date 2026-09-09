@@ -1,12 +1,12 @@
-import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { collectThemes } from './collectThemes';
+import { readRosterFiles } from './rosterFiles';
 
-/** 真实的名单目录：站点构建时插件扫的就是它。 */
+/** 真实的名单目录：站点构建时插件扫的就是它，用的也是下面这个 `readRosterFiles`。 */
 const publicDir = fileURLToPath(new URL('../public', import.meta.url));
 
-const csvFileNames = readdirSync(publicDir).filter((fileName) => fileName.toLowerCase().endsWith('.csv'));
+const rosterFiles = readRosterFiles(publicDir);
 
 /**
  * 写坏的名单文件只会被跳过，构建照常成功（ADR-0009）——代价是它静默地不上线。
@@ -15,19 +15,16 @@ const csvFileNames = readdirSync(publicDir).filter((fileName) => fileName.toLowe
  */
 describe('public/ 下的名单文件', () => {
   it('每一份都能解析成主题，没有任何一份被跳过', () => {
-    const files = csvFileNames.map((fileName) => ({
-      fileName,
-      csvText: readFileSync(`${publicDir}/${fileName}`, 'utf8'),
-    }));
-
-    const { themes, warnings } = collectThemes(files);
+    const { themes, warnings } = collectThemes(rosterFiles);
 
     expect(warnings).toEqual([]);
-    expect(themes.map((theme) => theme.rosterFile)).toEqual([...csvFileNames].sort());
+    expect(themes.map((theme) => theme.rosterFile)).toEqual(
+      rosterFiles.map((file) => file.fileName).sort(),
+    );
   });
 
   // 上面那条断言在一份名单都没有时会空转通过，而"扫出来是空的"正是最该被发现的事故。
   it('至少有一份名单', () => {
-    expect(csvFileNames.length).toBeGreaterThan(0);
+    expect(rosterFiles.length).toBeGreaterThan(0);
   });
 });
