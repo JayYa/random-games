@@ -89,7 +89,9 @@ describe('collectThemes', () => {
     expect(warnings[0]?.reason).toContain('entry');
   });
 
-  it('entry 写了键却没写值也算缺 entry', () => {
+  // 「没写这一行」和「写了却没填值」都被跳过，但 warning 要说的不是同一件事：
+  // 让人去补一行明明就在眼前的 `# entry:`，他找不到该改的地方（故事 10）。
+  it('entry 写了键却没写值时被跳过，warning 说的是这一行没填值而不是没写', () => {
     const { themes, warnings } = collectThemes([
       { fileName: 'drink.csv', csvText: '# entry:   \n瑞幸,true\n' },
     ]);
@@ -97,6 +99,21 @@ describe('collectThemes', () => {
     expect(themes).toEqual([]);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]?.fileName).toBe('drink.csv');
+    expect(warnings[0]?.reason).toContain('冒号后面是空的');
+    expect(warnings[0]?.reason).not.toContain('缺少');
+  });
+
+  // 同一个键写了两次没有报错的必要，但总得定死认哪一个：先写的赢。
+  it('同一个键写了多次时以先写的为准', () => {
+    const { themes } = collectThemes([
+      {
+        fileName: 'drink.csv',
+        csvText: '# entry: 今天喝什么\n# entry: 今天喝点啥\n# title: 今天喝哪杯\n# title: 今天喝哪一杯\n',
+      },
+    ]);
+
+    expect(themes.map((theme) => theme.entryLabel)).toEqual(['今天喝什么']);
+    expect(themes.map((theme) => theme.title)).toEqual(['今天喝哪杯']);
   });
 
   it('同一批次里一份坏文件不影响其他好文件', () => {

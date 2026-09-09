@@ -1,8 +1,9 @@
 /// <reference types="vitest/config" />
-import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type Plugin, defineConfig } from 'vite';
+import { type Plugin, type ViteDevServer, defineConfig } from 'vite';
 import { collectThemes } from './src/collectThemes';
+import { readRosterFiles } from './src/rosterFiles';
 
 /** `src/themes.ts` 从这里取主题清单；`src/vite-env.d.ts` 里声明了它的类型。 */
 const THEMES_MODULE_ID = 'virtual:themes';
@@ -21,6 +22,17 @@ const RESOLVED_THEMES_MODULE_ID = `\0${THEMES_MODULE_ID}`;
 function discoverThemes(): Plugin {
   const publicDir = fileURLToPath(new URL('./public', import.meta.url));
 
+  /** dev 下 CSV 变动后作废虚拟模块并整页刷新，下一次请求就会重新走 `load`。 */
+  function reloadThemes(server: ViteDevServer, file: string): void {
+    // 只关心 public/ 下这一层的 CSV：别的文件本来就有 Vite 自己的热更新。
+    if (!file.toLowerCase().endsWith('.csv')) return;
+    if (dirname(resolve(file)) !== resolve(publicDir)) return;
+
+    const module = server.moduleGraph.getModuleById(RESOLVED_THEMES_MODULE_ID);
+    if (module !== undefined && module !== null) server.moduleGraph.invalidateModule(module);
+    server.ws.send({ type: 'full-reload' });
+  }
+
   return {
     name: 'random-games:discover-themes',
 
@@ -31,16 +43,7 @@ function discoverThemes(): Plugin {
     load(id) {
       if (id !== RESOLVED_THEMES_MODULE_ID) return undefined;
 
-      // 大小写不敏感地收 .csv：`Drink.CSV` 这种写法也要被 collectThemes 看到并
-      // 报出来，否则改名单的人只会觉得"文件明明在，主题却没出现"。
-      const files = readdirSync(publicDir)
-        .filter((fileName) => fileName.toLowerCase().endsWith('.csv'))
-        .map((fileName) => ({
-          fileName,
-          csvText: readFileSync(`${publicDir}/${fileName}`, 'utf8'),
-        }));
-
-      const { themes, warnings } = collectThemes(files);
+      const { themes, warnings } = collectThemes(readRosterFiles(publicDir));
 
       // 每份坏文件一行，dev 和 build 都打：本地跑 dev 时就该发现问题，而不是等
       // 部署完了盯着首页少一个入口猜。
@@ -49,6 +52,17 @@ function discoverThemes(): Plugin {
       }
 
       return `export const THEMES = ${JSON.stringify(themes)};\n`;
+    },
+
+    // 虚拟模块的内容是「列了一次目录」的结果，Vite 无从知道它依赖哪些文件，所以扔一份
+    // CSV 进 public/ 之后它会一直是旧的，直到重启 dev。自己盯着目录补上这一步：加、删、
+    // 改任何一份 CSV 都作废它并整页刷新，刷新页面就能看到新主题、也能重新看到那行 warning
+    //（故事 1 与故事 11：本地就该发现问题，而不必先重启）。
+    configureServer(server) {
+      server.watcher.add(publicDir);
+      for (const event of ['add', 'unlink', 'change'] as const) {
+        server.watcher.on(event, (file: string) => reloadThemes(server, file));
+      }
     },
   };
 }
