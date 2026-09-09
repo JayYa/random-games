@@ -12,6 +12,8 @@
  * 读者是去改 CSV 的人，不是来玩的人。
  */
 
+import { THEMES } from 'virtual:themes';
+
 /** 站点级标题：没有选定主题时（选主题页）的 `document.title`。 */
 export const SITE_TITLE = '是但';
 
@@ -30,33 +32,13 @@ export interface Theme {
 }
 
 /**
- * 全部主题，按选主题页上的先后顺序排列。
+ * 全部主题，按名单文件的文件名字典序排列。
  *
- * 加第四个主题就是往这里再加一条记录、再写一份同名的 CSV，别处一行不用改。
+ * 这张清单不写在这里：它由构建期扫 `public/*.csv` 得出，经虚拟模块 `virtual:themes`
+ * 编译进产物（见 `vite.config.ts` 与 ADR-0009）。想知道站上有哪些主题，看 `public/`
+ * 下有哪些 CSV；加第四个主题就是往那里再扔一份带 `# entry:` 的 CSV，这个文件一行不用改。
  */
-export const THEMES: readonly Theme[] = [
-  {
-    slug: 'eat',
-    rosterFile: 'eat.csv',
-    title: '今天吃哪家',
-    entryLabel: '今天吃什么',
-    resultPhrase: '今天就吃',
-  },
-  {
-    slug: 'play',
-    rosterFile: 'play.csv',
-    title: '今天玩哪个',
-    entryLabel: '今天玩什么',
-    resultPhrase: '今天就玩',
-  },
-  {
-    slug: 'work',
-    rosterFile: 'work.csv',
-    title: '今天干哪件',
-    entryLabel: '今天干什么',
-    resultPhrase: '今天就干',
-  },
-];
+export { THEMES };
 
 /**
  * 选主题页的地址。站点不记住上次选的主题（ADR-0004），根地址永远落在这里。
