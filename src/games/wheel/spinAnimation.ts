@@ -9,7 +9,7 @@
  * 所以那一步单拎成 `spinDelta`，不碰 rAF、不碰时钟，用例问得出口。
  */
 
-import { TAU } from '../../angles';
+import { normalizeAngle, TAU } from '../../angles';
 
 const SPIN_DURATION_MS = 3500;
 const MIN_TURNS = 5;
@@ -25,14 +25,16 @@ function easeOutCubic(t: number): number {
  *
  * 自带归一化，所以 `from` 收任意累积值、`targetAngle` 收任意角度：先把两者
  * 之差折回 `[0, 2π)` 保证只往一个方向转（转盘不会为了少转一点而倒回去），
- * 再补上整圈——整圈不改变指针底下压着谁，只负责让它转得像回事。
+ * 再补上整圈——整圈不改变指针底下压着谁，只负责让它转得像回事。折回那一步
+ * 向 `src/angles.ts` 要，与扇区模块用的是同一个：两处各写一遍就又是两套口径。
  *
- * 符号在这里定死一次：`targetAngle - from`。翻过来同样转得起来、同样转足
+ * 这里定死的只剩一个符号：`targetAngle - from`——转的是从当下追到目标，
+ * 不是反过来。它属于动画的方向约定，所以留在这里。翻过来同样转得起来、同样转足
  * 3.5 秒，只是会停在别人身上——这正是 ADR-0003 说的「唯一会算错且肉眼极难
  * 发现的地方」，也正是转盘会话那条端到端用例守着的东西。
  */
 export function spinDelta(from: number, targetAngle: number, turns: number): number {
-  return (((targetAngle - from) % TAU) + TAU) % TAU + turns * TAU;
+  return normalizeAngle(targetAngle - from) + turns * TAU;
 }
 
 export interface SpinAnimationOptions {
@@ -72,7 +74,9 @@ export function animateSpin(options: SpinAnimationOptions): void {
       requestAnimationFrame(tick);
       return;
     }
-    const finalRotation = (from + delta) % TAU;
+    // 同样走共用的那一个折回：裸的 `% TAU` 对负的 `from` 会给出负角度，
+    // 而多一处取模就多一处可以写反符号的地方。
+    const finalRotation = normalizeAngle(from + delta);
     options.onFrame(finalRotation);
     options.onDone(finalRotation);
   };

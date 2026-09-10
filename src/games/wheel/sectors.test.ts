@@ -60,11 +60,15 @@ describe('落点角度与指针底下的扇区', () => {
     const size = 8;
     const sectors = createSectors(size);
     const sectorAngle = TAU / size;
+    // 实现把 `r` 分成两条带子，正中恰好落在两条的接缝上：只探 `step / 20 - 1e-12`
+    // 会让 r = 0.5 这一点永远走进下面那条带子，上面那条的正中邻域一次都没问过。
+    // 所以每一步都从三个方向探——差一点、正好、多一点。
     for (let index = 0; index < size; index += 1) {
       for (let step = 0; step <= 20; step += 1) {
-        expect(sectors.angleInSector(index, step / 20 - 1e-12)).not.toBe(
-          (index + 0.5) * sectorAngle,
-        );
+        for (const nudge of [-1e-12, 0, 1e-12]) {
+          const r = Math.min(Math.max(step / 20 + nudge, 0), 0.999999);
+          expect(sectors.angleInSector(index, r)).not.toBe((index + 0.5) * sectorAngle);
+        }
       }
     }
   });

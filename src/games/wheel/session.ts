@@ -79,7 +79,10 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
         throw new Error('上盘名单为空，无法转动');
       }
       const sectors = createSectors(current.length);
-      const index = Math.min(sectors.count - 1, Math.floor(random() * sectors.count));
+      // 选谁中选问的是上盘名单有多长，不是转盘画了几格：这一步在扇区还没
+      // 进场时就成立，绕道 `sectors.count` 只会让它看着像个扇区的问题。
+      // 上夹是防 `random()` 恰好返回 1 的那一下（约定上不会，但它不归这里管）。
+      const index = Math.min(current.length - 1, Math.floor(random() * current.length));
       return {
         winner: current[index]!,
         targetAngle: sectors.angleInSector(index, random()),

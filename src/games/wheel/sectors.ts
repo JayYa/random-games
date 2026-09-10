@@ -12,9 +12,13 @@
  *
  * 无头到底：不引用 Canvas、不引用 DOM、不发网络请求，也不持有随机源——
  * 落点用的那个随机数由调用方给，谁中选从来不是这个模块的事。
+ *
+ * 只有一件事不住在这里：把任意角度折回一圈之内。那是角度约定本身，不是扇区
+ * 的换算，动画的反算同样要用，所以它归 `src/angles.ts`（和 `TAU` 作伴），
+ * 这里向它要，不自己再写一遍。
  */
 
-import { TAU } from '../../angles';
+import { normalizeAngle, TAU } from '../../angles';
 
 export interface Sectors {
   /** 扇区数，等于上盘名单的长度。 */
@@ -27,8 +31,8 @@ export interface Sectors {
   /**
    * 指针底下是哪个扇区，返回下标。
    *
-   * 收任意角度：负数与超过一圈的累积旋转量都在内部归一化，调用方不必先取模——
-   * 归一化是角度约定的一部分，而约定住在这里。
+   * 收任意角度：负数与超过一圈的累积旋转量都在内部折回，调用方不必先取模——
+   * 折回是角度约定的一部分（见 `src/angles.ts`），不是调用方的负担。
    */
   sectorAt(angle: number): number;
   /**
@@ -53,24 +57,19 @@ export interface SectorArc {
  * 把 `[0, 1)` 的随机数映射到扇区内的落点比例。
  *
  * 值域是 `[0.10, 0.48) ∪ [0.52, 0.90)`，两条带子各占扇区的 38%，
- * 落在哪条、带子里的哪一点，都还是均匀的。
+ * 落在哪条、带子里的哪一点，都还是均匀的——中选候选已经选完了，这个映射
+ * 只决定「停在这一格的什么位置」，不影响谁中选（故事 12）。
  *
  * 两头各留 10% 的边距：指针有实际宽度，落点贴着扇区边界时，
- * 肉眼会觉得指针正卡在两个候选中间，说不清到底转出了哪一个。
- * 中间挖掉 0.48–0.52：只避开正中那一个点，仍会经常停在正中肉眼可辨的
- * 邻域里，看着像是预先摆好的。
+ * 肉眼会觉得指针正卡在两个候选中间，说不清到底转出了哪一个（故事 4）。
+ * 中间挖掉 0.48–0.52：规格只要求落点不恰好等于扇区正中（故事 6），
+ * 但只避开一个点仍会经常停在正中肉眼可辨的邻域里，看着像是预先摆好的。
  *
  * 这两个数字都是观感取舍，不是正确性约束；真正被用例钉住的是
  * 「落点始终在扇区内部、离两边有余量、且不在正中」。
  */
 function offsetInSector(r: number): number {
   return r < 0.5 ? 0.1 + r * 0.76 : 0.52 + (r - 0.5) * 0.76;
-}
-
-/** 把任意角度折回 `[0, 2π)`。 */
-function normalize(angle: number): number {
-  const wrapped = angle % TAU;
-  return wrapped < 0 ? wrapped + TAU : wrapped;
 }
 
 /**
@@ -94,10 +93,14 @@ export function createSectors(count: number): Sectors {
       return (index + offsetInSector(r)) * sectorAngle;
     },
     sectorAt(angle) {
-      // 上夹：归一化时那点浮点误差可能把商顶到 count，算作最后一格。
-      // 下夹：整数圈的负角度取模得到的是 -0，下标不该带着符号出去。
-      const index = Math.floor(normalize(angle) / sectorAngle);
-      return Math.min(count - 1, Math.max(0, index));
+      const index = Math.floor(normalizeAngle(angle) / sectorAngle);
+      // 只夹上界：折回时那点浮点误差可能把商顶到 count，那是圈末尾的舍入，
+      // 算作最后一格是对的。下界不夹——负下标只可能来自折回本身写反了，
+      // 那是这个模块存在的理由所在的那种错误，得当场让用例红，不能被
+      // 一个 Math.max(0, …) 悄悄吸收成「第一格」。
+      // 唯一要单独接住的是 -0：整数圈的负角度取模得到的就是它，值没错，
+      // 但下标不该带着符号出去。
+      return index === 0 ? 0 : Math.min(count - 1, index);
     },
     arc(index, rotation) {
       // 转盘自身角度 θ 出现在画布角度 -π/2 + θ - rotation：
