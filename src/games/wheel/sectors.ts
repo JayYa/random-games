@@ -31,6 +31,22 @@ export interface Sectors {
    * 归一化是角度约定的一部分，而约定住在这里。
    */
   sectorAt(angle: number): number;
+  /**
+   * 扇区 i 画在画布上的那段弧（画布弧度，`arc()` 直接可用）。
+   *
+   * 画布的 0 度在 3 点方向、正角度顺时针，而转盘的 0 度在 12 点方向，
+   * 且盘面本身还逆时针转过了 `rotation`——这两个符号最容易写反，写反了
+   * 转盘照转、只是停错人，肉眼看不出来，所以让它们与扇区换算住在一起。
+   *
+   * `end` 一并给出，调用方不必再自己加一个扇区宽度。
+   */
+  arc(index: number, rotation: number): SectorArc;
+}
+
+/** 一段画在画布上的弧，两个角度都是画布弧度。 */
+export interface SectorArc {
+  readonly start: number;
+  readonly end: number;
 }
 
 /**
@@ -82,6 +98,13 @@ export function createSectors(count: number): Sectors {
       // 下夹：整数圈的负角度取模得到的是 -0，下标不该带着符号出去。
       const index = Math.floor(normalize(angle) / sectorAngle);
       return Math.min(count - 1, Math.max(0, index));
+    },
+    arc(index, rotation) {
+      // 转盘自身角度 θ 出现在画布角度 -π/2 + θ - rotation：
+      // -π/2 把画布的 3 点方向转到转盘的 0 度（12 点，也就是指针底下），
+      // 减 rotation 是因为 rotation 记的是盘面逆时针转过的量。
+      const start = -Math.PI / 2 + index * sectorAngle - rotation;
+      return { start, end: start + sectorAngle };
     },
   };
 }

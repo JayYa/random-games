@@ -139,3 +139,57 @@ describe('指针底下是哪个扇区', () => {
     }
   });
 });
+
+describe('画到画布上的那段弧', () => {
+  /** 画布上指针所在的方向：12 点，也就是画布弧度 -π/2。 */
+  const POINTER = -Math.PI / 2;
+
+  /** 从 `start` 出发顺时针走到 `angle` 要走多远，折回 `[0, 2π)`。 */
+  function sweepFrom(start: number, angle: number): number {
+    const wrapped = (angle - start) % TAU;
+    return wrapped < 0 ? wrapped + TAU : wrapped;
+  }
+
+  it('压在指针底下的那段弧，正是 sectorAt 答的那一格', () => {
+    // 这条是画面与判定之间唯一的接缝：`-π/2` 与 `- rotation` 任一个符号写反，
+    // 转盘照样转、照样弹结果卡片，只是画面上停在别人身上——这里当场变红。
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const sectorAngle = TAU / size;
+      const random = seededRandom(size + 31);
+      for (let i = 0; i < 60; i += 1) {
+        const rotation = (random() - 0.5) * 20 * TAU;
+        const expected = sectors.sectorAt(rotation);
+        const covering: number[] = [];
+        for (let index = 0; index < size; index += 1) {
+          const { start } = sectors.arc(index, rotation);
+          if (sweepFrom(start, POINTER) < sectorAngle) covering.push(index);
+        }
+        expect(covering).toEqual([expected]);
+      }
+    }
+  });
+
+  it('每段弧正好一个扇区宽，首尾相接铺满一整圈', () => {
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const sectorAngle = TAU / size;
+      for (const rotation of [0, 0.3, -1.7, 5 * TAU + 2]) {
+        for (let index = 0; index < size; index += 1) {
+          const { start, end } = sectors.arc(index, rotation);
+          expect(end - start).toBeCloseTo(sectorAngle, 12);
+          // 下一格从这一格的终点接上，中间不留缝、也不重叠；最后一格接回第一格，差一整圈。
+          const next = sectors.arc((index + 1) % size, rotation);
+          const expectedStart = index === size - 1 ? next.start + TAU : next.start;
+          expect(expectedStart).toBeCloseTo(end, 9);
+        }
+      }
+    }
+  });
+
+  it('盘面不转时，第一格从指针底下开始顺时针铺', () => {
+    const sectors = createSectors(4);
+    expect(sectors.arc(0, 0).start).toBeCloseTo(POINTER, 12);
+    expect(sectors.arc(1, 0).start).toBeCloseTo(POINTER + TAU / 4, 12);
+  });
+});
