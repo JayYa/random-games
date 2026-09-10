@@ -1,14 +1,12 @@
 /**
  * 渲染层：把上盘名单画成转盘。薄，不测。
  *
- * 角度约定与会话模块一致：扇区 i 占据转盘自身的
- * `[i * 2π/n, (i+1) * 2π/n)`，从转盘的 12 点方向顺时针计。
- * `rotation` 是转盘逆时针转过的弧度，因此正对顶部指针的转盘角度
- * 恰好是 `rotation mod 2π`。
+ * 每一格画在哪一段弧，向扇区模块要——角度约定只在那里说一次。
  */
 
 import { TAU } from '../../angles';
 import { PALETTE } from '../../palette';
+import { createSectors } from './sectors';
 import type { Candidate } from './session';
 
 /**
@@ -69,15 +67,13 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
     return;
   }
 
-  const sectorAngle = TAU / lineup.length;
+  const sectors = createSectors(lineup.length);
 
   ctx.save();
   ctx.translate(center, center);
 
   for (let i = 0; i < lineup.length; i += 1) {
-    // 转盘自身角度 θ 出现在画布角度 -π/2 + θ - rotation。
-    const start = -Math.PI / 2 + i * sectorAngle - rotation;
-    const end = start + sectorAngle;
+    const { start, end } = sectors.arc(i, rotation);
 
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -91,7 +87,7 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
 
     // 文字沿扇区横排
     ctx.save();
-    ctx.rotate(start + sectorAngle / 2);
+    ctx.rotate((start + end) / 2);
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#2b2b33';

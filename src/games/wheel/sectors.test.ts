@@ -1,0 +1,199 @@
+/**
+ * 扇区模块的用例：扇区与角度之间的换算。
+ *
+ * 这里钉的是这个模块的外部性质——落点在哪一格里、指针底下是哪一格，
+ * 不钉实现里那两条落点带子的具体数字（它们是观感取舍，注释里说明了）。
+ * 谁中选是会话的事，用例在 `./session.test.ts`。
+ */
+
+import { describe, expect, it } from 'vitest';
+import { TAU } from '../../angles';
+import { createSectors } from './sectors';
+import { seededRandom } from '../../testHelpers';
+
+const SIZES = [1, 2, 3, 5, 8, 12] as const;
+
+describe('造扇区', () => {
+  it('扇区数就是上盘名单的长度', () => {
+    expect(createSectors(7).count).toBe(7);
+  });
+
+  it('空的上盘名单在造的那一刻就抛', () => {
+    expect(() => createSectors(0)).toThrow();
+  });
+});
+
+describe('落点角度与指针底下的扇区', () => {
+  // 这个模块的核心性质：要来的落点角度，问回去必须还是同一格。
+  // 几十个种子过一遍，而不是钉几个碰巧成立的数。
+  it('任意扇区、任意随机数，要来的落点角度问回去还是那一格', () => {
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      for (let index = 0; index < size; index += 1) {
+        const random = seededRandom(size * 100 + index);
+        for (let i = 0; i < 40; i += 1) {
+          expect(sectors.sectorAt(sectors.angleInSector(index, random()))).toBe(index);
+        }
+      }
+    }
+  });
+
+  it('落点始终在扇区内部，离两条边界都有余量', () => {
+    // 指针有实际宽度：落点贴着扇区边界时，肉眼说不清转出的是哪一个。
+    // 要的是"离边界有余量"这条性质，所以只钉一个宽松的下限（扇区的 5%）。
+    const margin = 0.05;
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const sectorAngle = TAU / size;
+      for (let index = 0; index < size; index += 1) {
+        for (let step = 0; step <= 20; step += 1) {
+          const r = Math.min(step / 20, 0.999999);
+          const withinSector = sectors.angleInSector(index, r) - index * sectorAngle;
+          expect(withinSector).toBeGreaterThanOrEqual(margin * sectorAngle);
+          expect(withinSector).toBeLessThanOrEqual((1 - margin) * sectorAngle);
+        }
+      }
+    }
+  });
+
+  it('落点不恰好等于扇区正中', () => {
+    const size = 8;
+    const sectors = createSectors(size);
+    const sectorAngle = TAU / size;
+    // 实现把 `r` 分成两条带子，正中恰好落在两条的接缝上：只探 `step / 20 - 1e-12`
+    // 会让 r = 0.5 这一点永远走进下面那条带子，上面那条的正中邻域一次都没问过。
+    // 所以每一步都从三个方向探——差一点、正好、多一点。
+    for (let index = 0; index < size; index += 1) {
+      for (let step = 0; step <= 20; step += 1) {
+        for (const nudge of [-1e-12, 0, 1e-12]) {
+          const r = Math.min(Math.max(step / 20 + nudge, 0), 0.999999);
+          expect(sectors.angleInSector(index, r)).not.toBe((index + 0.5) * sectorAngle);
+        }
+      }
+    }
+  });
+
+  it('落点角度落在 [0, 2π) 内', () => {
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const random = seededRandom(size);
+      for (let index = 0; index < size; index += 1) {
+        for (let i = 0; i < 20; i += 1) {
+          const angle = sectors.angleInSector(index, random());
+          expect(angle).toBeGreaterThanOrEqual(0);
+          expect(angle).toBeLessThan(TAU);
+        }
+      }
+    }
+  });
+});
+
+describe('指针底下是哪个扇区', () => {
+  it('扇区正好交界处归后一格', () => {
+    // 边界归上一格还是下一格，这里给出确定的答案：扇区 i 占 [i·w, (i+1)·w)，
+    // 左闭右开，所以正好等于 i·w 的角度算第 i 格。
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const sectorAngle = TAU / size;
+      for (let index = 0; index < size; index += 1) {
+        expect(sectors.sectorAt(index * sectorAngle)).toBe(index);
+      }
+      // 整圈那一处边界绕回第一格。
+      expect(sectors.sectorAt(TAU)).toBe(0);
+      expect(sectors.sectorAt(0)).toBe(0);
+    }
+  });
+
+  it('负角度与超过一圈的累积角度答得对', () => {
+    // 动画传进来的是累积的旋转量：转过好几圈、或者反着转，都还得答对。
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const random = seededRandom(size + 7);
+      for (let index = 0; index < size; index += 1) {
+        for (let i = 0; i < 20; i += 1) {
+          const angle = sectors.angleInSector(index, random());
+          for (const turns of [-5, -3, -1, 1, 4, 17]) {
+            expect(sectors.sectorAt(angle + turns * TAU)).toBe(index);
+          }
+        }
+      }
+    }
+  });
+
+  it('只有一个候选时，任何角度都是那一格', () => {
+    const sectors = createSectors(1);
+    const random = seededRandom(1);
+    for (let i = 0; i < 60; i += 1) {
+      expect(sectors.sectorAt((random() - 0.5) * 40 * TAU)).toBe(0);
+    }
+    expect(sectors.sectorAt(0)).toBe(0);
+    expect(sectors.sectorAt(-TAU)).toBe(0);
+  });
+
+  it('答案永远是上盘名单里的一个合法下标', () => {
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const random = seededRandom(size + 99);
+      for (let i = 0; i < 200; i += 1) {
+        const index = sectors.sectorAt((random() - 0.5) * 20 * TAU);
+        expect(Number.isInteger(index)).toBe(true);
+        expect(index).toBeGreaterThanOrEqual(0);
+        expect(index).toBeLessThan(size);
+      }
+    }
+  });
+});
+
+describe('画到画布上的那段弧', () => {
+  /** 画布上指针所在的方向：12 点，也就是画布弧度 -π/2。 */
+  const POINTER = -Math.PI / 2;
+
+  /** 从 `start` 出发顺时针走到 `angle` 要走多远，折回 `[0, 2π)`。 */
+  function sweepFrom(start: number, angle: number): number {
+    const wrapped = (angle - start) % TAU;
+    return wrapped < 0 ? wrapped + TAU : wrapped;
+  }
+
+  it('压在指针底下的那段弧，正是 sectorAt 答的那一格', () => {
+    // 这条是画面与判定之间唯一的接缝：`-π/2` 与 `- rotation` 任一个符号写反，
+    // 转盘照样转、照样弹结果卡片，只是画面上停在别人身上——这里当场变红。
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const sectorAngle = TAU / size;
+      const random = seededRandom(size + 31);
+      for (let i = 0; i < 60; i += 1) {
+        const rotation = (random() - 0.5) * 20 * TAU;
+        const expected = sectors.sectorAt(rotation);
+        const covering: number[] = [];
+        for (let index = 0; index < size; index += 1) {
+          const { start } = sectors.arc(index, rotation);
+          if (sweepFrom(start, POINTER) < sectorAngle) covering.push(index);
+        }
+        expect(covering).toEqual([expected]);
+      }
+    }
+  });
+
+  it('每段弧正好一个扇区宽，首尾相接铺满一整圈', () => {
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const sectorAngle = TAU / size;
+      for (const rotation of [0, 0.3, -1.7, 5 * TAU + 2]) {
+        for (let index = 0; index < size; index += 1) {
+          const { start, end } = sectors.arc(index, rotation);
+          expect(end - start).toBeCloseTo(sectorAngle, 12);
+          // 下一格从这一格的终点接上，中间不留缝、也不重叠；最后一格接回第一格，差一整圈。
+          const next = sectors.arc((index + 1) % size, rotation);
+          const expectedStart = index === size - 1 ? next.start + TAU : next.start;
+          expect(expectedStart).toBeCloseTo(end, 9);
+        }
+      }
+    }
+  });
+
+  it('盘面不转时，第一格从指针底下开始顺时针铺', () => {
+    const sectors = createSectors(4);
+    expect(sectors.arc(0, 0).start).toBeCloseTo(POINTER, 12);
+    expect(sectors.arc(1, 0).start).toBeCloseTo(POINTER + TAU / 4, 12);
+  });
+});
