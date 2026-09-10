@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest';
 import { TAU } from '../../angles';
 import { createWheelSession, MAX_SECTORS } from './session';
 import { createSectors } from './sectors';
-import { csv, names, roster, scriptedRandom, stagedRandom } from '../../testHelpers';
+import { spinDelta } from './spinAnimation';
+import { csv, names, roster, scriptedRandom, seededRandom, stagedRandom } from '../../testHelpers';
 
 describe('转盘的上盘名单上限', () => {
   it('转盘最多摆 12 个候选', () => {
@@ -131,4 +132,62 @@ describe('转一次', () => {
       }
     }
   }
+});
+
+/**
+ * 这一整套用例的意义所在：转盘停下之后，指针底下的扇区就是中选。
+ *
+ * 这条不变量要三跳同时为真——会话选谁中选、`spinDelta` 反算这一次转多少、
+ * 扇区模块答指针底下是谁。前面那些用例只钉住了第一跳，`spinDelta` 里的符号
+ * 翻一下它们照样全绿，转盘照样转足 3.5 秒、照样弹卡片，只是停在了别人身上
+ * （见 ADR-0003）。所以这里把三跳串起来问一次，全程不碰 DOM、不碰 rAF。
+ *
+ * 起始角度特意混进负数和好几圈的累积值：页面传进来的是裸的累积旋转量，
+ * 归一化归 `spinDelta`，那就得在这里被真的喂到。
+ *
+ * 只钉「指针底下是中选」，不钉 delta 等于某个数：转几圈、停在扇区内的哪一点
+ * 都是观感取舍，写死了只会挡住下一次调它们。
+ */
+describe('指针底下就是中选', () => {
+  const startAngles = [0, 0.7, TAU / 3, TAU - 0.001, -0.4, -TAU * 2.3, TAU * 5 + 1.2];
+  // 动画内部随机的圈数取的是 5~8；这里把它的取值范围扫一遍，
+  // 顺带扫上 0 圈——整圈本就不该改变指针底下压着谁。
+  const turnsRange = [0, 5, 6, 7, 8];
+
+  it('几十个种子 × 多个起始角 × 遍历圈数，转停后压在指针底下的都是中选', () => {
+    for (let seed = 1; seed <= 40; seed += 1) {
+      for (const size of [1, 2, 3, 5, 12]) {
+        const session = createWheelSession({ csvText: roster(size), random: seededRandom(seed) });
+        const sectors = createSectors(session.lineup.length);
+        const { winner, targetAngle } = session.spin();
+        const expected = session.lineup.indexOf(winner);
+        for (const from of startAngles) {
+          for (const turns of turnsRange) {
+            const finalRotation = from + spinDelta(from, targetAngle, turns);
+            expect(sectors.sectorAt(finalRotation)).toBe(expected);
+          }
+        }
+      }
+    }
+  });
+
+  it('逐个扇区都问一遍：排好的那次摇选中谁，转停后指针底下就是谁', () => {
+    for (const size of [1, 2, 3, 5, 12]) {
+      for (let index = 0; index < size; index += 1) {
+        for (const offsetSeed of [0, 0.5, 0.999999]) {
+          const random = stagedRandom();
+          const session = createWheelSession({ csvText: roster(size), random: random.random });
+          const sectors = createSectors(size);
+          random.stage((index + 0.5) / size, offsetSeed);
+          const { winner, targetAngle } = session.spin();
+          expect(winner).toBe(session.lineup[index]);
+          for (const from of startAngles) {
+            for (const turns of turnsRange) {
+              expect(sectors.sectorAt(from + spinDelta(from, targetAngle, turns))).toBe(index);
+            }
+          }
+        }
+      }
+    }
+  });
 });

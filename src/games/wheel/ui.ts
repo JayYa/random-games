@@ -6,7 +6,6 @@
  * 下一个玩法照用同一份。
  */
 
-import { TAU } from '../../angles';
 import { createById } from '../../byId';
 import type { GameMountOptions } from '../../games';
 import { gamePage } from '../../gamePage';
@@ -151,8 +150,10 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
       // 中选候选在动画开始前已确定，旋转只是把它演出来。
       const { winner, targetAngle } = session.spin();
 
+      // 传裸的累积旋转量，不先取模：归一化归 `spinDelta`（见 ./spinAnimation.ts），
+      // 页面不该知道有这回事。最终角度仍从当下真实的旋转量起算，所以画面不跳。
       animateSpin({
-        from: rotation % TAU,
+        from: rotation,
         targetAngle,
         onFrame: (next) => {
           rotation = next;
