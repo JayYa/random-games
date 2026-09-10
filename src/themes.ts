@@ -1,14 +1,18 @@
 /**
  * 主题清单与主题解析。
  *
- * 一个主题 = `public/` 下一份 CSV + 这里的一条记录（见 ADR-0005）。清单是代码里的
- * 常量表而不是 `public/` 下的数据文件：`public/` 只放给非程序员改的名单，而加主题的
- * 人本来就要写文案、动仓库。加第四个主题 = 写一个 CSV + 往 `THEMES` 里加一条记录，
- * 不必改路由、渲染或这个文件之外的任何代码。
+ * 一个主题就是 `public/` 下的一份名单 CSV：它面向使用者的那套说法写在同一份文件的
+ * 头部注释里（`# entry:` / `# title:` / `# result:`），清单在构建期扫 `public/*.csv`
+ * 得出（见 ADR-0009）。清单不手写，是因为「CSV 在、记录忘了加」这类漂移只要有两处
+ * 事实就一定会发生；发现只在构建期做，浏览器里因此不多一次请求、不多一种失败模式，
+ * ADR-0005 当年拒绝把清单放进 `public/` 的理由仍然成立。加第四个主题 = 往 `public/`
+ * 扔一份 CSV，路由、渲染和这个文件都不用动。
  *
  * 主题只带面向使用者的文案。**错误提示不随主题变**，一律用中性的「候选」：错误页的
  * 读者是去改 CSV 的人，不是来玩的人。
  */
+
+import { THEMES } from 'virtual:themes';
 
 /** 站点级标题：没有选定主题时（选主题页）的 `document.title`。 */
 export const SITE_TITLE = '是但';
@@ -28,33 +32,13 @@ export interface Theme {
 }
 
 /**
- * 全部主题，按选主题页上的先后顺序排列。
+ * 全部主题，按名单文件的文件名字典序排列。
  *
- * 加第四个主题就是往这里再加一条记录、再写一份同名的 CSV，别处一行不用改。
+ * 这张清单不写在这里：它由构建期扫 `public/*.csv` 得出，经虚拟模块 `virtual:themes`
+ * 编译进产物（见 `vite.config.ts` 与 ADR-0009）。想知道站上有哪些主题，看 `public/`
+ * 下有哪些 CSV；加第四个主题就是往那里再扔一份带 `# entry:` 的 CSV，这个文件一行不用改。
  */
-export const THEMES: readonly Theme[] = [
-  {
-    slug: 'eat',
-    rosterFile: 'eat.csv',
-    title: '今天吃哪家',
-    entryLabel: '今天吃什么',
-    resultPhrase: '今天就吃',
-  },
-  {
-    slug: 'play',
-    rosterFile: 'play.csv',
-    title: '今天玩哪个',
-    entryLabel: '今天玩什么',
-    resultPhrase: '今天就玩',
-  },
-  {
-    slug: 'work',
-    rosterFile: 'work.csv',
-    title: '今天干哪件',
-    entryLabel: '今天干什么',
-    resultPhrase: '今天就干',
-  },
-];
+export { THEMES };
 
 /**
  * 选主题页的地址。站点不记住上次选的主题（ADR-0004），根地址永远落在这里。
