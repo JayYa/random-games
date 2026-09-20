@@ -15,7 +15,7 @@
     "@types/matter-js": "0.20.2",
     "@types/node": "26.6.1",
     "typescript": "7.0.2",
-    "vite": "7.3.6",
+    "vite": "8.3.0",
     "vitest": "5.0.1"
   },
   "dependencies": {
