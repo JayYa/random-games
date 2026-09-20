@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "@types/matter-js": "0.20.2",
-    "@types/node": "26.4.0",
+    "@types/node": "26.6.1",
     "typescript": "5.9.3",
     "vite": "7.3.6",
     "vitest": "3.2.7"
