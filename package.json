@@ -19,6 +19,6 @@
     "vitest": "5.0.1"
   },
   "dependencies": {
-    "matter-js": "^0.20.0"
+    "matter-js": "0.20.0"
   }
 }
