@@ -3,4 +3,10 @@
   "extends": [
     "config:best-practices"
   ]
+  "packageRules": [
+    {
+      "matchPackageNames": ["matter-js"],
+      "abandonmentThreshold": "eternal"
+    }
+  ]
 }
