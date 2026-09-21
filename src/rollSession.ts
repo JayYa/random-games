@@ -59,7 +59,7 @@ export interface RollSessionOptions {
   readonly card: ResultCard;
   /**
    * 用户收下中选、卡片收起来之后做什么。由玩法给：
-   * 转盘接的是「再转一次」，立刻再开抽；弹球机接的是「再打一发」，退回待发。
+   * 转盘接的是「再来一次」，什么都不做（等用户自己按「转」）；弹球机接的是「再打一发」，退回待发。
    */
   readonly onDismiss: () => void;
 }
@@ -123,9 +123,8 @@ export function createRollSession(options: RollSessionOptions): RollSession {
     dismiss() {
       // 「还没开抽」时没有中选可收：静默不受理，免得凭空叫一次玩法的回调。
       if (state.phase === 'idle') return;
-      // 先收卡片再回到「还没开抽」，最后才交还给玩法：回调里可能立刻又开一次抽
-      // （转盘的「再转一次」），那时状态必须已经是干净的，否则 `begin()` 会
-      // 被自己上一次的残留挡掉。
+      // 先收卡片再回到「还没开抽」，最后才交还给玩法：回调运行时状态必须已经
+      // 干净，玩法在里面想立刻再 `begin()` 也受理，不会被自己上一次的残留挡掉。
       card.hide();
       moveTo({ phase: 'idle' });
       onDismiss();

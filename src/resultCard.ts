@@ -20,7 +20,7 @@ import type { Theme } from './themes';
  * 结果卡片的 HTML。放进玩法页的 body 里，再交给 `createResultCard` 接上行为。
  *
  * @param closeLabel 关掉卡片那个按钮上的字。它说什么就得真的做什么，
- *   所以文案由玩法给：转盘写「再转一次」，按下去就真的再转一次。
+ *   所以文案由玩法给：转盘写「再来一次」，弹球机写「再打一发」，按下去就真的回到能再来的状态。
  */
 export function resultCardMarkup(theme: Theme, closeLabel: string): string {
   return `
@@ -35,7 +35,7 @@ export function resultCardMarkup(theme: Theme, closeLabel: string): string {
 }
 
 export interface ResultCardOptions {
-  /** 按下关掉按钮时做什么。它不只是关：转盘接的是「再转一次」，收掉卡片后立刻再转。 */
+  /** 按下关掉按钮时做什么。收掉卡片之后玩法接着干什么由玩法定：转盘什么都不做，等用户再按「转」。 */
   readonly onClose: () => void;
   /**
    * 卡片收起来之后把焦点交给谁。

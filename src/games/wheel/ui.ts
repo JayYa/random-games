@@ -19,8 +19,8 @@ import { createWheelSession, type WheelSession } from './session';
 import { drawWheel } from './wheelCanvas';
 import { animateSpin } from './spinAnimation';
 
-/** 卡片上那个按钮写着「再转一次」，那它就得真的再转一次（见下面接给开抽会话的 onDismiss）。 */
-const CLOSE_LABEL = '再转一次';
+/** 卡片上那个按钮写着「再来一次」：只收卡片、回到能再转的状态，转不转由用户再按「转」决定。 */
+const CLOSE_LABEL = '再来一次';
 
 interface WheelElements {
   shell: HTMLElement;
@@ -88,10 +88,11 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
     drawWheel(context, { lineup: session.lineup, rotation, size });
   };
 
-  // 卡片上的按钮写着「再转一次」，那它就得真的再转一次：收掉卡片并立刻开转。
+  // 卡片上的按钮写着「再来一次」：只收卡片、回到能再转的状态，不替用户按「转」。
   // 卡片的开合归开抽会话管，这里只把「用户收下了」这一下告诉它。
   //
-  // 卡片收起来时焦点交回「转」：卡片上的按钮马上就要够不着了，焦点得有地方去。
+  // 卡片收起来时焦点交回「转」：卡片上的按钮马上就要够不着了，焦点得有地方去；
+  // 落在「转」上，键盘用户敲一下 Enter 就是下一次开抽。
   const card = createResultCard(root, {
     onClose: () => roll.dismiss(),
     returnFocusTo: elements.spinButton,
@@ -100,12 +101,12 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   /**
    * 一次开抽走到哪一步了，全问它。转盘自己不再存「正在转」和「卡片挂着」。
    *
-   * 「再转一次」就是收下中选之后的回调：会话先收卡片、回到「还没开抽」，
-   * 再调到这里，所以立刻再开一次抽一定受理。
+   * 收下中选之后转盘没有别的事要做：盘面停在中选那一格不动，「转」按钮订着
+   * 阶段变化自己解锁。开抽只由用户显式按「转」触发，收卡片不算。
    */
   const roll = createRollSession({
     card,
-    onDismiss: () => startSpin(),
+    onDismiss: () => {},
   });
 
   // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，

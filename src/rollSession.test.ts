@@ -117,7 +117,7 @@ describe('收下中选', () => {
   });
 
   it('回调被调用时状态已经回到还没开抽，所以回调里可以立刻再开一次抽', () => {
-    // 转盘的「再转一次」正是这么用的：按钮上写什么就得真的做什么。
+    // 回调里再开一次抽必须受理：这是会话对玩法的承诺，不管玩法当下接不接（转盘现在不接，弹球机只退回待发）。
     const card = fakeResultCard();
     let acceptedInsideCallback: boolean | undefined;
     const session: RollSession = createRollSession({
@@ -137,7 +137,7 @@ describe('收下中选', () => {
 
   it('还没开抽时收下中选整件事都不发生', () => {
     // 那一刻没有中选可收，卡片也没挂着：收下去只会平白叫一次玩法的回调，
-    // 而在转盘上那个回调就是「立刻再转一次」——「收下中选」却没有中选。
+    // 「收下中选」却没有中选，说不通。
     const { session, card, onDismiss } = makeSession();
 
     session.dismiss();
