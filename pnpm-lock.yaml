@@ -167,7 +167,7 @@ importers:
   .:
     dependencies:
       matter-js:
-        specifier: ^0.20.0
+        specifier: 0.20.0
         version: 0.20.0
     devDependencies:
       '@types/matter-js':
