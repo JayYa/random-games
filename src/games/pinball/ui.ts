@@ -136,7 +136,7 @@ function buildDom(root: HTMLElement, theme: Theme): PinballElements {
       <div class="pinball__stage">
         <canvas class="pinball__board" id="pinball-board"></canvas>
       </div>
-      ${resultCardMarkup(theme, CLOSE_LABEL)}
+      ${resultCardMarkup(CLOSE_LABEL)}
     `,
     { block: 'pinball' },
   );

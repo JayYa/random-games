@@ -39,8 +39,8 @@ export interface CollectThemesResult {
  */
 const FILE_NAME_PATTERN = /^([a-z0-9-]+)\.csv$/;
 
-/** 注释行里有特殊含义的键，封闭的三个；其余 `#` 行一律当散文跳过。 */
-const METADATA_KEYS = ['entry', 'title', 'result'] as const;
+/** 注释行里有特殊含义的键，封闭的两个；其余 `#` 行一律当散文跳过。 */
+const METADATA_KEYS = ['entry', 'title'] as const;
 
 type MetadataKey = (typeof METADATA_KEYS)[number];
 
@@ -54,9 +54,6 @@ type RosterMetadata = { -readonly [K in MetadataKey]?: string };
  * 不会被误解析成配置。
  */
 const METADATA_PATTERN = new RegExp(`^(${METADATA_KEYS.join('|')}):(.*)$`);
-
-/** 缺 `result` 时的兜底：转盘停下来那一刻总得有句囫囵话。 */
-const FALLBACK_RESULT_PHRASE = '今天就来';
 
 function isMetadataKey(key: string): key is MetadataKey {
   return (METADATA_KEYS as readonly string[]).includes(key);
@@ -142,7 +139,6 @@ export function collectThemes(files: readonly RosterFile[]): CollectThemesResult
       rosterFile: fileName,
       // 缺 title 退回 entry：文案没润色不等于页面残缺。
       title: valueOr(metadata.title, entryLabel),
-      resultPhrase: valueOr(metadata.result, FALLBACK_RESULT_PHRASE),
       entryLabel,
     });
   }

@@ -2,7 +2,7 @@
 
 > 「清单写在代码里」这一句已由 [ADR-0009](./0009-themes-are-discovered-from-csv-files.md) 改写：主题清单不再手写，改成构建期扫 `public/*.csv` 得出，主题的文案写在各自 CSV 的头部注释里。本文其余结论——一个主题恰好一份 CSV、hash 路由、错误提示一律中性、首页不读任何名单——原样有效。
 
-站点从单一的"今天吃什么"扩成三个主题（吃 / 玩 / 干）。一个主题由两部分构成：`public/` 下一个与它同名的 CSV（`eat.csv` / `play.csv` / `work.csv`），以及 `src/themes.ts` 里的一条记录（slug、CSV 文件名、转盘页标题、首页入口的说法、结果卡片上那句话）。首页是主题选择页，点进去用 hash 路由跳到 `#/eat` 这样的转盘页；未知的 hash 回落到首页。
+站点从单一的"今天吃什么"扩成三个主题（吃 / 玩 / 干）。一个主题由两部分构成：`public/` 下一个与它同名的 CSV（`eat.csv` / `play.csv` / `work.csv`），以及 `src/themes.ts` 里的一条记录（slug、CSV 文件名、转盘页标题、首页入口的说法）。首页是主题选择页，点进去用 hash 路由跳到 `#/eat` 这样的转盘页；未知的 hash 回落到首页。
 
 ## Considered Options
 

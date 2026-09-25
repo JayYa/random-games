@@ -15,7 +15,44 @@ const PROSE_HEADER = [
 ].join('\n');
 
 describe('collectThemes', () => {
-  it('三个键齐全的文件解析出完整主题', () => {
+  it('两个键齐全的文件解析出完整主题', () => {
+    const { themes, warnings } = collectThemes([
+      {
+        fileName: 'drink.csv',
+        csvText: '# entry: 今天喝什么\n# title: 今天喝哪杯\n\n瑞幸,true\n',
+      },
+    ]);
+
+    expect(themes).toEqual([
+      {
+        slug: 'drink',
+        rosterFile: 'drink.csv',
+        title: '今天喝哪杯',
+        entryLabel: '今天喝什么',
+      },
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('只写了 entry 的文件也能解析出主题，title 退回 entry', () => {
+    const { themes, warnings } = collectThemes([
+      { fileName: 'drink.csv', csvText: '# entry: 今天喝什么\n\n瑞幸,true\n' },
+    ]);
+
+    expect(themes).toEqual([
+      {
+        slug: 'drink',
+        rosterFile: 'drink.csv',
+        title: '今天喝什么',
+        entryLabel: '今天喝什么',
+      },
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  // `result` 曾经是第三个键（结果卡片上名字前面那句话），后来拿掉了。还留着这一行的
+  // 旧文件不该因此上不了线：它和别的散文注释一样被跳过。
+  it('还写着 # result: 的旧文件照常解析，那一行当散文跳过', () => {
     const { themes, warnings } = collectThemes([
       {
         fileName: 'drink.csv',
@@ -29,24 +66,6 @@ describe('collectThemes', () => {
         rosterFile: 'drink.csv',
         title: '今天喝哪杯',
         entryLabel: '今天喝什么',
-        resultPhrase: '今天就喝',
-      },
-    ]);
-    expect(warnings).toEqual([]);
-  });
-
-  it('只写了 entry 的文件也能解析出主题，title 退回 entry、result 退回中性说法', () => {
-    const { themes, warnings } = collectThemes([
-      { fileName: 'drink.csv', csvText: '# entry: 今天喝什么\n\n瑞幸,true\n' },
-    ]);
-
-    expect(themes).toEqual([
-      {
-        slug: 'drink',
-        rosterFile: 'drink.csv',
-        title: '今天喝什么',
-        entryLabel: '今天喝什么',
-        resultPhrase: '今天就来',
       },
     ]);
     expect(warnings).toEqual([]);
@@ -80,7 +99,7 @@ describe('collectThemes', () => {
 
   it('缺 entry 的文件被跳过，warning 指出文件名和原因', () => {
     const { themes, warnings } = collectThemes([
-      { fileName: 'drink.csv', csvText: '# title: 今天喝哪杯\n# result: 今天就喝\n瑞幸,true\n' },
+      { fileName: 'drink.csv', csvText: '# title: 今天喝哪杯\n瑞幸,true\n' },
     ]);
 
     expect(themes).toEqual([]);
@@ -145,7 +164,7 @@ describe('collectThemes', () => {
     const { themes } = collectThemes([
       {
         fileName: 'eat.csv',
-        csvText: `# entry: 今天吃什么\n# title: 今天吃哪家\n# result: 今天就吃\n${PROSE_HEADER}\n\n肠粉,true\n`,
+        csvText: `# entry: 今天吃什么\n# title: 今天吃哪家\n${PROSE_HEADER}\n\n肠粉,true\n`,
       },
     ]);
 
@@ -155,7 +174,6 @@ describe('collectThemes', () => {
         rosterFile: 'eat.csv',
         title: '今天吃哪家',
         entryLabel: '今天吃什么',
-        resultPhrase: '今天就吃',
       },
     ]);
   });

@@ -21,7 +21,7 @@ import { mountPinball } from './games/pinball/ui';
 export interface GameMountOptions {
   /** 名单 CSV 的原文。取文件的是路由层，玩法只拿到文本（ADR-0001）。 */
   readonly csvText: string;
-  /** 当前主题：标题、结果卡片上那句话和错误提示里的文件名都从这里来。 */
+  /** 当前主题：标题和错误提示里的文件名都从这里来。 */
   readonly theme: Theme;
 }
 

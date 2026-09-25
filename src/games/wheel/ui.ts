@@ -35,7 +35,7 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
         <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
       </div>
       <button class="wheel__spin" id="wheel-spin" type="button">转</button>
-      ${resultCardMarkup(theme, CLOSE_LABEL)}
+      ${resultCardMarkup(CLOSE_LABEL)}
     `,
     { block: 'wheel' },
   );
