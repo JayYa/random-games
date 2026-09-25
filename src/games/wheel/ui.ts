@@ -11,35 +11,29 @@ import type { GameMountOptions } from '../../games';
 import { gamePage } from '../../gamePage';
 import { canvasPixelRatio } from '../../pixelRatio';
 import { showRosterFailure } from '../../rosterFailure';
-import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
 import { createRollSession, isRollLocked } from '../../rollSession';
 import type { Theme } from '../../themes';
 import { createWheelSession, type WheelSession } from './session';
-import { drawWheel } from './wheelCanvas';
+import { drawWheel, type Reveal } from './wheelCanvas';
 import { animateSpin } from './spinAnimation';
 
 /** 卡片上那个按钮写着「再来一次」：只收卡片、回到能再转的状态，转不转由用户再按「转」决定。 */
 const CLOSE_LABEL = '再来一次';
 
 interface WheelElements {
-  shell: HTMLElement;
   canvas: HTMLCanvasElement;
   spinButton: HTMLButtonElement;
-  reshuffleButton: HTMLButtonElement;
-  note: HTMLParagraphElement;
 }
 
 function buildDom(root: HTMLElement, theme: Theme): WheelElements {
   root.innerHTML = gamePage(
     theme,
     `
-      <p class="wheel__note" id="wheel-note"></p>
       <div class="wheel__stage">
         <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
       </div>
       <button class="wheel__spin" id="wheel-spin" type="button">转</button>
-      ${reshuffleButtonMarkup('wheel')}
       ${resultCardMarkup(theme, CLOSE_LABEL)}
     `,
     { block: 'wheel', shellId: 'wheel-shell' },
@@ -48,20 +42,15 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
   const byId = createById(root);
 
   return {
-    shell: byId<HTMLElement>('wheel-shell'),
     canvas: byId<HTMLCanvasElement>('wheel-canvas'),
     spinButton: byId<HTMLButtonElement>('wheel-spin'),
-    reshuffleButton: byId<HTMLButtonElement>('wheel-reshuffle'),
-    note: byId<HTMLParagraphElement>('wheel-note'),
   };
 }
 
 export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   const { theme } = options;
-  const session: WheelSession = createWheelSession({
-    csvText: options.csvText,
-    cap: options.cap,
-  });
+  // 不收玩法清单给的上盘名单上限：转盘的扇区数是它自己的常量（见 ./session.ts）。
+  const session: WheelSession = createWheelSession({ csvText: options.csvText });
 
   // 转不起来时不画转盘：空转盘看着像程序坏了，说不清到底是名单哪里出了问题。
   if (showRosterFailure(root, theme, session)) return;
@@ -69,6 +58,10 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   const elements = buildDom(root, theme);
 
   let rotation = 0;
+  /** 这一次转停在哪个扇区。转一次时就定了，揭晓时名字写在这一格上。 */
+  let stoppedSector = 0;
+  /** 正在揭晓的那个名字；平时为空，转盘上一个名字都不画。 */
+  let reveal: Reveal | undefined;
 
   const render = () => {
     const context = elements.canvas.getContext('2d');
@@ -85,7 +78,7 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
       elements.canvas.height = pixels;
     }
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    drawWheel(context, { lineup: session.lineup, rotation, size });
+    drawWheel(context, { sectors: session.sectors, rotation, size, reveal });
   };
 
   // 卡片上的按钮写着「再来一次」：只收卡片、回到能再转的状态，不替用户按「转」。
@@ -101,28 +94,21 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   /**
    * 一次开抽走到哪一步了，全问它。转盘自己不再存「正在转」和「卡片挂着」。
    *
-   * 收下中选之后转盘没有别的事要做：盘面停在中选那一格不动，「转」按钮订着
-   * 阶段变化自己解锁。开抽只由用户显式按「转」触发，收卡片不算。
+   * 中选也归它抽：转盘停下时报一声，它才从名单里抽出中选，叫转盘把名字写进
+   * 停下的那一格，停一拍再弹卡片（ADR-0010）。收下中选时它叫转盘把名字抹掉，
+   * 转盘停在原角度不动、回到匿名，「转」按钮订着阶段变化自己解锁。开抽只由
+   * 用户显式按「转」触发，收卡片不算，所以收下之后转盘没有别的事要做。
    */
   const roll = createRollSession({
     card,
     onDismiss: () => {},
-  });
-
-  // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，
-  // 都在 reshuffleControl.ts 里：控件自己读开抽会话的阶段、自己订阅它的变化，
-  // 转盘一个字都不用管这条规则。
-  // ≤ 12 个时上盘名单不是抽出来的，那边会把按钮整个撤掉。
-  createReshuffleControl({
-    block: 'wheel',
-    shell: elements.shell,
-    note: elements.note,
-    button: elements.reshuffleButton,
-    session,
-    roll,
-    onReshuffle: () => {
-      // 按得动就说明开抽会话还在「还没开抽」（否则控件自己就挡下了），
-      // 所以这里不必再收一次卡片。换一批只重抽上盘名单并重绘，不动当前的旋转角度。
+    drawWinner: session.drawWinner,
+    onReveal: (winner) => {
+      reveal = { sector: stoppedSector, name: winner.name };
+      render();
+    },
+    onErase: () => {
+      reveal = undefined;
       render();
     },
   });
@@ -131,9 +117,9 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
    * 「转」跟着开抽会话的阶段走：阶段一变它自己重画，不必谁来喊一声。
    *
    * 按不按得动的判据用的就是 `begin()` 那一句 `isRollLocked`——不是「正在转」而已：
-   * 结果卡片还挂着时 `begin()` 照样不受理，这里要是只锁「正在转」，按钮就会宣告
-   * 自己按得动、按下去却什么都不发生，键盘和读屏还能 Tab 到它。两处同一句话，
-   * 就不会再分叉。
+   * 揭晓那一拍和结果卡片挂着时 `begin()` 照样不受理，这里要是只锁「正在转」，按钮
+   * 就会宣告自己按得动、按下去却什么都不发生，键盘和读屏还能 Tab 到它。两处同一
+   * 句话，就不会再分叉。
    *
    * 用 `aria-disabled` 而不用 `disabled`：`disabled` 的按钮不可聚焦，焦点会在按下
    * 「转」的瞬间掉回 `<body>`，键盘和读屏的人在这几秒里无处可去，转完还得重新找
@@ -145,28 +131,28 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   });
 
   const startSpin = () => {
-    // 受不受理由开抽会话说了算：转动期间连点「转」只会被它静静退回，
-    // 不报错，也叠不出第二次转动。
-    if (session.lineup.length > 0 && roll.begin()) {
-      // 中选候选在动画开始前已确定，旋转只是把它演出来。
-      const { winner, targetAngle } = session.spin();
+    // 受不受理由开抽会话说了算：转动期间、揭晓那一拍里连点「转」只会被它
+    // 静静退回，不报错，也叠不出第二次转动。
+    if (!roll.begin()) return;
+    // 停在哪个扇区在动画开始前已确定，旋转只是把它演出来；谁中选此刻还没抽。
+    const { sector, targetAngle } = session.spin();
 
-      // 传裸的累积旋转量，不先取模：归一化归 `spinDelta`（见 ./spinAnimation.ts），
-      // 页面不该知道有这回事。最终角度仍从当下真实的旋转量起算，所以画面不跳。
-      animateSpin({
-        from: rotation,
-        targetAngle,
-        onFrame: (next) => {
-          rotation = next;
-          render();
-        },
-        onDone: () => {
-          // 一步过到「抽出了中选」并弹卡片：转完到卡片挂上之间不会有
-          // 一个换一批短暂可用的缝。两个按钮都订着这个阶段，跟着自己重画。
-          roll.settle(winner);
-        },
-      });
-    }
+    // 传裸的累积旋转量，不先取模：归一化归 `spinDelta`（见 ./spinAnimation.ts），
+    // 页面不该知道有这回事。最终角度仍从当下真实的旋转量起算，所以画面不跳。
+    animateSpin({
+      from: rotation,
+      targetAngle,
+      onFrame: (next) => {
+        rotation = next;
+        render();
+      },
+      onDone: () => {
+        // 指针底下就是先定的那一格（端到端用例守着，见 ./session.test.ts）。
+        // 报一声「盘面停下」，抽中选、揭晓、停一拍、弹卡片都归开抽会话。
+        stoppedSector = sector;
+        roll.boardStopped();
+      },
+    });
   };
 
   elements.spinButton.addEventListener('click', startSpin);

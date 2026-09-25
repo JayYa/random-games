@@ -30,19 +30,10 @@ body {
 }
 
 .wheel {
-  /* 转盘之外的固定部件（标题、提示、两个按钮和它们之间的间距）大致占掉的高度。
+  /* 转盘之外的固定部件（标题、「转」和它们之间的间距）大致占掉的高度。
      用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。
      「换个主题」不占这里的一分一毫：它和标题同占一行（见 .page__header）。 */
-  --wheel-chrome-full: 296px;
-  /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
-  --wheel-reshuffle-height: 64px;
-  --wheel-chrome: var(--wheel-chrome-full);
-}
-
-/* 名单只有 12 个及以下时换一批按钮根本不存在（见 games/wheel/ui.ts），
-   那段高度不该继续替它留着——留着只会让转盘白白矮一截。 */
-.wheel--no-reshuffle {
-  --wheel-chrome: calc(var(--wheel-chrome-full) - var(--wheel-reshuffle-height));
+  --wheel-chrome: 200px;
 }
 
 /* 页头：标题居中，回选主题页的入口靠左，两者同占一行。
@@ -61,14 +52,6 @@ body {
   margin: 0;
   font-size: 1.6rem;
   grid-column: 2;
-  text-align: center;
-}
-
-.wheel__note {
-  margin: 0;
-  min-height: 1.2em;
-  font-size: 0.9rem;
-  color: #6b6b7b;
   text-align: center;
 }
 
@@ -140,24 +123,6 @@ body {
 /* 转动期间按钮是 aria-disabled 而不是 disabled：它得留在 tab 序里，
    焦点才不会在开转的瞬间掉回 body（见 games/wheel/ui.ts 的 setBusy）。 */
 .wheel__spin[aria-disabled='true'] {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.wheel__reshuffle {
-  min-height: 48px;
-  padding: 0 24px;
-  border: 1px solid #c8c8d4;
-  border-radius: 999px;
-  background: transparent;
-  color: #4a4a58;
-  font-size: 0.95rem;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.wheel__reshuffle[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
 }
@@ -344,9 +309,7 @@ body {
   }
 
   .wheel {
-    /* 只改这两个量，缺了换一批时该减多少由上面那条规则接着算。 */
-    --wheel-chrome-full: 208px;
-    --wheel-reshuffle-height: 60px;
+    --wheel-chrome: 120px;
   }
 
   .pinball {
