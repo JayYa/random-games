@@ -5,14 +5,14 @@
  * 以及抽一个中选。
  *
  * 它不认识任何一种玩法，也不认识盘面：盘面有几格是各玩法自己的常量，与名单无关。
- * 中选 (Winner) 从全部启用的候选里等概率抽（ADR-0010）；什么时候抽由开抽会话
- * 说了算——盘面停下之后。
+ * 中选 (Winner) 从启用且不在冷却中的候选里等概率抽（ADR-0010、ADR-0011）；什么时候
+ * 抽由开抽会话说了算——盘面停下之后。抽完当场记进最近中选，名字亮出的那一刻就算记下。
  *
- * 它不引用 Canvas、不引用 DOM、也不发网络请求——加载 CSV 是渲染层的事。
- * 注入的 `random` 是这个模块唯一的不确定性来源。
+ * 它不引用 Canvas、不引用 DOM、也不发网络请求——加载 CSV 是渲染层的事；最近中选存在
+ * 哪里也不归它管，记忆是注入的。注入的 `random` 是这个模块唯一的不确定性来源。
  */
 
-import { randomIndex } from './randomIndex';
+import { NO_RECENT_MEMORY, RECENT_WINNERS_COUNT, drawWithCooldown, type RecentMemory } from './cooldown';
 import { parseRoster, type Candidate } from './roster';
 
 export type { Candidate };
@@ -24,6 +24,11 @@ export interface RosterSessionOptions {
   readonly csvText: string;
   /** 默认为 `Math.random`。 */
   readonly random?: RandomSource;
+  /**
+   * 这个主题的最近中选（ADR-0011），按名字记。不给就没有记忆：没有冷却，
+   * 每次都在全部启用的候选里等概率抽。
+   */
+  readonly recentWinners?: RecentMemory;
 }
 
 /**
@@ -54,7 +59,8 @@ export interface RosterSession {
   /** 解析失败的描述（含行号），或 undefined。 */
   readonly error?: string;
   /**
-   * 抽一个中选：从名单中全部启用的候选里等概率取一个（ADR-0010）。
+   * 抽一个中选：从名单中启用且不在冷却中的候选里等概率取一个（ADR-0010、ADR-0011），
+   * 并把它记进最近中选。
    *
    * 不依赖 `this`，可以直接摘下来交给开抽会话当「抽一个中选」。
    * 一个启用的候选都没有时抛错：那几种名单走不到开抽，走到了就是调用方的错。
@@ -64,6 +70,7 @@ export interface RosterSession {
 
 export function createRosterSession(options: RosterSessionOptions): RosterSession {
   const random = options.random ?? Math.random;
+  const recentWinners = options.recentWinners ?? NO_RECENT_MEMORY;
   const { candidates, error } = parseRoster(options.csvText);
   const enabled = candidates.filter((candidate) => candidate.enabled);
   const enabledCount = enabled.length;
@@ -86,7 +93,13 @@ export function createRosterSession(options: RosterSessionOptions): RosterSessio
     error,
     drawWinner: () => {
       if (enabledCount === 0) throw new Error('名单里没有启用的候选，抽不出中选');
-      return enabled[randomIndex(random, enabledCount)]!;
+      return drawWithCooldown({
+        pool: enabled,
+        keyOf: (candidate) => candidate.name,
+        memory: recentWinners,
+        count: RECENT_WINNERS_COUNT,
+        random,
+      });
     },
   };
 }

@@ -1,5 +1,5 @@
 /**
- * 名单会话的用例：解析、四种状态、抽一个中选。
+ * 名单会话的用例：解析、四种状态、抽一个中选、最近中选冷却。
  *
  * 这些都是玩法无关的性质——转盘和弹球机看到的是同一份名单逻辑。
  * 转盘的角度用例在 `games/wheel/session.test.ts`。
@@ -7,10 +7,34 @@
 
 import { describe, expect, it } from 'vitest';
 import { createRosterSession, type RandomSource } from './rosterSession';
-import { csv, roster, rosterNames, scriptedRandom } from './testHelpers';
+import type { RecentMemory } from './cooldown';
+import { csv, fakeRecentMemory, roster, rosterNames, scriptedRandom, seededRandom } from './testHelpers';
 
-function makeSession(options: { csvText: string; random?: RandomSource }) {
+function makeSession(options: { csvText: string; random?: RandomSource; recentWinners?: RecentMemory }) {
   return createRosterSession(options);
+}
+
+/**
+ * 同一份名单、同一份最近中选下，各个种子各抽一次，抽出过的名字都在这里。
+ *
+ * 每个种子都从同一份最近中选起步——抽一次就会记下一个，接着抽冷却就变了，
+ * 所以一个种子只抽一次。
+ */
+function drawableNames(csvText: string, recent: readonly string[], seeds = 200): Set<string> {
+  const drawn = new Set<string>();
+  for (let seed = 1; seed <= seeds; seed += 1) {
+    const session = makeSession({
+      csvText,
+      random: seededRandom(seed),
+      recentWinners: fakeRecentMemory(recent),
+    });
+    drawn.add(session.drawWinner().name);
+  }
+  return drawn;
+}
+
+function sorted(names: Iterable<string>): string[] {
+  return [...names].sort();
 }
 
 /**
@@ -281,5 +305,107 @@ describe('抽一个中选', () => {
     for (const csvText of ['', csv('沙县小吃,false'), csv('"没关引号,true')]) {
       expect(() => makeSession({ csvText }).drawWinner()).toThrow();
     }
+  });
+});
+
+describe('最近中选冷却', () => {
+  it('冷却中的候选抽不出来，其余启用的候选都抽得到', () => {
+    const recent = rosterNames(7);
+    expect(sorted(drawableNames(roster(10), recent))).toEqual(sorted(['候选8', '候选9', '候选10']));
+  });
+
+  it('不在冷却中的候选按书写顺序排成一列，等概率取下标', () => {
+    const session = makeSession({
+      csvText: roster(5),
+      random: scriptedRandom([0.5]),
+      recentWinners: fakeRecentMemory(['候选2', '候选4']),
+    });
+    // 剩下「候选1、候选3、候选5」，0.5 落在正中那一个。
+    expect(session.drawWinner().name).toBe('候选3');
+  });
+
+  it('停用的候选不算进可抽的个数', () => {
+    // 3 个启用、4 个停用：冷却个数按启用数算，是 min(7, 3 − 1) = 2。
+    const csvText = csv('沙县小吃,true', '停业,false', '兰州拉面,true', '搬走了,no', '黄焖鸡,true', '关门,0', '歇业,false');
+    expect(sorted(drawableNames(csvText, ['黄焖鸡', '沙县小吃']))).toEqual(['兰州拉面']);
+  });
+
+  it('启用的候选不超过 7 个时只冷却「启用数 − 1」个，最早的先解冷', () => {
+    // 5 个启用、最近中选按先后是 1 到 5：冷却最新的 4 个，最早的候选1 解冷。
+    expect(sorted(drawableNames(roster(5), rosterNames(5)))).toEqual(['候选1']);
+    // 3 个启用：只冷却最新的 2 个。
+    expect(sorted(drawableNames(roster(3), ['候选3', '候选1', '候选2']))).toEqual(['候选3']);
+  });
+
+  it('冷却个数最多 7 个：更早的记录不再冷却', () => {
+    // 最近中选里有 9 条：只有最新的 7 条（候选3 到 候选9）在冷却。
+    const recent = rosterNames(9);
+    expect(sorted(drawableNames(roster(10), recent))).toEqual(sorted(['候选1', '候选2', '候选10']));
+  });
+
+  it('只有一个启用的候选时照常抽出它', () => {
+    const csvText = csv('关门大吉,false', '沙县小吃,true');
+    expect(sorted(drawableNames(csvText, ['沙县小吃']))).toEqual(['沙县小吃']);
+  });
+
+  it('最近中选里的失效名字照旧占一格，不回溯补满', () => {
+    // 3 个启用，冷却 2 格：最新的两条是「候选2」和一个名单里已经没有的名字。
+    // 失效的名字占掉一格，所以更早的候选1 不冷却。
+    expect(sorted(drawableNames(roster(3), ['候选1', '候选2', '改了名的']))).toEqual(sorted(['候选1', '候选3']));
+  });
+
+  it('停用了的名字同样照旧占一格', () => {
+    const csvText = csv('候选1,true', '候选2,true', '候选3,false', '候选4,true');
+    // 3 个启用，冷却 2 格：最新的两条是「候选2」和停用的「候选3」。
+    expect(sorted(drawableNames(csvText, ['候选1', '候选2', '候选3']))).toEqual(sorted(['候选1', '候选4']));
+  });
+
+  it('名单里写重了的名字算一个候选，冷却不会把可抽的扣光', () => {
+    // 两个不同的名字，冷却 min(7, 2 − 1) = 1 个：最新的沙县小吃冷却，兰州拉面照常抽得到。
+    const csvText = csv('沙县小吃,true', '沙县小吃,true', '兰州拉面,true');
+    expect(sorted(drawableNames(csvText, ['兰州拉面', '沙县小吃']))).toEqual(['兰州拉面']);
+  });
+
+  it('每抽一次都把中选按先后记下', () => {
+    const memory = fakeRecentMemory();
+    const session = makeSession({ csvText: roster(10), random: seededRandom(7), recentWinners: memory });
+    const drawn = Array.from({ length: 3 }, () => session.drawWinner().name);
+    expect(memory.saved).toEqual(drawn);
+  });
+
+  it('记下的最近中选最多保留 7 条，留的是最新的', () => {
+    const memory = fakeRecentMemory();
+    const session = makeSession({ csvText: roster(10), random: seededRandom(11), recentWinners: memory });
+    const drawn = Array.from({ length: 20 }, () => session.drawWinner().name);
+    expect(memory.saved).toEqual(drawn.slice(-7));
+  });
+
+  it('候选够多时连抽 8 次都不重复', () => {
+    for (let seed = 1; seed <= 50; seed += 1) {
+      const session = makeSession({
+        csvText: roster(10),
+        random: seededRandom(seed),
+        recentWinners: fakeRecentMemory(),
+      });
+      const drawn = Array.from({ length: 8 }, () => session.drawWinner().name);
+      expect(new Set(drawn).size).toBe(8);
+    }
+  });
+
+  it('只有两个启用的候选时轮流抽出', () => {
+    const session = makeSession({
+      csvText: roster(2),
+      random: seededRandom(3),
+      recentWinners: fakeRecentMemory(),
+    });
+    const drawn = Array.from({ length: 6 }, () => session.drawWinner().name);
+    for (let i = 1; i < drawn.length; i += 1) {
+      expect(drawn[i]).not.toBe(drawn[i - 1]);
+    }
+  });
+
+  it('不注入记忆时没有冷却，同一个候选可以连着抽出', () => {
+    const session = makeSession({ csvText: roster(3), random: scriptedRandom([0]) });
+    expect([session.drawWinner().name, session.drawWinner().name]).toEqual(['候选1', '候选1']);
   });
 });

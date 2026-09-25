@@ -5,6 +5,7 @@
  * 日后悄悄写岔。只被 `*.test.ts` 引用，不进产物。
  */
 
+import type { RecentMemory } from './cooldown';
 import type { Candidate } from './rosterSession';
 import type { ResultCard } from './resultCard';
 import type { Schedule } from './rollSession';
@@ -67,6 +68,30 @@ export function roster(count: number): string {
 /** `roster(n)` 里那 n 个名字，按 CSV 里的书写顺序。 */
 export function rosterNames(count: number): string[] {
   return Array.from({ length: count }, (_, i) => `候选${i + 1}`);
+}
+
+/**
+ * 一份放在内存里的假记忆：名单会话的用例用它当最近中选。
+ *
+ * 与 `fakeResultCard` 同一性质——把浏览器存储换成可预测、可查问的替身。它不替
+ * 会话截断、不替会话去重：写进来什么就原样留着什么，用例看到的就是会话记下的。
+ */
+export interface FakeRecentMemory extends RecentMemory {
+  /** 此刻记着的记录，按先后，最早的在前。 */
+  readonly saved: readonly string[];
+}
+
+export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMemory {
+  let saved: readonly string[] = [...initial];
+  return {
+    get saved() {
+      return saved;
+    },
+    read: () => saved,
+    write(recent) {
+      saved = [...recent];
+    },
+  };
 }
 
 /**
