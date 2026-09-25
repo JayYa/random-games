@@ -7,7 +7,7 @@
  */
 
 import { createById } from '../../byId';
-import type { GameMountOptions } from '../../games';
+import type { GameMountOptions, GameTeardown } from '../../games';
 import { gamePage } from '../../gamePage';
 import { canvasPixelRatio } from '../../pixelRatio';
 import { showRosterFailure } from '../../rosterFailure';
@@ -47,9 +47,9 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
   };
 }
 
-export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
+export function mountWheel(root: HTMLElement, options: GameMountOptions): GameTeardown | void {
   const { theme } = options;
-  // 不收玩法清单给的上盘名单上限：转盘的扇区数是它自己的常量（见 ./session.ts）。
+  // 转盘的扇区数是它自己的常量（见 ./session.ts），与名单大小无关。
   const session: WheelSession = createWheelSession({ csvText: options.csvText });
 
   // 转不起来时不画转盘：空转盘看着像程序坏了，说不清到底是名单哪里出了问题。
@@ -158,10 +158,20 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): void {
   elements.spinButton.addEventListener('click', startSpin);
 
   // 画布尺寸由 CSS 算，元素自己变大变小时重绘一次即可（转屏、地址栏收起都走这条）。
-  if (typeof ResizeObserver === 'function') {
-    new ResizeObserver(() => render()).observe(elements.canvas);
-  }
+  const resizeObserver =
+    typeof ResizeObserver === 'function' ? new ResizeObserver(() => render()) : undefined;
+  resizeObserver?.observe(elements.canvas);
   // 缩放或换屏时 devicePixelRatio 会变而 CSS 尺寸不变，ResizeObserver 收不到。
-  window.addEventListener('resize', render);
+  const controller = new AbortController();
+  window.addEventListener('resize', render, { signal: controller.signal });
   render();
+
+  // 拆卸：`window` 上的监听和揭晓那一拍的计时器都活过 DOM，换页时得收掉——
+  // 否则名字刚亮出来就换了页，卡片还会在下一页上弹出来。转动的动画不掐：它转完
+  // 只是画一块已经不在文档里的画布，再报的那一声「盘面停下」开抽会话也不再受理。
+  return () => {
+    roll.dispose();
+    controller.abort();
+    resizeObserver?.disconnect();
+  };
 }

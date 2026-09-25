@@ -21,7 +21,7 @@ import { createById } from '../../byId';
 import type { GameMountOptions } from '../../games';
 import { gamePage } from '../../gamePage';
 import { canvasPixelRatio } from '../../pixelRatio';
-import { createLineupSession, type LineupSession } from '../../lineupSession';
+import { createRosterSession, type RosterSession } from '../../rosterSession';
 import { PALETTE } from '../../palette';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
 import { createRollSession } from '../../rollSession';
@@ -480,11 +480,9 @@ function drawPlunger(ctx: CanvasRenderingContext2D, power: number): void {
 
 export function mountPinball(root: HTMLElement, options: GameMountOptions): (() => void) | void {
   const { theme } = options;
-  const session: LineupSession = createLineupSession({
-    csvText: options.csvText,
-    // 名单会话眼下还要这个入参；弹球机已经不看上盘名单，只用它的状态与「抽一个中选」。
-    cap: options.cap,
-  });
+  // 弹球机只用名单会话的状态（给整页错误提示）与「抽一个中选」（给开抽会话）。
+  // 落格数是盘面自己的常量（见 ./board.ts），与名单大小无关。
+  const session: RosterSession = createRosterSession({ csvText: options.csvText });
 
   // 摇不起来时不画盘面：一个空盘面看着像程序坏了，说不清是名单哪里出了问题。
   if (showRosterFailure(root, theme, session)) return;
@@ -788,10 +786,12 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     frame(now);
   });
 
-  // 拆卸：停掉动画帧、解绑所有监听。风车的 rAF 一直在跑，不停的话换页之后它还会
-  // 一直转下去，一帧一帧地画一块已经不在文档里的画布。
+  // 拆卸：停掉动画帧、解绑所有监听、掐掉揭晓那一拍。风车的 rAF 一直在跑，不停的话
+  // 换页之后它还会一直转下去，一帧一帧地画一块已经不在文档里的画布；揭晓那一拍
+  // 不掐的话，球刚进格就换了页，卡片还会在下一页上弹出来。
   return () => {
     cancelAnimationFrame(rafId);
     controller.abort();
+    roll.dispose();
   };
 }

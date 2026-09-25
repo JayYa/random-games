@@ -55,8 +55,9 @@ export interface SpinAnimationOptions {
 /**
  * 播放一次旋转动画。
  *
- * 没有取消：转动期间两个按钮都不响应（故事 10），所以一段动画一旦开始
- * 就一定会走到 `onDone`，没有谁需要半路把它掐掉。
+ * 没有取消：转动期间「转」不响应，所以一段动画一旦开始就一定会走到 `onDone`，
+ * 没有谁需要半路把它掐掉。换页拆卸时也不掐：转完那一声「盘面停下」已经拆卸过的
+ * 开抽会话不再受理，剩下的只是几帧画在已经不在文档里的画布上。
  */
 export function animateSpin(options: SpinAnimationOptions): void {
   // 转几圈留在这里随机、不进 `spinDelta` 以外的接口：圈数写错了肉眼一眼

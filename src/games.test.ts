@@ -63,14 +63,6 @@ describe('玩法清单', () => {
       expect(typeof game.mount, `玩法 ${game.slug} 没有挂载函数`).toBe('function');
     }
   });
-
-  // 上限是要拿去截名单的，0 或小数会让盘面上一个候选都不剩、或者摆出半个来。
-  it('每条记录的上盘名单上限都是正整数', () => {
-    for (const game of GAMES) {
-      expect(Number.isInteger(game.lineupCap), `玩法 ${game.slug} 的上限不是整数`).toBe(true);
-      expect(game.lineupCap).toBeGreaterThan(0);
-    }
-  });
 });
 
 describe('rollGame', () => {

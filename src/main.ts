@@ -30,7 +30,8 @@ const guard = createRenderGuard();
 
 /**
  * 上一页留下的拆卸函数。换页时整块 DOM 连同挂在它上面的监听一起被替换掉，
- * 只有活过 DOM 的东西（挂在 `window` 上的监听、还在跑的动画帧）要在这里收拾。
+ * 只有活过 DOM 的东西（挂在 `window` 上的监听、还在跑的动画帧、揭晓那一拍
+ * 还没到点的计时器）要在这里收拾。
  */
 let teardown: GameTeardown | undefined;
 
@@ -66,15 +67,14 @@ function render(): void {
   showRosterLoading(root, theme);
 
   // 取文件的是路由层，玩法只拿到文本（ADR-0001）。进玩法页时才取，一次只取一个主题的名单。
-  // 玩法先定下来才知道上盘名单的上限是多少，所以抽签在这次取数之前就做完了。
   //
-  // 三类错误——取不到文件、某行读不懂、没有一个候选能上盘——都落在页面上，
+  // 三类错误——取不到文件、某行读不懂、没有一个启用的候选——都落在页面上，
   // 而且共用同一套版式（`rosterFailure.ts`）：取不到文件在这里呈现，
   // 另外两类在玩法的挂载函数里呈现。
   fetchRosterCsv(theme.rosterFile).then(
     (csvText) => {
       if (!isCurrent()) return;
-      const disposer = game.mount(root, { csvText, theme, cap: game.lineupCap });
+      const disposer = game.mount(root, { csvText, theme });
       teardown = typeof disposer === 'function' ? disposer : undefined;
     },
     (cause: unknown) => {

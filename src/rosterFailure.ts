@@ -11,7 +11,7 @@
 
 import { escapeHtml } from './escapeHtml';
 import { gamePage } from './gamePage';
-import type { LineupSession, RosterStatus } from './lineupSession';
+import type { RosterSession, RosterStatus } from './rosterSession';
 import type { Theme } from './themes';
 
 /**
@@ -69,10 +69,10 @@ export function showRosterLoadFailure(root: HTMLElement, theme: Theme, cause: un
 /**
  * 名单里的毛病，只看会话里跟毛病有关的那几样。
  *
- * 收窄到这三个字段而不是收整个会话：呈现错误不需要知道上盘名单是什么、
+ * 收窄到这三个字段而不是收整个会话：呈现错误不需要知道怎么抽中选、
  * 也不需要知道这是哪个玩法的会话。
  */
-export type RosterFailureSource = Pick<LineupSession, 'status' | 'error' | 'disabledCount'>;
+export type RosterFailureSource = Pick<RosterSession, 'status' | 'error' | 'disabledCount'>;
 
 /** 文件取到了，但名单本身有毛病：三种情况各说各的。 */
 function rosterFailureView(session: RosterFailureSource, theme: Theme): FailureView | undefined {

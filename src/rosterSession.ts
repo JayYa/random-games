@@ -1,12 +1,12 @@
 /**
- * 名单会话 (Lineup Session)：这个项目的无头核心，玩法无关。
+ * 名单会话 (Roster Session)：这个项目的无头核心，玩法无关。
  *
- * 吃 CSV 原文、一个注入的随机源和一个上盘名单上限，产出上盘名单 (Lineup)、
- * 启用/停用的数目、名单的状态、是否抽样、解析错误、换一批，以及抽一个中选。
+ * 吃 CSV 原文和一个注入的随机源，产出启用/停用的数目、名单的状态、解析错误，
+ * 以及抽一个中选。
  *
- * 它不认识任何一种玩法：上限是入参，由玩法说了算（转盘 12、弹球机 8）。
- * 中选 (Winner) 从全部启用的候选里等概率抽，与上盘名单无关（ADR-0010）；
- * 什么时候抽由开抽会话说了算——盘面停下之后。上盘名单这一套是正在退场的旧路径。
+ * 它不认识任何一种玩法，也不认识盘面：盘面有几格是各玩法自己的常量，与名单无关。
+ * 中选 (Winner) 从全部启用的候选里等概率抽（ADR-0010）；什么时候抽由开抽会话
+ * 说了算——盘面停下之后。
  *
  * 它不引用 Canvas、不引用 DOM、也不发网络请求——加载 CSV 是渲染层的事。
  * 注入的 `random` 是这个模块唯一的不确定性来源。
@@ -19,13 +19,8 @@ export type { Candidate };
 /** 返回 [0, 1) 的随机源。 */
 export type RandomSource = () => number;
 
-export interface LineupSessionOptions {
+export interface RosterSessionOptions {
   readonly csvText: string;
-  /**
-   * 上盘名单上限：本次最多有几个候选能上盘面。由玩法决定，必须是正整数。
-   * 会话本身对这个数没有任何意见（ADR-0002）。
-   */
-  readonly cap: number;
   /** 默认为 `Math.random`。 */
   readonly random?: RandomSource;
 }
@@ -45,30 +40,20 @@ export type RosterStatus =
   /** 解析成功且有记录，但每一个都被停用了。 */
   | 'all-disabled';
 
-export interface LineupSession {
-  /**
-   * 本次摆上盘面的候选，长度 ≤ `cap`：启用的候选整体打乱后的前 `cap` 个。
-   * 顺序与 CSV 的书写顺序无关，打乱只改变谁挨着谁，不影响谁中选。
-   */
-  readonly lineup: readonly Candidate[];
+export interface RosterSession {
   /**
    * 名单中启用的候选总数。注意它不是名单的规模：名单还包含停用的候选，
-   * 这个数只数得上盘面的那些。
+   * 这个数只数有机会中选的那些。
    */
   readonly enabledCount: number;
   /** 名单中停用的候选数。空文件与「全部停用」靠它区分得开。 */
   readonly disabledCount: number;
   /** 名单的状态，四种取值互不重叠。 */
   readonly status: RosterStatus;
-  /** 上盘名单是抽样得来的，即 `enabledCount > cap`。 */
-  readonly isSampled: boolean;
   /** 解析失败的描述（含行号），或 undefined。 */
   readonly error?: string;
-  /** 换一批：重新抽取上盘名单。`enabledCount ≤ cap` 时无操作。 */
-  reshuffle(): void;
   /**
    * 抽一个中选：从名单中全部启用的候选里等概率取一个（ADR-0010）。
-   * 不看上盘名单——没摆上盘面的候选也有同样的机会。
    *
    * 不依赖 `this`，可以直接摘下来交给开抽会话当「抽一个中选」。
    * 一个启用的候选都没有时抛错：那几种名单走不到开抽，走到了就是调用方的错。
@@ -76,28 +61,14 @@ export interface LineupSession {
   drawWinner(): Candidate;
 }
 
-/** Fisher–Yates：把 `pool` 整体打乱，返回新数组，不改动入参。 */
-function shuffle(pool: readonly Candidate[], random: RandomSource): Candidate[] {
-  const items = pool.slice();
-  for (let i = items.length - 1; i > 0; i -= 1) {
-    const j = Math.min(i, Math.floor(random() * (i + 1)));
-    const swap = items[i]!;
-    items[i] = items[j]!;
-    items[j] = swap;
-  }
-  return items;
-}
-
-export function createLineupSession(options: LineupSessionOptions): LineupSession {
+export function createRosterSession(options: RosterSessionOptions): RosterSession {
   const random = options.random ?? Math.random;
-  const { cap } = options;
   const { candidates, error } = parseRoster(options.csvText);
   const enabled = candidates.filter((candidate) => candidate.enabled);
   const enabledCount = enabled.length;
   const disabledCount = candidates.length - enabledCount;
-  const isSampled = enabledCount > cap;
 
-  // 空文件和「全部停用」都得到空的上盘名单，但它们是两种不同的毛病，
+  // 空文件和「全部停用」都一个启用的候选都没有，但它们是两种不同的毛病，
   // 得让渲染层说得出是哪一种。
   const status: RosterStatus = error
     ? 'parse-error'
@@ -107,25 +78,11 @@ export function createLineupSession(options: LineupSessionOptions): LineupSessio
         ? 'all-disabled'
         : 'ok';
 
-  // 取上盘名单只有这一条路径：整体打乱，取前 cap 个（ADR-0002）。
-  // 启用的候选超过上限时这就是随机抽样，不超过时全部上盘、只是座次被打乱了。
-  const drawLineup = (): readonly Candidate[] => shuffle(enabled, random).slice(0, cap);
-
-  let lineup = drawLineup();
-
   return {
-    get lineup() {
-      return lineup;
-    },
     enabledCount,
     disabledCount,
     status,
-    isSampled,
     error,
-    reshuffle() {
-      if (!isSampled) return;
-      lineup = drawLineup();
-    },
     drawWinner: () => {
       if (enabledCount === 0) throw new Error('名单里没有启用的候选，抽不出中选');
       // `Math.min` 给 `random()` 恰好吐出 1 的实现兜底，免得下标越界。

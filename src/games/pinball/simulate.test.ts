@@ -24,7 +24,7 @@ describe('横坐标反查落格', () => {
     expect(slotIndexAtX(BOARD.playRight, SLOT_COUNT)).toBe(SLOT_COUNT - 1);
   });
 
-  // 落格数跟着上盘名单走（候选不足 8 个时格子少几个、宽一点），尺子得跟着变。
+  // 盘面上的落格数恒为 8，但尺子收的是落格数这个入参：换一个数它也得量得准。
   it('落格数变了尺子跟着变', () => {
     for (const slotCount of [2, 5, 12]) {
       for (let i = 0; i < slotCount; i += 1) {

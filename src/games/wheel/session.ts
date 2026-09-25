@@ -2,7 +2,7 @@
  * 转盘会话 (Wheel Session)：转盘自己那一层的摇法。
  *
  * 名单怎么读、中选怎么抽，与转盘无关，那是玩法无关的名单会话
- * （见 `src/lineupSession.ts`）的事；这里在它之上只加一件转盘专属的事：
+ * （见 `src/rosterSession.ts`）的事；这里在它之上只加一件转盘专属的事：
  * 转一次——等概率定下转盘停在哪个扇区 (Sector)，再反算转盘该停在哪个角度。
  *
  * 转一次不选中选：盘面是匿名的，停在哪个扇区只决定揭晓时名字写在哪儿，
@@ -18,12 +18,12 @@
 
 import { createSectors, type Sectors } from './sectors';
 import {
-  createLineupSession,
+  createRosterSession,
   type Candidate,
-  type LineupSession,
   type RandomSource,
+  type RosterSession,
   type RosterStatus,
-} from '../../lineupSession';
+} from '../../rosterSession';
 
 export type { Candidate, RandomSource, RosterStatus };
 
@@ -32,9 +32,6 @@ export type { Candidate, RandomSource, RosterStatus };
  * 格数要是跟着候选数走，盘面的形状就把名单有多大泄露出去了。
  */
 export const SECTOR_COUNT = 12;
-
-/** 旧名：玩法清单里的上盘名单上限还在读它，那一套退场时一并删掉。 */
-export const MAX_SECTORS = SECTOR_COUNT;
 
 export interface WheelSessionOptions {
   readonly csvText: string;
@@ -58,10 +55,10 @@ export interface SpinResult {
 
 /**
  * 转盘会话只转手名单会话里渲染层用得上的那几样：名单的毛病（给整页错误提示）
- * 和「抽一个中选」（给开抽会话）。上盘名单那一套转盘不再看。
+ * 和「抽一个中选」（给开抽会话）。
  */
 export interface WheelSession
-  extends Pick<LineupSession, 'status' | 'error' | 'enabledCount' | 'disabledCount' | 'drawWinner'> {
+  extends Pick<RosterSession, 'status' | 'error' | 'enabledCount' | 'disabledCount' | 'drawWinner'> {
   /** 转盘上的扇区：恒为 `SECTOR_COUNT` 个，画布与揭晓都问它。 */
   readonly sectors: Sectors;
   /** 转一次：等概率定下停在哪个扇区并反算目标角度。不抽中选。 */
@@ -70,20 +67,15 @@ export interface WheelSession
 
 export function createWheelSession(options: WheelSessionOptions): WheelSession {
   const random = options.random ?? Math.random;
-  const lineupSession = createLineupSession({
-    csvText: options.csvText,
-    // 名单会话的上盘名单上限还是必填的入参；转盘不看上盘名单，给多少都一样。
-    cap: SECTOR_COUNT,
-    random,
-  });
+  const rosterSession = createRosterSession({ csvText: options.csvText, random });
   const sectors = createSectors(SECTOR_COUNT);
 
   return {
-    enabledCount: lineupSession.enabledCount,
-    disabledCount: lineupSession.disabledCount,
-    status: lineupSession.status,
-    error: lineupSession.error,
-    drawWinner: lineupSession.drawWinner,
+    enabledCount: rosterSession.enabledCount,
+    disabledCount: rosterSession.disabledCount,
+    status: rosterSession.status,
+    error: rosterSession.error,
+    drawWinner: rosterSession.drawWinner,
     sectors,
     spin() {
       // 上夹是防 `random()` 恰好返回 1 的那一下（约定上不会，但它不归这里管）。

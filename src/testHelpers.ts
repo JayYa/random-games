@@ -5,8 +5,7 @@
  * 日后悄悄写岔。只被 `*.test.ts` 引用，不进产物。
  */
 
-import { expect } from 'vitest';
-import type { Candidate } from './lineupSession';
+import type { Candidate } from './rosterSession';
 import type { ResultCard } from './resultCard';
 import type { Schedule } from './rollSession';
 
@@ -31,12 +30,12 @@ export function scriptedRandom(values: number[]): () => number {
 }
 
 /**
- * 一个「建会话时随便给，摇那一次给我排好的数」的随机源。
+ * 一个「平时随便给，摇那一次给我排好的数」的随机源。
  *
- * 会话一建好，上盘名单就已经抽完了——它为此取了几个随机数是它自己的事，
- * 用例既不知道也不该知道。`stage()` 排的两个数只会落到接下来那一次摇上。
+ * 建会话时会话自己取不取随机数、取几个，用例既不知道也不该知道。`stage()` 排的
+ * 两个数只会落到接下来那一次摇上，排之前取走的一律是 `idle`。
  *
- * 这样摇的用例才只钉「摇一次」这件事本身，打乱怎么实现都动不了它们。
+ * 这样摇的用例才只钉「摇一次」这件事本身，会话别处怎么用随机源都动不了它们。
  */
 export interface StagedRandom {
   /** 交给会话的随机源。 */
@@ -68,18 +67,6 @@ export function roster(count: number): string {
 /** `roster(n)` 里那 n 个名字，按 CSV 里的书写顺序。 */
 export function rosterNames(count: number): string[] {
   return Array.from({ length: count }, (_, i) => `候选${i + 1}`);
-}
-
-export function names(lineup: readonly { name: string }[]): string[] {
-  return lineup.map((candidate) => candidate.name);
-}
-
-/**
- * 上盘名单总是打乱过的，所以名字只能按集合比。
- * 顺序另有专门的用例去钉，这里不该顺带把 CSV 顺序又写死一遍。
- */
-export function expectSameNames(lineup: readonly { name: string }[], expected: string[]): void {
-  expect([...names(lineup)].sort()).toEqual([...expected].sort());
 }
 
 /**
@@ -146,7 +133,7 @@ export interface FakeTimer {
   readonly schedule: Schedule;
   /** 让时间往前走 `ms` 毫秒：这期间到点的回调按到点的先后依次叫。 */
   advance(ms: number): void;
-  /** 还有几个回调没到点。 */
+  /** 还有几个回调没到点，被取消的不算。 */
   readonly pendingCount: number;
 }
 
@@ -156,7 +143,13 @@ export function fakeTimer(): FakeTimer {
 
   return {
     schedule(callback, delayMs) {
-      pending.push({ at: now + delayMs, callback });
+      const task = { at: now + delayMs, callback };
+      pending.push(task);
+      return () => {
+        // 与 `clearTimeout` 一致：已经到点叫过了（不在队里了）再取消，什么都不发生。
+        const index = pending.indexOf(task);
+        if (index !== -1) pending.splice(index, 1);
+      };
     },
     advance(ms) {
       const until = now + ms;
