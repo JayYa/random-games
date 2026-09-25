@@ -5,9 +5,10 @@
  * 代码里的常量表，加一个玩法 = 加一条记录，路由层一行不用改。
  *
  * 记录里没有任何面向使用者的文案：站点不告诉用户玩法是抽出来的，页面上也不给玩法
- * 起名字（ADR-0007）。记录只带路由层要用的两样东西——地址里的那一段、这一页的盘面
- * （还没改完的玩法是挂载函数，见 ADR-0012）。盘面有几格是各玩法盘面自己的常量，
- * 与名单无关，路由层用不着知道。
+ * 起名字（ADR-0007）。记录只带路由层要用的两样东西——地址里的那一段、这一页的盘面。
+ * 名单、开抽与结果卡片不归玩法：路由把名单原文交给玩法页宿主，由宿主接好之后把
+ * 盘面挂上（ADR-0012）。盘面有几格是各玩法盘面自己的常量，与名单无关，路由层
+ * 用不着知道。
  *
  * 地址的写法只有 `gameHash` 和 `resolveRoute` 两处知道——写和读放在一起，
  * 才不会一边改了格式另一边还在按老样子解析。
@@ -21,55 +22,17 @@ import { createWheelBoard } from './games/wheel/ui';
 import { createPinballBoard } from './games/pinball/ui';
 
 /**
- * 旧形式的挂载函数要的全部东西。玩法自己不取文件、不认得地址。
- * 新形式的玩法拿不到这些：它们由路由交给玩法页宿主（ADR-0012）。
- */
-export interface GameMountOptions {
-  /** 名单 CSV 的原文。取文件的是路由层，玩法只拿到文本（ADR-0001）。 */
-  readonly csvText: string;
-  /** 当前主题：标题和错误提示里的文件名都从这里来。 */
-  readonly theme: Theme;
-  /**
-   * 当前主题的最近中选（ADR-0011），建名单会话时交给它。存在哪里是路由层的事，
-   * 玩法不碰浏览器存储；不论用哪种玩法摇，同一个主题拿到的是同一份。
-   */
-  readonly recentWinners: RecentMemory;
-}
-
-/**
- * 拆掉这一页：解绑挂在 `window` 上的监听、停掉还在跑的动画帧、掐掉揭晓那一拍
- * 还没到点的计时器。
+ * 一个玩法：地址里的一段，加一个盘面工厂。
  *
- * 换页时整块 DOM 会被替换掉，挂在被替换节点上的监听随之消失，所以只有活过 DOM
- * 的东西才需要在这里收拾。没有这种东西的玩法什么都不用返回。
+ * 玩法不接任何会话：名单、名单写坏时的错误页、开抽与结果卡片都由玩法页宿主
+ * （`gamePageHost.ts`）接好，盘面从接口上就拿不到名单原文和最近中选（ADR-0012）。
  */
-export type GameTeardown = () => void;
-
-/**
- * 旧形式的玩法：地址里的一段，加一个自己接名单、开抽和结果卡片的挂载函数。
- *
- * 过渡期与新形式并存（ADR-0012）：玩法一个个改成只交盘面，都改完就删掉这一种。
- */
-export interface MountedGame {
-  /** 地址里代表这个玩法的那一段：`#/eat/wheel` 里的 `wheel`。 */
-  readonly slug: string;
-  /** 把这一页挂到 `root` 上。可以返回一个拆卸函数，路由层换页前会调用它。 */
-  readonly mount: (root: HTMLElement, options: GameMountOptions) => void | GameTeardown;
-}
-
-/**
- * 新形式的玩法：地址里的一段，加一个盘面工厂。名单、开抽与结果卡片由玩法页宿主
- * 接（`gamePageHost.ts`），玩法不再接任何会话（ADR-0012）。
- */
-export interface BoardGame {
+export interface Game {
   /** 地址里代表这个玩法的那一段：`#/eat/wheel` 里的 `wheel`。 */
   readonly slug: string;
   /** 造这一页的盘面：每进一次玩法页造一个，停在哪一格这类状态不跨页。 */
   readonly createBoard: () => Board;
 }
-
-/** 一个玩法。路由层按记录的形式分别挂：有盘面工厂的交给宿主，其余照旧调挂载函数。 */
-export type Game = MountedGame | BoardGame;
 
 /**
  * 全部玩法。除了避开最近玩法之外等概率抽，没有默认玩法、没有先后之分——顺序只

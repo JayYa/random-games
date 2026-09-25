@@ -105,18 +105,16 @@ function rosterFailureView(session: RosterFailureSource, theme: Theme): FailureV
 }
 
 /**
- * 名单开不了抽时替掉整个页面，并回答「还要不要接着画盘面」。
+ * 名单开不了抽时替掉整个页面。
  *
- * 每个玩法的挂载函数开头都问这一句：返回 `true` 表示页面已经换成错误提示了，
- * 直接 return；返回 `false` 表示这份名单是好的，可以往下画。
+ * 玩法页宿主经页面适配器（`browserPage.ts`）叫它：名单写坏时只画这一页，不挂盘面
+ * （ADR-0012）。名单是好的时什么都不做。
  */
 export function showRosterFailure(
   root: HTMLElement,
   theme: Theme,
   session: RosterFailureSource,
-): boolean {
+): void {
   const failure = rosterFailureView(session, theme);
-  if (!failure) return false;
-  renderFailure(root, theme, failure);
-  return true;
+  if (failure) renderFailure(root, theme, failure);
 }

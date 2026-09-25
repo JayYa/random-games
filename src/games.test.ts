@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GAMES, gameHash, resolveRoute, rollGame, type Game } from './games';
 import { THEMES } from './themes';
-import { fakeRecentMemory, scriptedRandom, seededRandom } from './testHelpers';
+import { fakeBoard, fakeRecentMemory, scriptedRandom, seededRandom } from './testHelpers';
 
 describe('resolveRoute', () => {
   it('把每个主题加玩法的地址解析成那两条记录', () => {
@@ -56,17 +56,6 @@ describe('玩法清单', () => {
   // slug 是地址的一部分，重了就会有一个玩法永远打不开。
   it('slug 不重复', () => {
     expect(new Set(GAMES.map((game) => game.slug)).size).toBe(GAMES.length);
-  });
-
-  // 过渡期两种形式并存（ADR-0012）：每条记录恰好带其中一种。
-  it('每条记录都有盘面工厂或挂载函数，恰好一种', () => {
-    for (const game of GAMES) {
-      const forms = [
-        'createBoard' in game && typeof game.createBoard === 'function',
-        'mount' in game && typeof game.mount === 'function',
-      ].filter(Boolean);
-      expect(forms, `玩法 ${game.slug} 应当恰好带盘面工厂或挂载函数之一`).toHaveLength(1);
-    }
   });
 });
 
@@ -149,5 +138,5 @@ describe('rollGame 的最近玩法', () => {
 
 /** 临时造的三种玩法：现在只有两种，冷却在多于两种时的样子只能靠它看。 */
 function threeGames(): Game[] {
-  return ['a', 'b', 'c'].map((slug) => ({ slug, mount: () => {} }));
+  return ['a', 'b', 'c'].map((slug) => ({ slug, createBoard: () => fakeBoard() }));
 }

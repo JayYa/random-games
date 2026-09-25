@@ -22,7 +22,7 @@ export const RECENT_WINNERS_COUNT = 7;
  * 最近玩法的 N：上一次抽出的玩法这一次不出，记忆也只留这 1 个。只有两种玩法时
  * 就是轮流。
  *
- * 放在这里而不是 `games.ts`：那边引着各玩法的挂载函数，存储适配要是从那边拿
+ * 放在这里而不是 `games.ts`：那边引着各玩法的盘面，存储适配要是从那边拿
  * 这个数，就把整套玩法都拖进来了。
  */
 export const RECENT_GAMES_COUNT = 1;
