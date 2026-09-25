@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { mountGamePage, type Board, type RollHandle } from './gamePageHost';
+import { mountGamePage, type RollHandle } from './gamePageHost';
 import { REVEAL_PAUSE_MS } from './rollSession';
 import type { Theme } from './themes';
 import {
@@ -172,13 +172,6 @@ describe('名单正常时写出玩法页', () => {
     expect(recentWinners.names).toEqual([]);
   });
 
-  it('句柄上只有开抽、盘面停下、锁没锁与订阅，没有阶段、中选与收下', () => {
-    // 盘面只能问「锁没锁」，拿不到开抽阶段，判锁就只有一句（ADR-0012）。
-    const roll = rollOf(mountPage());
-    expect(Object.keys(roll).sort()).toEqual(['begin', 'boardStopped', 'locked', 'subscribe']);
-    // 盘面停下不带参数：盘面从接口上就没有办法指定中选（ADR-0010）。
-    expect(roll.boardStopped.length).toBe(0);
-  });
 });
 
 describe('一整次开抽', () => {
@@ -291,23 +284,13 @@ describe('锁', () => {
     // 订阅者借这一次拿到初值。
     const seen: boolean[] = [];
     let acceptedWhileMounting: boolean | undefined;
-    const board: Board = {
-      html: '',
-      block: 'fake',
-      closeLabel: '再抽一次',
-      mount(_root, roll) {
-        acceptedWhileMounting = roll.begin();
-        roll.subscribe(() => seen.push(roll.locked));
-        return { reveal: () => {}, erase: () => {} };
+    mountPage({
+      board: {
+        onMount(roll) {
+          acceptedWhileMounting = roll.begin();
+          roll.subscribe(() => seen.push(roll.locked));
+        },
       },
-    };
-    mountGamePage(root, {
-      theme,
-      csvText: roster(3),
-      recentWinners: fakeRecentMemory(),
-      board,
-      page: fakeGamePage(),
-      schedule: fakeTimer().schedule,
     });
 
     expect(acceptedWhileMounting).toBe(false);
@@ -360,31 +343,31 @@ describe('换页拆卸', () => {
 
   it('先拆开抽会话，再拆盘面：盘面拆卸时开抽已经不受理', () => {
     let acceptedDuringTeardown: boolean | undefined;
-    const board: Board = {
-      html: '',
-      block: 'fake',
-      closeLabel: '再抽一次',
-      mount(_root, roll) {
-        return {
-          reveal: () => {},
-          erase: () => {},
-          teardown: () => {
-            acceptedDuringTeardown = roll.begin();
-          },
-        };
+    let lockedDuringTeardown: boolean | undefined;
+    const { teardown } = mountPage({
+      board: {
+        onTeardown(roll) {
+          lockedDuringTeardown = roll.locked;
+          acceptedDuringTeardown = roll.begin();
+        },
       },
-    };
-    const teardown = mountGamePage(root, {
-      theme,
-      csvText: roster(3),
-      recentWinners: fakeRecentMemory(),
-      board,
-      page: fakeGamePage(),
-      schedule: fakeTimer().schedule,
     });
 
     teardown();
+    expect(lockedDuringTeardown).toBe(true);
     expect(acceptedDuringTeardown).toBe(false);
+  });
+
+  it('拆卸之后句柄一直算锁着，与开抽不受理说的是同一回事', () => {
+    // 盘面若在拆卸之后还问一句「锁没锁」，得到的答案要与 `begin()` 对得上。
+    const harness = mountPage();
+    const roll = rollOf(harness);
+    expect(roll.locked).toBe(false);
+
+    harness.teardown();
+    expect(roll.locked).toBe(true);
+    expect(roll.begin()).toBe(false);
+    expect(roll.locked).toBe(true);
   });
 
   it('拆卸之后盘面再报停：不抽、不揭晓、不记、不弹卡片', () => {

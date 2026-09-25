@@ -12,9 +12,7 @@ import { createResultCard, resultCardMarkup } from './resultCard';
 import { showRosterFailure } from './rosterFailure';
 
 export const browserPage: PageAdapter = {
-  showRosterFailure(root, theme, roster) {
-    showRosterFailure(root, theme, roster);
-  },
+  showRosterFailure,
   showGamePage(root, { theme, html, block, closeLabel }) {
     // 整页只写一次 DOM：盘面和卡片的 HTML 一起进这一次 `innerHTML`，
     // 卡片的行为等宿主问过盘面焦点交给谁之后再接。

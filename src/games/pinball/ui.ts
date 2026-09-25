@@ -463,7 +463,10 @@ function drawPlunger(ctx: CanvasRenderingContext2D, power: number): void {
   ctx.stroke();
 }
 
-/** 弹球机的盘面。每进一次玩法页造一个：球落在哪一格、风车转到哪个相位都不跨页。 */
+/**
+ * 弹球机的盘面。球落在哪一格、风车转到哪个相位住在 `mountPinballBoard` 里，每挂一次
+ * 新起一份，所以不跨页。
+ */
 export function createPinballBoard(): Board {
   return {
     html: BOARD_HTML,

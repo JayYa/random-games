@@ -49,6 +49,7 @@ export interface RollHandle {
    * 盘面锁没锁：开抽那一刻起锁死，揭晓那一拍和结果卡片挂着时都算锁，收下中选才解开。
    *
    * 与 `begin()` 受不受理是同一句判据：锁着时 `begin()` 一定返回 `false`。
+   * 页面拆掉之后开抽不再受理，所以也一直算锁着。
    */
   readonly locked: boolean;
   /**
@@ -108,12 +109,9 @@ export interface Board {
 }
 
 /** 写出玩法页时交给页面适配器的东西：盘面第一步交出来的那几样，加上主题。 */
-export interface GamePageView {
+export type GamePageView = Pick<Board, 'html' | 'block' | 'closeLabel'> & {
   readonly theme: Theme;
-  readonly html: string;
-  readonly block: string;
-  readonly closeLabel: string;
-}
+};
 
 /**
  * 把已经写进页面的那张结果卡片接上行为。页面适配器写完玩法页时交回它，
@@ -181,9 +179,11 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
   /**
    * 开抽会话要等卡片接好才建得出来，卡片又要等盘面挂上：盘面挂上的那一刻它还
    * 不在。这期间句柄算锁着，开抽不受理——盘面本来就不该在挂上的同一刻开抽。
+   * 拆掉之后同理：开抽会话已经掐掉，开抽不受理，句柄也就一直算锁着。
    */
   let roll: RollSession | undefined;
-  const isLocked = (): boolean => !roll || isRollLocked(roll.state);
+  let tornDown = false;
+  const isLocked = (): boolean => tornDown || !roll || isRollLocked(roll.state);
 
   const observers: Array<() => void> = [];
   /** 上一次告诉订阅者的锁；只在它真的变了时才叫，「正在抽 → 抽出了中选」不算。 */
@@ -230,7 +230,6 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
   // 接好了：锁从「还没接好」解开，订阅者借这一次拿到初值。
   publishLock();
 
-  let tornDown = false;
   return () => {
     if (tornDown) return;
     tornDown = true;

@@ -30,7 +30,10 @@ import { createPinballBoard } from './games/pinball/ui';
 export interface Game {
   /** 地址里代表这个玩法的那一段：`#/eat/wheel` 里的 `wheel`。 */
   readonly slug: string;
-  /** 造这一页的盘面：每进一次玩法页造一个，停在哪一格这类状态不跨页。 */
+  /**
+   * 造这一页的盘面：每进一次玩法页调一次。它只交出 HTML、块名和按钮上的字，
+   * 停在哪一格这类状态住在盘面的 `mount` 里，每挂一次新起一份，所以不跨页。
+   */
   readonly createBoard: () => Board;
 }
 

@@ -1,15 +1,16 @@
 /**
- * 测试用的公共零件：可预测的随机源，和拼名单 CSV 的小工具。
+ * 测试用的公共零件：可预测的随机源、拼名单 CSV 的小工具，和几样记录调用的替身
+ * ——假记忆、假结果卡片、假计时器、假页面适配器与假盘面。
  *
- * 名单会话和各玩法的用例都要用同一批随机源，放在这里免得两边各写一份、
- * 日后悄悄写岔。只被 `*.test.ts` 引用，不进产物。
+ * 几批用例都要用同一批零件，放在这里免得各写一份、日后悄悄写岔。
+ * 只被 `*.test.ts` 引用，不进产物。
  */
 
 import type { RecentMemory } from './cooldown';
-import type { Candidate } from './rosterSession';
 import type { ResultCard } from './resultCard';
 import type { Schedule } from './rollSession';
-import type { RosterStatus } from './rosterSession';
+import type { RosterFailureSource } from './rosterFailure';
+import type { Candidate } from './rosterSession';
 import type { Theme } from './themes';
 import type {
   Board,
@@ -206,12 +207,9 @@ export function fakeTimer(): FakeTimer {
 }
 
 /** 假页面记下的一次名单错误页：画给哪个主题、名单是哪种毛病。 */
-export interface RecordedRosterFailure {
+export type RecordedRosterFailure = RosterFailureSource & {
   readonly theme: Theme;
-  readonly status: RosterStatus;
-  readonly error: string | undefined;
-  readonly disabledCount: number;
-}
+};
 
 /**
  * 一份记录调用的假页面适配器：玩法页宿主的用例用它当测试替身。
@@ -296,6 +294,10 @@ export interface FakeBoardOptions {
   readonly returnFocusTo?: HTMLElement;
   /** 与 `fakeGamePage` 共用的调用记录，每一下记一行（`board …`）。 */
   readonly log?: string[];
+  /** 挂上的那一刻、拿到句柄之后再做点什么：用例借它看挂上那一刻的句柄。 */
+  readonly onMount?: (roll: RollHandle) => void;
+  /** 自己的拆卸里再做点什么：用例借它看拆卸那一刻的句柄。不给拆卸时不会被叫。 */
+  readonly onTeardown?: (roll: RollHandle) => void;
 }
 
 /**
@@ -323,7 +325,7 @@ export interface FakeBoard extends Board {
 }
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
-  const { reset = true, teardown = true, returnFocusTo, log } = options;
+  const { reset = true, teardown = true, returnFocusTo, log, onMount, onTeardown } = options;
   let handle: RollHandle | undefined;
   let mountCount = 0;
   let revealed: Candidate | undefined;
@@ -383,9 +385,11 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
           teardown() {
             log?.push('board teardown');
             teardownCount += 1;
+            onTeardown?.(roll);
           },
         }),
       };
+      onMount?.(roll);
       return mounted;
     },
   };

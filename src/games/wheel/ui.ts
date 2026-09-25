@@ -24,7 +24,10 @@ const BOARD_HTML = `
       <button class="wheel__spin" id="wheel-spin" type="button">转</button>
     `;
 
-/** 转盘的盘面。每进一次玩法页造一个：停在哪一格、转到哪个角度都不跨页。 */
+/**
+ * 转盘的盘面。停在哪一格、转到哪个角度住在 `mountWheelBoard` 里，每挂一次新起一份，
+ * 所以不跨页。
+ */
 export function createWheelBoard(): Board {
   return {
     html: BOARD_HTML,
