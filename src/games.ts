@@ -89,7 +89,7 @@ export type Route = SettledRoute | PendingRollRoute;
  *
  * 严格程度与 `resolveTheme` 一致：区分大小写，不认多余的路径段、尾部斜杠、
  * 裸 hash 和没有 `#/` 前缀的地址——一个页面只有一个规范地址，其余一律回落到
- * 选主题页（ADR-0004）。
+ * 选主题页（ADR-0005）。
  */
 export function resolveRoute(hash: string): Route | undefined {
   if (!hash.startsWith('#/')) return undefined;

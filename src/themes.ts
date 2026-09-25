@@ -39,7 +39,7 @@ export interface Theme {
 export { THEMES };
 
 /**
- * 选主题页的地址。站点不记住上次选的主题（ADR-0004），根地址永远落在这里。
+ * 选主题页的地址。站点不记住上次选的主题（ADR-0005），根地址永远落在这里。
  */
 export const THEME_PICKER_HASH = '#/';
 
