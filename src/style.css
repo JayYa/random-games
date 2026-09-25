@@ -216,35 +216,12 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 弹球机：竖版盘面加一份图例。盘面上只有颜色和序号，候选的名字都在图例里
-   （见 games/pinball/ui.ts）。 */
+/* 弹球机：只有一块竖版盘面。盘面是匿名的，没有图例、抽样提示和换一批；
+   揭晓时名字直接浮在落格上方，画在画布里（见 games/pinball/ui.ts）。 */
 .pinball {
-  /* 盘面之外的固定部件（标题、提示、图例、换一批、留白与间距）大致占掉的高度。
-     用它把盘面限制在首屏内：不滚动也能同时看见盘面和图例。
-     窄屏上图例排在盘面下面，占的高度多；宽到能并排时下面那条媒体查询会把它调小。 */
-  --pinball-chrome-full: 340px;
-  /* 其中换一批按钮占掉的那一段：按钮 48px + 它上面的一个 16px 间距。 */
-  --pinball-reshuffle-height: 64px;
-  --pinball-chrome: var(--pinball-chrome-full);
-}
-
-/* 候选不超过 8 个时换一批按钮根本不存在（见 reshuffleControl.ts），
-   那段高度不该继续替它留着——留着只会让盘面白白矮一截。
-   弹球机多数时候走的正是这条：候选没超过上限。 */
-.pinball--no-reshuffle {
-  --pinball-chrome: calc(var(--pinball-chrome-full) - var(--pinball-reshuffle-height));
-}
-
-.pinball__note {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #6b6b7b;
-  text-align: center;
-}
-
-/* 没有抽样提示时它一个像素都不占：留着只会让盘面白白矮一截。 */
-.pinball__note:empty {
-  display: none;
+  /* 盘面之外的固定部件（页头、留白与间距）大致占掉的高度。
+     用它把盘面限制在首屏内：不滚动也能看见整块盘面，连同底下的柱塞。 */
+  --pinball-chrome: 128px;
 }
 
 .pinball__stage {
@@ -252,7 +229,6 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
 }
 
 .pinball__board {
@@ -272,69 +248,9 @@ body {
   cursor: grab;
 }
 
-/* 图例：颜色和序号与落格一一对应，一格一行。 */
-.pinball__legend {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
-  gap: 6px 12px;
-}
-
-.pinball__legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.pinball__legend-badge {
-  flex: none;
-  width: 1.6rem;
-  height: 1.6rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  /* 六个盘面颜色上都压得住的墨色，与落格里那几个序号是同一个。 */
-  color: #2b2b33;
-}
-
-.pinball__legend-name {
-  font-size: 0.95rem;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* 换一批：与转盘上那个同一副长相——同一个动作在两种玩法上不该长得不一样。 */
-.pinball__reshuffle {
-  min-height: 48px;
-  padding: 0 24px;
-  border: 1px solid #c8c8d4;
-  border-radius: 999px;
-  background: transparent;
-  color: #4a4a58;
-  font-size: 0.95rem;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* 发射之后按不动，同样是 aria-disabled 而不是 disabled（见 reshuffleControl.ts）。 */
-.pinball__reshuffle[aria-disabled='true'] {
-  opacity: 0.45;
-  cursor: default;
-}
-
 /* 桌面端不另做一套横排：竖版盘面居中留白即可（本次的 Out of Scope 明确说了
-   不做横屏专属布局）。图例照旧排在盘面下面，靠 auto-fill 自己铺成几列——
-   宽屏上它变成横着的一两行，仍然一眼看得完。
-   `.pinball__stage` 的 column 与 `align-items: center` 就是这份居中留白。 */
+   不做横屏专属布局）。`.pinball__stage` 的 column 与 `align-items: center`
+   就是这份居中留白。 */
 
 /* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给转盘。 */
 @media (max-height: 560px) {
@@ -350,9 +266,8 @@ body {
   }
 
   .pinball {
-    /* 只改这两个量，缺了换一批时该减多少由上面那条规则接着算。 */
-    --pinball-chrome-full: 256px;
-    --pinball-reshuffle-height: 60px;
+    /* 页头矮了、留白少了，让出来的都给盘面。 */
+    --pinball-chrome: 96px;
   }
 
   .page__title {
