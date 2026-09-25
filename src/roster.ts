@@ -7,7 +7,7 @@
 /** 名单中的一条记录。 */
 export interface Candidate {
   readonly name: string;
-  /** 停用 (Disabled) 的候选 `enabled` 为 false，不会进入上盘名单。 */
+  /** 停用 (Disabled) 的候选 `enabled` 为 false，永远不会中选。 */
   readonly enabled: boolean;
 }
 

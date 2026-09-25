@@ -3,7 +3,7 @@
  *
  * 这里钉的是这个模块的外部性质——落点在哪一格里、指针底下是哪一格，
  * 不钉实现里那两条落点带子的具体数字（它们是观感取舍，注释里说明了）。
- * 谁中选是会话的事，用例在 `./session.test.ts`。
+ * 停在哪个扇区是会话的事，用例在 `./session.test.ts`。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -14,11 +14,11 @@ import { seededRandom } from '../../testHelpers';
 const SIZES = [1, 2, 3, 5, 8, 12] as const;
 
 describe('造扇区', () => {
-  it('扇区数就是上盘名单的长度', () => {
+  it('扇区数就是造它时给的数', () => {
     expect(createSectors(7).count).toBe(7);
   });
 
-  it('空的上盘名单在造的那一刻就抛', () => {
+  it('零个扇区在造的那一刻就抛', () => {
     expect(() => createSectors(0)).toThrow();
   });
 });
@@ -39,7 +39,7 @@ describe('落点角度与指针底下的扇区', () => {
   });
 
   it('落点始终在扇区内部，离两条边界都有余量', () => {
-    // 指针有实际宽度：落点贴着扇区边界时，肉眼说不清转出的是哪一个。
+    // 指针有实际宽度：落点贴着扇区边界时，肉眼说不清停在哪一格。
     // 要的是"离边界有余量"这条性质，所以只钉一个宽松的下限（扇区的 5%）。
     const margin = 0.05;
     for (const size of SIZES) {
@@ -120,7 +120,7 @@ describe('指针底下是哪个扇区', () => {
     }
   });
 
-  it('只有一个候选时，任何角度都是那一格', () => {
+  it('只有一个扇区时，任何角度都是那一格', () => {
     const sectors = createSectors(1);
     const random = seededRandom(1);
     for (let i = 0; i < 60; i += 1) {
@@ -130,7 +130,7 @@ describe('指针底下是哪个扇区', () => {
     expect(sectors.sectorAt(-TAU)).toBe(0);
   });
 
-  it('答案永远是上盘名单里的一个合法下标', () => {
+  it('答案永远是一个合法的扇区下标', () => {
     for (const size of SIZES) {
       const sectors = createSectors(size);
       const random = seededRandom(size + 99);
@@ -156,7 +156,7 @@ describe('画到画布上的那段弧', () => {
 
   it('压在指针底下的那段弧，正是 sectorAt 答的那一格', () => {
     // 这条是画面与判定之间唯一的接缝：`-π/2` 与 `- rotation` 任一个符号写反，
-    // 转盘照样转、照样弹结果卡片，只是画面上停在别人身上——这里当场变红。
+    // 转盘照样转、照样弹结果卡片，只是画面上停的那一格与判定的不是同一格——这里当场变红。
     for (const size of SIZES) {
       const sectors = createSectors(size);
       const sectorAngle = TAU / size;

@@ -11,7 +11,7 @@
 
 import { escapeHtml } from './escapeHtml';
 import { gamePage } from './gamePage';
-import type { LineupSession, RosterStatus } from './lineupSession';
+import type { RosterSession, RosterStatus } from './rosterSession';
 import type { Theme } from './themes';
 
 /**
@@ -69,10 +69,10 @@ export function showRosterLoadFailure(root: HTMLElement, theme: Theme, cause: un
 /**
  * 名单里的毛病，只看会话里跟毛病有关的那几样。
  *
- * 收窄到这三个字段而不是收整个会话：呈现错误不需要知道上盘名单是什么、
+ * 收窄到这三个字段而不是收整个会话：呈现错误不需要知道怎么抽中选、
  * 也不需要知道这是哪个玩法的会话。
  */
-export type RosterFailureSource = Pick<LineupSession, 'status' | 'error' | 'disabledCount'>;
+export type RosterFailureSource = Pick<RosterSession, 'status' | 'error' | 'disabledCount'>;
 
 /** 文件取到了，但名单本身有毛病：三种情况各说各的。 */
 function rosterFailureView(session: RosterFailureSource, theme: Theme): FailureView | undefined {
@@ -105,7 +105,7 @@ function rosterFailureView(session: RosterFailureSource, theme: Theme): FailureV
 }
 
 /**
- * 名单摇不起来时替掉整个页面，并回答「还要不要接着画盘面」。
+ * 名单开不了抽时替掉整个页面，并回答「还要不要接着画盘面」。
  *
  * 每个玩法的挂载函数开头都问这一句：返回 `true` 表示页面已经换成错误提示了，
  * 直接 return；返回 `false` 表示这份名单是好的，可以往下画。

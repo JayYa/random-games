@@ -17,8 +17,6 @@ export interface GamePageOptions {
    * ——比如转盘用它算盘面能占多高。加载态和错误页没有盘面，不需要块名。
    */
   readonly block?: string;
-  /** 需要拿到 `<main>` 这个元素时给它一个 id；不需要就不给。 */
-  readonly shellId?: string;
 }
 
 /**
@@ -34,9 +32,8 @@ export interface GamePageOptions {
  */
 export function gamePage(theme: Theme, body: string, options: GamePageOptions = {}): string {
   const block = options.block ? ` ${options.block}` : '';
-  const shellId = options.shellId ? ` id="${options.shellId}"` : '';
   return `
-    <main class="page${block}"${shellId}>
+    <main class="page${block}">
       <header class="page__header">
         <a class="page__home" href="${THEME_PICKER_HASH}">← 换个主题</a>
         <h1 class="page__title">${escapeHtml(theme.title)}</h1>

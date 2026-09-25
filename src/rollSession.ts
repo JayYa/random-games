@@ -1,29 +1,34 @@
 /**
  * 开抽会话 (Roll Session)：一次开抽从按下到收下的整段过程，玩法无关。
  *
- * 与名单会话 (Lineup Session) 并列住在共享层，但不包住它：一次挂载里名单会话
+ * 与名单会话 (Roster Session) 并列住在共享层，但不包住它：一次挂载里名单会话
  * 只有一份，开抽却可以来很多次，两者的生命周期本来就不同。
  *
  * 它只拿三件事：这一次开抽走到哪一步了、中选 (Winner) 是谁、结果卡片什么时候
- * 弹什么时候收。「开抽之后盘面就锁死」这条硬规则（ADR-0002）从此只有这一份
- * 实现——换一批直接读这里的阶段，玩法不再各写一遍。
+ * 弹什么时候收。「开抽之后盘面就锁死，直到收下中选」这条硬规则从此只有这一份
+ * 实现——「转」这类控件直接读这里的阶段，玩法不再各写一遍。
  *
- * 控制方向是被玩法驱动，不驱动玩法：画布、动画帧、指针事件仍归玩法，中选
- * 怎么产生也仍归玩法（转盘先定结果再反算角度见 ADR-0003，弹球机由物理仲裁
- * 见 ADR-0006）。玩法只在开抽、摇出中选、用户收下中选这三个时刻推它一把。
+ * 控制方向是被玩法驱动，不驱动玩法：画布、动画帧、指针事件仍归玩法。玩法只在
+ * 开抽、盘面停下两个时刻推它一把；用户收下中选时由结果卡片推它。
+ *
+ * 中选由会话自己抽，不由玩法给（ADR-0010）：盘面停下时会话才调用注入的
+ * 「抽一个中选」，立即叫玩法把名字揭晓在停下的那一格上，停一拍再弹结果卡片；
+ * 收下中选时再叫玩法把名字抹掉。「停下 → 抽 → 揭晓 → 停一拍 → 弹卡片 → 收下 →
+ * 抹掉」这条顺序只有这一份实现。刻意在停下之后才抽、而不是开抽时就抽好：两者
+ * 统计上等价，但只有这样接口才保证玩法不可能提前知道中选——接口上压根没有
+ * 一个能把中选交进来的方法。
  *
  * 它不引用 DOM、不引用 Canvas、也不发网络请求：要拿住「卡片挂着也算已开抽」
  * 这条规则又不能碰 DOM，结果卡片就按 `ResultCard` 接口注入——生产传真卡片，
- * 用例传一张记录调用的假卡片。
+ * 用例传一张记录调用的假卡片。揭晓那一拍的计时器同理。
  *
- * 接口原本定的是四件（`state` / `begin` / `settle` / `dismiss`），这里比那份清单多
- * 出第五件 `subscribe`，是有意的：只有四件时，每一次推会话都得由玩法手工补一句
- * 「让控件再看一眼」，漏写一处就留下一块过时的 `aria-disabled`，而那正是这个模块
- * 要收掉的那种「规则散在玩法里」。有了订阅，看着阶段的控件自己重画，玩法侧一句
- * 转发都不必写——新玩法只要把这两个会话交给控件，规则就自动守住了，抄不漏。
+ * 除了推它的三下，接口上还有两件：`subscribe` 让看着阶段的控件自己重画——
+ * 否则每一次推会话都得由玩法手工补一句「让控件再看一眼」，漏写一处就留下一块
+ * 过时的 `aria-disabled`；`dispose` 给换页拆卸用——揭晓那一拍是一个活过 DOM 的
+ * 计时器，页面拆掉了它还挂着，就会在别的页面上弹出一张卡片来。
  */
 
-import type { Candidate } from './lineupSession';
+import type { Candidate } from './rosterSession';
 import type { ResultCard } from './resultCard';
 
 export type { Candidate };
@@ -33,15 +38,15 @@ export type { Candidate };
  * 由类型系统钉住「没抽完就没有中选」，而不是靠注释提醒。
  */
 export type RollState =
-  /** 还没开抽：盘面可换，换一批按得动。 */
+  /** 还没开抽：盘面没锁，可以开抽。 */
   | { readonly phase: 'idle' }
-  /** 正在抽：转盘转着、球飞着，盘面锁死。 */
+  /** 正在抽：转盘转着、球飞着，盘面锁死。揭晓那一拍也算在这里面。 */
   | { readonly phase: 'rolling' }
   /** 抽出了中选：结果卡片挂着，盘面照旧锁死，直到用户收下。 */
   | { readonly phase: 'settled'; readonly winner: Candidate };
 
 /**
- * 「已经开抽」的判据：只有「还没开抽」这一档能开抽，其余两档盘面都锁死（ADR-0002）。
+ * 「已经开抽」的判据：只有「还没开抽」这一档能开抽，其余两档盘面都锁死。
  *
  * 单独拎出来，是为了让「按不按得动」和「`begin()` 受不受理」永远是同一句话：
  * 两处各写一遍的话，哪天有人改了一处，按钮就会宣告自己按得动、按下去却什么都
@@ -50,6 +55,28 @@ export type RollState =
 export function isRollLocked(state: RollState): boolean {
   return state.phase !== 'idle';
 }
+
+/**
+ * 揭晓那一拍有多长：名字亮在盘面上之后，过这么久才弹结果卡片。
+ *
+ * 卡片是全屏遮罩，没有这一拍名字刚亮出来就被盖住了（ADR-0010）。0.8 秒是
+ * 起点值，可以凭手感微调，但名字必须在卡片弹出之前清楚可见。
+ */
+export const REVEAL_PAUSE_MS = 800;
+
+/** 取消一个还没到点的回调。已经到点叫过了再取消，什么都不发生。 */
+export type CancelScheduled = () => void;
+
+/**
+ * 过 `delayMs` 毫秒之后叫一次 `callback`，返回取消它的办法。
+ * 默认是真实的 `setTimeout`，用例注入一个可快进的。
+ */
+export type Schedule = (callback: () => void, delayMs: number) => CancelScheduled;
+
+const realSchedule: Schedule = (callback, delayMs) => {
+  const id = setTimeout(callback, delayMs);
+  return () => clearTimeout(id);
+};
 
 export interface RollSessionOptions {
   /**
@@ -62,6 +89,14 @@ export interface RollSessionOptions {
    * 转盘接的是「再来一次」，什么都不做（等用户自己按「转」）；弹球机接的是「再打一发」，退回待发。
    */
   readonly onDismiss: () => void;
+  /** 抽一个中选：盘面停下时会话调用它，通常就是名单会话的 `drawWinner`。 */
+  readonly drawWinner: () => Candidate;
+  /** 把中选的名字亮在盘面停下的那一格上。由玩法给：转盘写进扇区，弹球机浮在落格上方。 */
+  readonly onReveal: (winner: Candidate) => void;
+  /** 把盘面上的名字抹掉，盘面回到匿名。由玩法给，收下中选时叫。 */
+  readonly onErase: () => void;
+  /** 揭晓那一拍用的计时器。默认是真实的 `setTimeout`。 */
+  readonly schedule?: Schedule;
 }
 
 export interface RollSession {
@@ -74,19 +109,26 @@ export interface RollSession {
    * 「转」是使用者的正常动作，不该抛错，也不该叠出第二次转动。
    */
   begin(): boolean;
-  /** 摇出中选：进入「抽出了中选」，并让结果卡片带着这个中选弹出来。 */
-  settle(winner: Candidate): void;
   /**
-   * 收下中选：收掉卡片，回到「还没开抽」，然后调用玩法给的回调。
+   * 盘面停下：调用注入的「抽一个中选」，立即叫玩法揭晓，停一拍（`REVEAL_PAUSE_MS`）
+   * 之后进入「抽出了中选」并弹出结果卡片。那一拍里阶段仍是「正在抽」，盘面锁着。
    *
-   * 「还没开抽」时静默不受理：那一刻没有中选可收，卡片也没挂着，真收下去只会
-   * 平白叫一次玩法的回调——在转盘上那是凭空开一次抽，「收下中选」却没有中选。
+   * 不带参数：玩法从接口上就没有办法指定中选。只在「正在抽」且还没揭晓时受理，
+   * 其余时候静默不受理——没开抽就没什么可停，已经揭晓过就不能再抽第二次。
+   */
+  boardStopped(): void;
+  /**
+   * 收下中选：收掉卡片，叫玩法抹掉盘面上的名字，回到「还没开抽」，然后调用玩法给的回调。
+   *
+   * 只在「抽出了中选」时受理，其余时候静默不受理：那时没有中选可收，卡片也没挂着，
+   * 真收下去只会平白叫一次玩法的回调——在转盘上那是凭空开一次抽，「收下中选」
+   * 却没有中选。揭晓那一拍里也一样：卡片还没弹，收了它就会在回到起点之后才弹出来。
    */
   dismiss(): void;
   /**
    * 订阅阶段变化：阶段每变一次就叫一遍，观察者据此把自己重画一遍。
    *
-   * 给的是换一批这类「只是把阶段翻译成一个属性」的控件用的——它们自己挂上来，
+   * 给的是「转」这类「只是把阶段翻译成一个属性」的控件用的——它们自己挂上来，
    * 玩法就不必在每一次推会话之后手工补一句转发（漏一处就是一块过时的
    * `aria-disabled`）。控制方向没有变：会话仍旧不碰 DOM，也不知道观察者在干什么。
    *
@@ -94,12 +136,28 @@ export interface RollSession {
    * 换页拆卸之后整份连同观察者一起没人再引用，不会有谁被留着接着叫。
    */
   subscribe(onChange: () => void): void;
+  /**
+   * 拆卸：换页时由玩法的拆卸函数调用。掐掉还没到点的揭晓那一拍，此后推它的
+   * 每一下都静默不受理，观察者也不再被叫。
+   *
+   * 页面拆掉之后盘面上的动画可能还会跑完、报一声「盘面停下」，揭晓那一拍也可能
+   * 正挂在计时器上——拆卸之后这些都不该再抽中选、叫玩法揭晓或弹卡片。
+   * 重复调用无害。
+   */
+  dispose(): void;
 }
 
 export function createRollSession(options: RollSessionOptions): RollSession {
-  const { card, onDismiss } = options;
+  const { card, onDismiss, drawWinner, onReveal, onErase } = options;
+  const schedule = options.schedule ?? realSchedule;
 
   let state: RollState = { phase: 'idle' };
+  /**
+   * 揭晓那一拍还没走完时，掐掉它的办法；其余时候为空。
+   * 它同时就是「这一次开抽已经揭晓过」的记号：同一次开抽只抽一次。
+   */
+  let cancelReveal: CancelScheduled | undefined;
+  let disposed = false;
   const observers: Array<() => void> = [];
 
   const moveTo = (next: RollState): void => {
@@ -112,25 +170,39 @@ export function createRollSession(options: RollSessionOptions): RollSession {
       return state;
     },
     begin() {
-      if (isRollLocked(state)) return false;
+      if (disposed || isRollLocked(state)) return false;
       moveTo({ phase: 'rolling' });
       return true;
     },
-    settle(winner) {
-      moveTo({ phase: 'settled', winner });
-      card.show(winner);
+    boardStopped() {
+      if (disposed || state.phase !== 'rolling' || cancelReveal) return;
+      // 停下之后才抽，抽完立即揭晓；卡片等一拍再弹，好让名字先在盘面上亮着。
+      const winner = drawWinner();
+      onReveal(winner);
+      cancelReveal = schedule(() => {
+        cancelReveal = undefined;
+        moveTo({ phase: 'settled', winner });
+        card.show(winner);
+      }, REVEAL_PAUSE_MS);
     },
     dismiss() {
-      // 「还没开抽」时没有中选可收：静默不受理，免得凭空叫一次玩法的回调。
-      if (state.phase === 'idle') return;
-      // 先收卡片再回到「还没开抽」，最后才交还给玩法：回调运行时状态必须已经
-      // 干净，玩法在里面想立刻再 `begin()` 也受理，不会被自己上一次的残留挡掉。
+      // 只有「抽出了中选」才有中选可收：其余时候静默不受理，免得凭空叫一次玩法的回调。
+      if (disposed || state.phase !== 'settled') return;
+      // 先收卡片、抹掉名字，再回到「还没开抽」，最后才交还给玩法：回调运行时状态
+      // 必须已经干净，玩法在里面想立刻再 `begin()` 也受理，不会被自己上一次的残留挡掉。
       card.hide();
+      onErase();
       moveTo({ phase: 'idle' });
       onDismiss();
     },
     subscribe(onChange) {
       observers.push(onChange);
+    },
+    dispose() {
+      disposed = true;
+      cancelReveal?.();
+      cancelReveal = undefined;
+      observers.length = 0;
     },
   };
 }

@@ -10,19 +10,19 @@
  * 2. 把柱塞的拖拽变成一个力度，发射瞬间连同风车相位一起喂给 `simulate.ts`；
  * 3. 把模拟吐回来的轨迹按真实时间回放。
  *
- * 中选由物理仲裁（ADR-0006）：这里不挑落格，只把球实际落进的那一格映射回上盘名单。
+ * 盘面是匿名的：8 个落格只有颜色，没有序号，也没有图例。球落进哪一格由物理决定
+ * （ADR-0006），但谁中选与此无关（ADR-0010）——球进格只通知开抽会话「盘面停下」，
+ * 中选由它抽，再叫这里把名字浮在那一格上方揭晓。
  * 页面上不提玩法的名字、不解释玩法是抽出来的、也没有换玩法的入口（ADR-0007）。
  * 不提供键盘操作，同样是 ADR-0006 里记录在案的取舍。
  */
 
 import { createById } from '../../byId';
-import { escapeHtml } from '../../escapeHtml';
 import type { GameMountOptions } from '../../games';
 import { gamePage } from '../../gamePage';
 import { canvasPixelRatio } from '../../pixelRatio';
-import { createLineupSession, type Candidate, type LineupSession } from '../../lineupSession';
+import { createRosterSession, type RosterSession } from '../../rosterSession';
 import { PALETTE } from '../../palette';
-import { createReshuffleControl, reshuffleButtonMarkup } from '../../reshuffleControl';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
 import { createRollSession } from '../../rollSession';
 import { showRosterFailure } from '../../rosterFailure';
@@ -91,12 +91,37 @@ const PLUNGER_COILS = 5;
 const LANE_INNER_LEFT = BOARD.laneWallX + BOARD.laneWallWidth;
 const LANE_INNER_RIGHT = BOARD.laneRight;
 
+/**
+ * 落格数：盘面自己的常量，与名单里有几个候选无关（CONTEXT.md「落格」）。
+ *
+ * 名单只有三个人时盘面上照旧是 8 格，名单有四十个人也一样——格数若跟着名单走，
+ * 数一数落格就知道池子有多大，盘面就不匿名了。落格不对应任何候选。
+ */
+const SLOT_COUNT = BOARD.slotCount;
+
+/** 揭晓标签：字号从大往小试，最小不低于这个，再放不下就折行——名字必须完整可读。 */
+const LABEL_FONT_MAX = 20;
+const LABEL_FONT_MIN = 13;
+const LABEL_FONT_FAMILY = 'system-ui, sans-serif';
+/** 标签气泡的内边距、圆角、行距，以及底下那个指向落格的小尖角的高度。 */
+const LABEL_PADDING_X = 10;
+const LABEL_PADDING_Y = 6;
+const LABEL_RADIUS = 10;
+const LABEL_LINE_HEIGHT = 1.25;
+const LABEL_POINTER = 7;
+/** 标签离盘面可视区域左右边缘至少留这么宽：允许超出格宽，不许出盘面。 */
+const LABEL_EDGE_MARGIN = 6;
+
+/** 正在回放的一发。 */
+interface Flight {
+  readonly shot: PinballShot;
+  readonly startedAt: number;
+  /** 回放是否已经走过判定帧（球进格），也就是报过「盘面停下」没有。 */
+  landed: boolean;
+}
+
 interface PinballElements {
-  readonly shell: HTMLElement;
   readonly board: HTMLCanvasElement;
-  readonly legend: HTMLOListElement;
-  readonly note: HTMLParagraphElement;
-  readonly reshuffleButton: HTMLButtonElement;
 }
 
 /** 落格 i 的颜色。落格排成一条线，首尾不相邻，所以不需要转盘那套接缝补丁。 */
@@ -104,43 +129,22 @@ function slotColor(index: number): string {
   return PALETTE[index % PALETTE.length] ?? INK;
 }
 
-/** 图例：颜色与序号跟落格一一对应，候选的名字只出现在这里。 */
-function legendMarkup(lineup: readonly Candidate[]): string {
-  return lineup
-    .map(
-      (candidate, index) => `
-        <li class="pinball__legend-item">
-          <span class="pinball__legend-badge" style="background:${slotColor(index)}">${index + 1}</span>
-          <span class="pinball__legend-name">${escapeHtml(candidate.name)}</span>
-        </li>
-      `,
-    )
-    .join('');
-}
-
-function buildDom(root: HTMLElement, theme: Theme, lineup: readonly Candidate[]): PinballElements {
+function buildDom(root: HTMLElement, theme: Theme): PinballElements {
   root.innerHTML = gamePage(
     theme,
     `
-      <p class="pinball__note" id="pinball-note"></p>
       <div class="pinball__stage">
         <canvas class="pinball__board" id="pinball-board"></canvas>
-        <ol class="pinball__legend" id="pinball-legend">${legendMarkup(lineup)}</ol>
       </div>
-      ${reshuffleButtonMarkup('pinball')}
       ${resultCardMarkup(theme, CLOSE_LABEL)}
     `,
-    { block: 'pinball', shellId: 'pinball-shell' },
+    { block: 'pinball' },
   );
 
   const byId = createById(root);
 
   return {
-    shell: byId<HTMLElement>('pinball-shell'),
     board: byId<HTMLCanvasElement>('pinball-board'),
-    legend: byId<HTMLOListElement>('pinball-legend'),
-    note: byId<HTMLParagraphElement>('pinball-note'),
-    reshuffleButton: byId<HTMLButtonElement>('pinball-reshuffle'),
   };
 }
 
@@ -184,8 +188,121 @@ interface BoardView {
   readonly windmillAngles: readonly number[];
   /** 柱塞被拉出来的程度，也就是力度：0 是原位，1 是满行程。 */
   readonly power: number;
-  /** 落格数，等于上盘名单的长度。 */
-  readonly slotCount: number;
+  /** 揭晓中：球停在哪一格、中选叫什么。平时没有——盘面上不出现任何名字。 */
+  readonly revealed: Reveal | undefined;
+}
+
+/** 揭晓那一刻盘面上多出来的东西：一格高亮，外加浮在它上方的名字。 */
+interface Reveal {
+  readonly slotIndex: number;
+  readonly name: string;
+}
+
+/** 揭晓标签排好之后的样子：用多大的字、断成哪几行。 */
+interface LabelLayout {
+  readonly fontSize: number;
+  readonly lines: readonly string[];
+  /** 最宽那一行的宽度，气泡照它定宽。 */
+  readonly textWidth: number;
+}
+
+function labelFont(size: number): string {
+  return `700 ${size}px ${LABEL_FONT_FAMILY}`;
+}
+
+/**
+ * 把名字排进 `maxWidth × maxLines` 以内：先一行里把字号从大往小试，最小字号还放不下
+ * 才逐字折行。标签允许比落格宽，但名字不能被格宽截断——只有盘面本身都装不下时
+ * （几百个字的名字）最后一行才以省略号收尾，那是守住「不出盘面」的最后一道闸。
+ */
+function layoutLabel(
+  ctx: CanvasRenderingContext2D,
+  name: string,
+  maxWidth: number,
+  maxLines: number,
+): LabelLayout {
+  for (let size = LABEL_FONT_MAX; size >= LABEL_FONT_MIN; size -= 1) {
+    ctx.font = labelFont(size);
+    const width = ctx.measureText(name).width;
+    if (width <= maxWidth) return { fontSize: size, lines: [name], textWidth: width };
+  }
+
+  ctx.font = labelFont(LABEL_FONT_MIN);
+  // 按码点切，别把一个表情字符劈成两半。
+  const lines: string[] = [];
+  let line = '';
+  for (const char of Array.from(name)) {
+    if (line !== '' && ctx.measureText(line + char).width > maxWidth) {
+      lines.push(line.trimEnd());
+      line = char.trimStart();
+    } else {
+      line += char;
+    }
+  }
+  if (line !== '') lines.push(line);
+
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, Math.max(1, maxLines));
+    let last = kept[kept.length - 1] ?? '';
+    while (last !== '' && ctx.measureText(`${last}…`).width > maxWidth) {
+      last = Array.from(last).slice(0, -1).join('');
+    }
+    kept[kept.length - 1] = `${last}…`;
+    lines.splice(0, lines.length, ...kept);
+  }
+
+  const textWidth = Math.max(...lines.map((text) => ctx.measureText(text).width));
+  return { fontSize: LABEL_FONT_MIN, lines, textWidth };
+}
+
+/**
+ * 揭晓标签：一个墨色气泡浮在落格上方，底下一个小尖角指着那一格。
+ *
+ * 气泡以落格中线为准居中，但整体夹在盘面可视区域以内——边上的落格照样能亮出
+ * 一个长名字，气泡往里挪，尖角仍旧指着原来那一格。
+ */
+function drawRevealLabel(ctx: CanvasRenderingContext2D, reveal: Reveal): void {
+  const centerX = slotCenterX(reveal.slotIndex, SLOT_COUNT);
+  const tipY = BOARD.dividerTopY - 2;
+  const bubbleBottom = tipY - LABEL_POINTER;
+  const maxTextWidth = BOARD.width - 2 * LABEL_EDGE_MARGIN - 2 * LABEL_PADDING_X;
+  const maxTextHeight = bubbleBottom - (VIEW_TOP + LABEL_EDGE_MARGIN) - 2 * LABEL_PADDING_Y;
+  const lineHeight = LABEL_FONT_MIN * LABEL_LINE_HEIGHT;
+  const maxLines = Math.max(1, Math.floor(maxTextHeight / lineHeight));
+
+  const layout = layoutLabel(ctx, reveal.name, maxTextWidth, maxLines);
+  const linePx = layout.fontSize * LABEL_LINE_HEIGHT;
+  const width = layout.textWidth + 2 * LABEL_PADDING_X;
+  const height = layout.lines.length * linePx + 2 * LABEL_PADDING_Y;
+  const left = Math.min(
+    Math.max(centerX - width / 2, LABEL_EDGE_MARGIN),
+    BOARD.width - LABEL_EDGE_MARGIN - width,
+  );
+  const top = bubbleBottom - height;
+
+  roundedRectPath(ctx, left, top, width, height, LABEL_RADIUS);
+  ctx.fillStyle = INK;
+  ctx.fill();
+
+  // 尖角夹在气泡的圆角以内，气泡被挪到一边时它也还长在气泡底边上。
+  const pointerX = Math.min(
+    Math.max(centerX, left + LABEL_RADIUS + LABEL_POINTER),
+    left + width - LABEL_RADIUS - LABEL_POINTER,
+  );
+  ctx.beginPath();
+  ctx.moveTo(pointerX - LABEL_POINTER, bubbleBottom - 0.5);
+  ctx.lineTo(pointerX + LABEL_POINTER, bubbleBottom - 0.5);
+  ctx.lineTo(pointerX, tipY);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.font = labelFont(layout.fontSize);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  layout.lines.forEach((text, i) => {
+    ctx.fillText(text, left + width / 2, top + LABEL_PADDING_Y + (i + 0.5) * linePx);
+  });
 }
 
 /**
@@ -232,25 +349,38 @@ function drawBoard(ctx: CanvasRenderingContext2D, view: BoardView): void {
   ctx.fillStyle = WALL;
   ctx.fill();
 
-  // 落格：只有颜色和序号，名字在图例里（8 个落格横着排，中文名字放不下）。
-  const width = slotWidth(view.slotCount);
+  // 落格：只有颜色，没有序号也没有名字——盘面是匿名的。揭晓时其余几格褪淡，
+  // 球停下的那一格照旧鲜亮，下面再描一圈边。
+  const width = slotWidth(SLOT_COUNT);
   const slotTop = BOARD.dividerTopY;
   const slotHeight = SLOT_FLOOR_Y - slotTop;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  for (let i = 0; i < view.slotCount; i += 1) {
-    fillRect(ctx, BOARD.playLeft + i * width, slotTop, width, slotHeight, slotColor(i));
-    ctx.fillStyle = INK;
-    ctx.font = '700 20px system-ui, sans-serif';
-    ctx.fillText(String(i + 1), slotCenterX(i, view.slotCount), slotTop + slotHeight * 0.62);
+  for (let i = 0; i < SLOT_COUNT; i += 1) {
+    const left = BOARD.playLeft + i * width;
+    fillRect(ctx, left, slotTop, width, slotHeight, slotColor(i));
+    if (view.revealed && view.revealed.slotIndex !== i) {
+      fillRect(ctx, left, slotTop, width, slotHeight, 'rgba(255, 255, 255, 0.6)');
+    }
   }
 
   // 隔板：球心越过它们的顶线那一刻就定了落格（ADR-0006 的「进格即定」）。
-  for (const x of dividerPositions(view.slotCount)) {
+  for (const x of dividerPositions(SLOT_COUNT)) {
     fillRect(ctx, x - BOARD.dividerWidth / 2, slotTop, BOARD.dividerWidth, slotHeight, WALL);
     ctx.strokeStyle = WALL_EDGE;
     ctx.lineWidth = 1;
     ctx.strokeRect(x - BOARD.dividerWidth / 2, slotTop, BOARD.dividerWidth, slotHeight);
+  }
+
+  // 高亮框描在隔板之后，才不会被隔板压掉半边。
+  if (view.revealed) {
+    const inset = BOARD.dividerWidth / 2 + 1.5;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(
+      BOARD.playLeft + view.revealed.slotIndex * width + inset,
+      slotTop + 1.5,
+      width - 2 * inset,
+      slotHeight - 3,
+    );
   }
 
   // 弹力柱：撞一下弹回来比撞上去更快，是盘面上最大的混沌来源。
@@ -317,6 +447,9 @@ function drawBoard(ctx: CanvasRenderingContext2D, view: BoardView): void {
   ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
   ctx.fill();
 
+  // 揭晓标签浮在一切之上（球在落格里，标签在落格上方，遮不到它）。
+  if (view.revealed) drawRevealLabel(ctx, view.revealed);
+
   // 外框描边压在最上面，机身边缘才干净。
   roundedRectPath(ctx, 0.5, VIEW_TOP + 0.5, BOARD.width - 1, VIEW_HEIGHT - 1, 18);
   ctx.strokeStyle = WALL_EDGE;
@@ -355,20 +488,14 @@ function drawPlunger(ctx: CanvasRenderingContext2D, power: number): void {
 
 export function mountPinball(root: HTMLElement, options: GameMountOptions): (() => void) | void {
   const { theme } = options;
-  const session: LineupSession = createLineupSession({
-    csvText: options.csvText,
-    cap: options.cap,
-  });
+  // 弹球机只用名单会话的状态（给整页错误提示）与「抽一个中选」（给开抽会话）。
+  // 落格数是盘面自己的常量（见 ./board.ts），与名单大小无关。
+  const session: RosterSession = createRosterSession({ csvText: options.csvText });
 
-  // 摇不起来时不画盘面：一个空盘面看着像程序坏了，说不清是名单哪里出了问题。
+  // 开不了抽时不画盘面：一个空盘面看着像程序坏了，说不清是名单哪里出了问题。
   if (showRosterFailure(root, theme, session)) return;
 
-  const elements = buildDom(root, theme, session.lineup);
-
-  // 落格数就是上盘名单的长度，不是常量表里那个 8——候选不足 8 个时格子少几个、
-  // 宽一点，不留空格。这是有意的：名单只有三个人时，盘面上就该只有三格，
-  // 五个空格子既没有候选可对应，球掉进去也没有结果可报。
-  const slotCount = Math.max(1, session.lineup.length);
+  const elements = buildDom(root, theme);
 
   let power = 0;
   /** 风车相位（弧度）。发射瞬间快照它，喂给模拟。 */
@@ -377,8 +504,17 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   let ballX: number = LANE_CENTER_X;
   let ballY: number = BOARD.launchY;
 
-  /** 正在回放的那一发：整段模拟在发射的瞬间就跑完了，这里只负责播。 */
-  let flight: { readonly shot: PinballShot; readonly startedAt: number } | undefined;
+  /**
+   * 正在回放的那一发：整段模拟在发射的瞬间就跑完了，这里只负责播。
+   *
+   * `landed` 记的是回放是否已经走过判定帧、报过「盘面停下」：进格即定，之后的
+   * 弹跳只是余韵（ADR-0006），余韵照播，但同一发只报一次。
+   */
+  let flight: Flight | undefined;
+  /** 球刚落进的那一格：揭晓时名字就浮在它上方。 */
+  let landedSlot = 0;
+  /** 揭晓中的那一格与名字。只在揭晓到收下之间有值，其余时候盘面匿名。 */
+  let revealed: Reveal | undefined;
 
   /**
    * 拖拽状态：按下的点、指针 id，还有这一次拖到哪儿算满力度。
@@ -406,20 +542,31 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   });
 
   /**
-   * 这一次开抽走到哪一步了：阶段与「什么时候算已开抽」的规则都在
-   * `src/rollSession.ts`，这里只在发射、落格、收卡片三个时刻推它一把。
+   * 这一次开抽走到哪一步了：阶段、「什么时候算已开抽」、以及「停下 → 抽 → 揭晓 →
+   * 停一拍 → 弹卡片 → 收下 → 抹掉」这条顺序都在 `src/rollSession.ts`，这里只在
+   * 发射、球进格、收卡片三个时刻推它一把，再把揭晓和抹掉画出来。
    */
   const roll = createRollSession({
     card,
-    // 收掉卡片就回到能再打一发的状态：上盘名单和盘面都不变，换的只是球。
+    // 中选由会话在盘面停下之后抽，从全部启用的候选里等概率取（ADR-0010）。
+    drawWinner: session.drawWinner,
+    // 揭晓：球停下的那一格高亮，名字浮在它上方。盘面由一直在跑的 rAF 下一帧重画。
+    onReveal: (winner) => {
+      revealed = { slotIndex: landedSlot, name: winner.name };
+    },
+    // 收下中选：高亮和名字一并抹掉，盘面回到匿名。
+    onErase: () => {
+      revealed = undefined;
+    },
+    // 收掉卡片就回到能再打一发的状态：盘面不变，换的只是球。
     onDismiss: () => resetToReady(),
   });
 
   function resetToReady(): void {
-    // 只把盘面退回待发。换一批按不按得动不必这里操心：控件订着开抽会话，
-    // 阶段一变它自己就重画了（见 reshuffleControl.ts）。
+    // 只把球退回柱塞上待发；名字已经在 `onErase` 里抹掉了。余韵要是还没播完
+    // （卡片弹得快、收得也快），就地掐掉，风车从当下的角度接着转，画面不跳。
+    if (flight) finishFlight();
     power = 0;
-    flight = undefined;
     drag = undefined;
     ballX = LANE_CENTER_X;
     ballY = BOARD.launchY;
@@ -464,7 +611,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     const scale = (cssWidth / BOARD.width) * ratio;
     // 上移 VIEW_TOP：画的时候照旧用盘面自己的坐标，只是把看不到的那一截移出画布。
     context.setTransform(scale, 0, 0, scale, 0, -VIEW_TOP * scale);
-    drawBoard(context, { ballX, ballY, windmillAngles: angles, power, slotCount });
+    drawBoard(context, { ballX, ballY, windmillAngles: angles, power, revealed });
   }
 
   /**
@@ -473,21 +620,25 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
    * 不用缓动、也不按「每次 rAF 走一帧」——那样高刷屏上球会快一倍、掉帧时会变慢。
    * 时间说走到哪一帧就是哪一帧，屏幕刷新率只影响画得糊不糊（ADR-0006）。
    */
-  function playFlight(now: number, current: { shot: PinballShot; startedAt: number }): void {
-    const { frames, frameIntervalMs } = current.shot;
+  function playFlight(now: number, current: Flight): void {
+    const { frames, frameIntervalMs, decidedAtFrame } = current.shot;
     const last = frames[frames.length - 1];
     if (!last) {
-      finishFlight(current.shot);
+      land(current);
+      finishFlight();
       return;
     }
 
     const elapsedFrames = Math.max(0, (now - current.startedAt) / frameIntervalMs);
     const index = Math.floor(elapsedFrames);
+    // 回放走到判定帧就是球进格：此刻报「盘面停下」，余韵接着往下播。
+    if (index >= decidedAtFrame) land(current);
     if (index >= frames.length - 1) {
       ballX = last.x;
       ballY = last.y;
       angles = last.windmillAngles;
-      finishFlight(current.shot);
+      // 掉帧时一步跨过判定帧直接到头也不要紧：上面已经先报过了。
+      finishFlight();
       return;
     }
 
@@ -502,14 +653,26 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     });
   }
 
-  function finishFlight(shot: PinballShot): void {
+  /**
+   * 球进格即盘面停下（ADR-0006 的「进格即定」）：记下是哪一格，好让揭晓知道名字
+   * 浮在哪儿，再通知开抽会话。落格只决定名字亮在哪儿，不决定谁中选——中选由
+   * 开抽会话此刻才抽，卡片也由它弹。同一发只报一次。
+   *
+   * 揭晓那一拍仍算正在抽，柱塞照旧拉不动，锁不会松一下；球在落格里的余韵照播，
+   * 名字在它弹跳时就已经亮着了。
+   */
+  function land(current: Flight): void {
+    if (current.landed) return;
+    current.landed = true;
+    landedSlot = current.shot.slotIndex;
+    roll.boardStopped();
+  }
+
+  /** 轨迹播完：球停在最后一帧，风车接着转。 */
+  function finishFlight(): void {
     flight = undefined;
-    // 球停在哪个落格里，哪个候选就是中选：这里只做一次数组下标，不挑结果。
     // 风车接着转：相位从轨迹最后一帧接上，画面不跳。
     windmillPhase = phaseFromAngles(angles) ?? windmillPhase;
-    const winner = session.lineup[shot.slotIndex];
-    // 交给开抽会话摇出中选，卡片由它弹。这一步前后都算已开抽，锁不会松一下。
-    if (winner) roll.settle(winner);
   }
 
   function frame(now: number): void {
@@ -582,14 +745,14 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
       windmillPhase,
       // 种子只对开局做微扰：同样的力度不必每次都走出同一条轨迹。
       seed: Math.floor(Math.random() * 0xffffffff),
-      slotCount,
+      slotCount: SLOT_COUNT,
     });
 
     drag = undefined;
     power = 0;
     // 整段模拟已经跑完了（几毫秒），剩下的只是把它放出来。卡住的球在这之前
     // 就被兜底处理掉了，用户看不到（ADR-0006）。
-    flight = { shot, startedAt: performance.now() };
+    flight = { shot, startedAt: performance.now(), landed: false };
   }
 
   // 柱塞是指针交互：按下抓住、移动改力度、抬起发射。鼠标和触屏走同一条路。
@@ -597,7 +760,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   elements.board.addEventListener(
     'pointerdown',
     (event: PointerEvent) => {
-      // 开抽期间（球在飞、卡片挂着）整块盘面都不受理；已经拖着一根指头时，
+      // 开抽期间（球在飞、揭晓那一拍、卡片挂着）整块盘面都不受理；已经拖着一根指头时，
       // 第二根指头按下去也不该抢走这一发。
       if (drag || roll.state.phase !== 'idle') return;
       event.preventDefault();
@@ -647,36 +810,17 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   // 系统抢走指针（来电、手势返回）时按取消算，绝不糊里糊涂打出一发。
   elements.board.addEventListener('pointercancel', cancelDrag, listen);
 
-  // 抽样提示、「换一批」，以及「开抽之后就不能再换」那条两种玩法共用的规则，
-  // 都在 reshuffleControl.ts 里：控件自己读开抽会话的阶段（球飞到一半盘面上的候选
-  // 绝不会被换掉，卡片挂着也照旧锁着，ADR-0002），弹球机不再自己数阶段。
-  // 候选不超过 8 个时上盘名单不是抽出来的，那边会把按钮整个撤掉——按了只会换座次，
-  // 与按钮上的字不符。控件还自己订着开抽会话，阶段一变就重画自己，弹球机侧
-  // 一句转发锁状态的代码都没有。
-  createReshuffleControl({
-    block: 'pinball',
-    shell: elements.shell,
-    note: elements.note,
-    button: elements.reshuffleButton,
-    session,
-    roll,
-    onReshuffle: () => {
-      // 上盘的候选换了一批，图例得跟着重建：图例上的序号与落格一一对应，
-      // 不重建的话球落进 3 号格，图例上写的还是上一批的第三个人。
-      // 盘面由那个一直在跑的 rAF 下一帧就重画，这里不必自己画。
-      elements.legend.innerHTML = legendMarkup(session.lineup);
-    },
-  });
-
   rafId = requestAnimationFrame((now) => {
     lastFrameAt = now;
     frame(now);
   });
 
-  // 拆卸：停掉动画帧、解绑所有监听。风车的 rAF 一直在跑，不停的话换页之后它还会
-  // 一直转下去，一帧一帧地画一块已经不在文档里的画布。
+  // 拆卸：停掉动画帧、解绑所有监听、掐掉揭晓那一拍。风车的 rAF 一直在跑，不停的话
+  // 换页之后它还会一直转下去，一帧一帧地画一块已经不在文档里的画布；揭晓那一拍
+  // 不掐的话，球刚进格就换了页，卡片还会在下一页上弹出来。
   return () => {
     cancelAnimationFrame(rafId);
     controller.abort();
+    roll.dispose();
   };
 }

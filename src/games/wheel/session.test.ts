@@ -1,190 +1,124 @@
 /**
- * 转盘那一层的用例：转一次——选中选、反算目标角度。
+ * 转盘那一层的用例：扇区数，以及转一次——定下停在哪个扇区、反算目标角度。
  *
- * 解析、四种状态、抽样、换一批、打乱都是玩法无关的，用例在
- * `src/lineupSession.test.ts`；这里只钉转盘自己那一件事。
+ * 解析、四种状态、抽一个中选都是玩法无关的，用例在 `src/rosterSession.test.ts`；
+ * 盘面停下之后怎么揭晓、怎么弹卡片在 `src/rollSession.test.ts`。这里只钉转盘
+ * 自己那几件事。转盘会话压根不认识名单，「扇区数与名单大小无关」从接口上就成立。
  */
 
 import { describe, expect, it } from 'vitest';
 import { TAU } from '../../angles';
-import { createWheelSession, MAX_SECTORS } from './session';
-import { createSectors } from './sectors';
+import { createWheelSession, SECTOR_COUNT } from './session';
 import { spinDelta } from './spinAnimation';
-import { csv, names, roster, scriptedRandom, seededRandom, stagedRandom } from '../../testHelpers';
+import { seededRandom, stagedRandom } from '../../testHelpers';
 
-describe('转盘的上盘名单上限', () => {
-  it('转盘最多摆 12 个候选', () => {
-    const session = createWheelSession({ csvText: roster(30), random: scriptedRandom([0.4]) });
-    expect(MAX_SECTORS).toBe(12);
-    expect(session.lineup).toHaveLength(MAX_SECTORS);
-    expect(session.isSampled).toBe(true);
-    expect(session.enabledCount).toBe(30);
+describe('扇区数', () => {
+  it('恒为 12', () => {
+    // 格数要是跟着候选数走，盘面的形状就把名单有多大泄露出去了（ADR-0010）。
+    expect(SECTOR_COUNT).toBe(12);
+    const session = createWheelSession({ random: seededRandom(1) });
+    expect(session.sectors.count).toBe(SECTOR_COUNT);
   });
 
-  it('12 个及以下时全部上盘，也不是抽样', () => {
-    const session = createWheelSession({ csvText: roster(12), random: scriptedRandom([0.4]) });
-    expect(session.lineup).toHaveLength(12);
-    expect(session.isSampled).toBe(false);
-  });
-
-  it('换一批换的是上盘的候选，转盘照样只摆得下 12 个', () => {
-    const session = createWheelSession({ csvText: roster(30), random: scriptedRandom([0.17, 0.83, 0.44]) });
-    session.reshuffle();
-    expect(session.lineup).toHaveLength(MAX_SECTORS);
-  });
-});
-
-describe('抽样后的转一次', () => {
-  it('抽样后反复 spin() 也不会改变上盘名单', () => {
-    const session = createWheelSession({
-      csvText: roster(30),
-      random: scriptedRandom([0.17, 0.83, 0.44, 0.09, 0.66, 0.28, 0.95]),
+  it('12 个扇区每一个都停得到', () => {
+    const random = stagedRandom();
+    const session = createWheelSession({ random: random.random });
+    const stopped = Array.from({ length: SECTOR_COUNT }, (_, index) => {
+      random.stage((index + 0.5) / SECTOR_COUNT, 0.3);
+      return session.spin().sector;
     });
-    expect(session.isSampled).toBe(true);
-    const before = names(session.lineup);
-    for (let i = 0; i < 50; i += 1) {
-      session.spin();
-      expect(names(session.lineup)).toEqual(before);
-    }
+    expect(stopped).toEqual(Array.from({ length: SECTOR_COUNT }, (_, index) => index));
   });
 });
 
 describe('转一次', () => {
-  it('反复调用 spin() 不改变上盘名单', () => {
-    const session = createWheelSession({
-      csvText: roster(6),
-      random: scriptedRandom([0.05, 0.31, 0.87, 0.42, 0.63]),
-    });
-    const before = names(session.lineup);
-    for (let i = 0; i < 20; i += 1) session.spin();
-    expect(names(session.lineup)).toEqual(before);
-  });
-
-  it('给定随机数确定地选出预期的那个扇区上的候选', () => {
-    const csvText = csv('沙县小吃,true', '兰州拉面,true', '黄焖鸡,true', '肯德基,true');
-    // 转一次取的第一个数选的是扇区：`floor(r * 4)` 号扇区上坐着谁，转出来的就是谁。
-    // 因此断言的是「上盘名单里的第几个」而不是某个名字——谁坐第几个由打乱说了算，
-    // 与这条规格无关。
-    for (const [sectorSeed, index] of [
+  it('给定随机数确定地定下预期的那个扇区', () => {
+    // 转一次取的第一个数定的是扇区：`floor(r * 12)` 号扇区。
+    for (const [sectorSeed, sector] of [
       [0, 0],
-      [0.3, 1],
-      [0.6, 2],
-      [0.99, 3],
+      [0.3, 3],
+      [0.5, 6],
+      [0.99, 11],
     ] as const) {
       const random = stagedRandom();
-      const session = createWheelSession({ csvText, random: random.random });
+      const session = createWheelSession({ random: random.random });
       random.stage(sectorSeed, 0.3);
-      expect(session.spin().winner).toBe(session.lineup[index]);
+      expect(session.spin().sector).toBe(sector);
     }
   });
 
-  it('随机数取到 1 的边界时不会越出上盘名单', () => {
+  it('随机数取到 1 的边界时不会越出最后一个扇区', () => {
     const random = stagedRandom();
-    const session = createWheelSession({ csvText: roster(3), random: random.random });
-    random.stage(0.999999999999, 0.3);
-    expect(session.spin().winner).toBe(session.lineup[2]);
+    const session = createWheelSession({ random: random.random });
+    random.stage(1, 0.3);
+    const { sector, targetAngle } = session.spin();
+    expect(sector).toBe(SECTOR_COUNT - 1);
+    expect(session.sectors.sectorAt(targetAngle)).toBe(SECTOR_COUNT - 1);
   });
 
-  it('打乱之后中选仍然只来自上盘名单', () => {
-    const session = createWheelSession({
-      csvText: roster(20),
-      random: scriptedRandom([0.13, 0.87, 0.02, 0.55, 0.99, 0.31, 0.68, 0.46]),
-    });
-    for (let i = 0; i < 50; i += 1) {
-      expect(names(session.lineup)).toContain(session.spin().winner.name);
-    }
-  });
+  // 扫过全部扇区，尤其是第一个和最后一个（跨 0 度边界处）。
+  for (let index = 0; index < SECTOR_COUNT; index += 1) {
+    for (const offsetSeed of [0, 0.25, 0.5, 0.75, 0.999999]) {
+      it(`第 ${index + 1} 个扇区的目标角度压在该扇区上 (offset=${offsetSeed})`, () => {
+        const random = stagedRandom();
+        const session = createWheelSession({ random: random.random });
+        random.stage((index + 0.5) / SECTOR_COUNT, offsetSeed);
+        const { sector, targetAngle } = session.spin();
 
-  // 反算算错了肉眼看不出来（见 ADR-0003），所以这里问的正是那句不变量：
-  // 拿目标角度去问扇区模块，指针底下压着的必须是中选自己那一格。
-  // 落点在扇区内的具体位置归扇区模块管，用例在 `./sectors.test.ts`。
-  it('打乱之后，目标角度下压着的仍是中选那一格', () => {
-    // 不注入「原样保持顺序」的随机源：这里要的正是被真正打乱过的上盘名单。
-    for (const size of [3, 5, 12, 20]) {
-      const session = createWheelSession({
-        csvText: roster(size),
-        random: scriptedRandom([0.17, 0.83, 0.44, 0.09, 0.66, 0.28, 0.95, 0.51]),
+        expect(sector).toBe(index);
+        expect(session.sectors.sectorAt(targetAngle)).toBe(index);
+        expect(targetAngle).toBeGreaterThanOrEqual(0);
+        expect(targetAngle).toBeLessThan(TAU);
       });
-      const sectors = createSectors(session.lineup.length);
-      for (let i = 0; i < 30; i += 1) {
-        const { winner, targetAngle } = session.spin();
-        expect(sectors.sectorAt(targetAngle)).toBe(session.lineup.indexOf(winner));
-      }
-    }
-  });
-
-  // 扫过全部下标，尤其是第一个和最后一个扇区（跨 0 度边界处）。
-  for (const size of [1, 2, 3, 5, 12]) {
-    for (let index = 0; index < size; index += 1) {
-      for (const offsetSeed of [0, 0.25, 0.5, 0.75, 0.999999]) {
-        it(`${size} 个扇区时，第 ${index + 1} 个扇区的目标角度压在该扇区上 (offset=${offsetSeed})`, () => {
-          const random = stagedRandom();
-          const session = createWheelSession({ csvText: roster(size), random: random.random });
-          random.stage((index + 0.5) / size, offsetSeed);
-          const { winner, targetAngle } = session.spin();
-
-          // 选的是第 index 号扇区，坐在那儿的正是上盘名单里的第 index 个。
-          expect(winner).toBe(session.lineup[index]);
-          expect(createSectors(size).sectorAt(targetAngle)).toBe(index);
-          expect(targetAngle).toBeGreaterThanOrEqual(0);
-          expect(targetAngle).toBeLessThan(TAU);
-        });
-      }
     }
   }
 });
 
 /**
- * 这一整套用例的意义所在：转盘停下之后，指针底下的扇区就是中选。
+ * 这一整套用例的意义所在：转盘停下之后，指针底下的扇区就是先定的那一个。
  *
- * 这条不变量要三跳同时为真——会话选谁中选、`spinDelta` 反算这一次转多少、
- * 扇区模块答指针底下是谁。前面那些用例只钉住了第一跳，`spinDelta` 里的符号
- * 翻一下它们照样全绿，转盘照样转足 3.5 秒、照样弹卡片，只是停在了别人身上
- * （见 ADR-0003）。所以这里把三跳串起来问一次，全程不碰 DOM、不碰 rAF。
+ * 这条不变量要三跳同时为真——会话定哪个扇区、`spinDelta` 反算这一次转多少、
+ * 扇区模块答指针底下是哪一格。前面那些用例只钉住了第一跳，`spinDelta` 里的符号
+ * 翻一下它们照样全绿，转盘照样转足 3.5 秒、照样揭晓、照样弹卡片，只是名字写进了
+ * 别的扇区、不在指针底下（见 ADR-0003）。所以这里把三跳串起来问一次，全程不碰
+ * DOM、不碰 rAF。
  *
  * 起始角度特意混进负数和好几圈的累积值：页面传进来的是裸的累积旋转量，
  * 归一化归 `spinDelta`，那就得在这里被真的喂到。
  *
- * 只钉「指针底下是中选」，不钉 delta 等于某个数：转几圈、停在扇区内的哪一点
- * 都是观感取舍，写死了只会挡住下一次调它们。
+ * 只钉「指针底下是先定的扇区」，不钉 delta 等于某个数：转几圈、停在扇区内的
+ * 哪一点都是观感取舍，写死了只会挡住下一次调它们。
  */
-describe('指针底下就是中选', () => {
+describe('指针底下就是先定的那个扇区', () => {
   const startAngles = [0, 0.7, TAU / 3, TAU - 0.001, -0.4, -TAU * 2.3, TAU * 5 + 1.2];
   // 动画内部随机的圈数取的是 5~8；这里把它的取值范围扫一遍，
-  // 顺带扫上 0 圈——整圈本就不该改变指针底下压着谁。
+  // 顺带扫上 0 圈——整圈本就不该改变指针底下压着哪一格。
   const turnsRange = [0, 5, 6, 7, 8];
 
-  it('几十个种子 × 多个起始角 × 遍历圈数，转停后压在指针底下的都是中选', () => {
+  it('几十个种子 × 多个起始角 × 遍历圈数，转停后压在指针底下的都是先定的扇区', () => {
     for (let seed = 1; seed <= 40; seed += 1) {
-      for (const size of [1, 2, 3, 5, 12]) {
-        const session = createWheelSession({ csvText: roster(size), random: seededRandom(seed) });
-        const sectors = createSectors(session.lineup.length);
-        const { winner, targetAngle } = session.spin();
-        const expected = session.lineup.indexOf(winner);
-        for (const from of startAngles) {
-          for (const turns of turnsRange) {
-            const finalRotation = from + spinDelta(from, targetAngle, turns);
-            expect(sectors.sectorAt(finalRotation)).toBe(expected);
-          }
+      const session = createWheelSession({ random: seededRandom(seed) });
+      const { sector, targetAngle } = session.spin();
+      for (const from of startAngles) {
+        for (const turns of turnsRange) {
+          const finalRotation = from + spinDelta(from, targetAngle, turns);
+          expect(session.sectors.sectorAt(finalRotation)).toBe(sector);
         }
       }
     }
   });
 
-  it('逐个扇区都问一遍：排好的那次摇选中谁，转停后指针底下就是谁', () => {
-    for (const size of [1, 2, 3, 5, 12]) {
-      for (let index = 0; index < size; index += 1) {
-        for (const offsetSeed of [0, 0.5, 0.999999]) {
-          const random = stagedRandom();
-          const session = createWheelSession({ csvText: roster(size), random: random.random });
-          const sectors = createSectors(size);
-          random.stage((index + 0.5) / size, offsetSeed);
-          const { winner, targetAngle } = session.spin();
-          expect(winner).toBe(session.lineup[index]);
-          for (const from of startAngles) {
-            for (const turns of turnsRange) {
-              expect(sectors.sectorAt(from + spinDelta(from, targetAngle, turns))).toBe(index);
-            }
+  it('逐个扇区都问一遍：排好的那次转定下哪一格，转停后指针底下就是哪一格', () => {
+    for (let index = 0; index < SECTOR_COUNT; index += 1) {
+      for (const offsetSeed of [0, 0.5, 0.999999]) {
+        const random = stagedRandom();
+        const session = createWheelSession({ random: random.random });
+        random.stage((index + 0.5) / SECTOR_COUNT, offsetSeed);
+        const { sector, targetAngle } = session.spin();
+        expect(sector).toBe(index);
+        for (const from of startAngles) {
+          for (const turns of turnsRange) {
+            expect(session.sectors.sectorAt(from + spinDelta(from, targetAngle, turns))).toBe(index);
           }
         }
       }

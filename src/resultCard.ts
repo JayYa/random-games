@@ -13,7 +13,7 @@
 import { createById } from './byId';
 import { burstConfetti } from './confetti';
 import { escapeHtml } from './escapeHtml';
-import type { Candidate } from './lineupSession';
+import type { Candidate } from './rosterSession';
 import type { Theme } from './themes';
 
 /**

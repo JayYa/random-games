@@ -5,18 +5,16 @@
  * 代码里的常量表，加一个玩法 = 加一条记录，路由层一行不用改。
  *
  * 记录里没有任何面向使用者的文案：站点不告诉用户玩法是抽出来的，页面上也不给玩法
- * 起名字（ADR-0007）。记录只带路由层要用的三样东西——地址里的那一段、上盘名单上限、
- * 怎么把这一页挂到 DOM 上。
+ * 起名字（ADR-0007）。记录只带路由层要用的两样东西——地址里的那一段、怎么把这一页
+ * 挂到 DOM 上。盘面有几格是各玩法盘面自己的常量，与名单无关，路由层用不着知道。
  *
  * 地址的写法只有 `gameHash` 和 `resolveRoute` 两处知道——写和读放在一起，
  * 才不会一边改了格式另一边还在按老样子解析。
  */
 
-import type { RandomSource } from './lineupSession';
+import type { RandomSource } from './rosterSession';
 import { resolveTheme, type Theme } from './themes';
-import { MAX_SECTORS } from './games/wheel/session';
 import { mountWheel } from './games/wheel/ui';
-import { BOARD } from './games/pinball/board';
 import { mountPinball } from './games/pinball/ui';
 
 /** 挂载一个玩法页需要的全部东西。玩法自己不取文件、不认得地址。 */
@@ -25,28 +23,21 @@ export interface GameMountOptions {
   readonly csvText: string;
   /** 当前主题：标题、结果卡片上那句话和错误提示里的文件名都从这里来。 */
   readonly theme: Theme;
-  /** 这个玩法的上盘名单上限，即记录上的 `lineupCap`。 */
-  readonly cap: number;
 }
 
 /**
- * 拆掉这一页：解绑挂在 `window` 上的监听、停掉还在跑的动画帧。
+ * 拆掉这一页：解绑挂在 `window` 上的监听、停掉还在跑的动画帧、掐掉揭晓那一拍
+ * 还没到点的计时器。
  *
  * 换页时整块 DOM 会被替换掉，挂在被替换节点上的监听随之消失，所以只有活过 DOM
  * 的东西才需要在这里收拾。没有这种东西的玩法什么都不用返回。
  */
 export type GameTeardown = () => void;
 
-/** 一个玩法：地址里的一段、上盘名单上限，加一个挂载函数。 */
+/** 一个玩法：地址里的一段，加一个挂载函数。 */
 export interface Game {
   /** 地址里代表这个玩法的那一段：`#/eat/wheel` 里的 `wheel`。 */
   readonly slug: string;
-  /**
-   * 上盘名单上限：这个玩法的盘面最多摆几个候选（ADR-0002）。
-   *
-   * 上限由玩法决定，所以抽玩法必须发生在取名单之前。
-   */
-  readonly lineupCap: number;
   /** 把这一页挂到 `root` 上。可以返回一个拆卸函数，路由层换页前会调用它。 */
   readonly mount: (root: HTMLElement, options: GameMountOptions) => void | GameTeardown;
 }
@@ -56,17 +47,8 @@ export interface Game {
  * 哪个下标对应哪条记录，不影响任何一个玩法出现的概率。
  */
 export const GAMES: readonly Game[] = [
-  {
-    slug: 'wheel',
-    lineupCap: MAX_SECTORS,
-    mount: mountWheel,
-  },
-  {
-    slug: 'pinball',
-    // 一格一个候选：上限就是盘面底部有几个落格，数目只有 board.ts 那张表说了算。
-    lineupCap: BOARD.slotCount,
-    mount: mountPinball,
-  },
+  { slug: 'wheel', mount: mountWheel },
+  { slug: 'pinball', mount: mountPinball },
 ];
 
 /**

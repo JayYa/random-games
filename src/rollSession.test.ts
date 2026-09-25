@@ -1,17 +1,25 @@
 /**
- * 开抽会话的用例：三个阶段之间的迁移，以及卡片被怎么摆弄。
+ * 开抽会话的用例：三个阶段之间的迁移，盘面停下之后的抽取与揭晓，卡片被怎么摆弄，
+ * 以及换页拆卸。
  *
  * 只钉外部行为——推它一把之后状态变成什么、卡片收到了什么指令、玩法的回调
- * 有没有被叫到。不断言内部变量，也不碰 DOM：卡片是注入的，用例传的是
- * `testHelpers.ts` 里那张记录调用的假卡片，所以这一批不需要 jsdom。
+ * 按什么顺序被叫到。不断言内部变量，也不碰 DOM：卡片、计时器和「抽一个中选」
+ * 都是注入的，用例传的是 `testHelpers.ts` 里记录调用的假卡片、可快进的假计时器
+ * 和一个排好结果的假抽取，所以这一批不需要 jsdom，也不必真等那一拍。
  *
  * 这条缝就是模块自己的接口，也是能用的最高的一条：再往上是玩法的挂载函数，
  * 那就要 jsdom 了。
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createRollSession, isRollLocked, type Candidate, type RollSession } from './rollSession';
-import { fakeResultCard, type FakeResultCard } from './testHelpers';
+import {
+  REVEAL_PAUSE_MS,
+  createRollSession,
+  isRollLocked,
+  type Candidate,
+  type RollSession,
+} from './rollSession';
+import { fakeResultCard, fakeTimer, type FakeResultCard, type FakeTimer } from './testHelpers';
 
 const shaxian: Candidate = { name: '沙县小吃', enabled: true };
 const lanzhou: Candidate = { name: '兰州拉面', enabled: true };
@@ -19,13 +27,37 @@ const lanzhou: Candidate = { name: '兰州拉面', enabled: true };
 interface Harness {
   readonly session: RollSession;
   readonly card: FakeResultCard;
+  readonly timer: FakeTimer;
   readonly onDismiss: ReturnType<typeof vi.fn>;
+  /** 假的「抽一个中选」：依次吐出 `draws` 里的候选，用完后一直吐最后一个。 */
+  readonly drawWinner: ReturnType<typeof vi.fn<() => Candidate>>;
+  readonly onReveal: ReturnType<typeof vi.fn<(winner: Candidate) => void>>;
+  readonly onErase: ReturnType<typeof vi.fn<() => void>>;
 }
 
-function makeSession(): Harness {
+function makeSession(draws: readonly Candidate[] = [shaxian]): Harness {
   const card = fakeResultCard();
+  const timer = fakeTimer();
   const onDismiss = vi.fn();
-  return { session: createRollSession({ card, onDismiss }), card, onDismiss };
+  let drawn = 0;
+  const drawWinner = vi.fn(() => draws[Math.min(drawn++, draws.length - 1)]!);
+  const onReveal = vi.fn<(winner: Candidate) => void>();
+  const onErase = vi.fn<() => void>();
+  const session = createRollSession({
+    card,
+    onDismiss,
+    drawWinner,
+    onReveal,
+    onErase,
+    schedule: timer.schedule,
+  });
+  return { session, card, timer, onDismiss, drawWinner, onReveal, onErase };
+}
+
+/** 盘面停下、揭晓那一拍走完：会话从「正在抽」走到「抽出了中选」。 */
+function stopAndWait({ session, timer }: Harness): void {
+  session.boardStopped();
+  timer.advance(REVEAL_PAUSE_MS);
 }
 
 describe('三个阶段之间的迁移', () => {
@@ -43,15 +75,16 @@ describe('三个阶段之间的迁移', () => {
   });
 
   it('走完一整圈：开抽 → 抽出中选 → 收下 → 又能再抽一次', () => {
-    const { session } = makeSession();
+    const harness = makeSession([shaxian, lanzhou]);
+    const { session } = harness;
     expect(session.begin()).toBe(true);
-    session.settle(shaxian);
+    stopAndWait(harness);
     expect(session.state.phase).toBe('settled');
     session.dismiss();
     expect(session.state.phase).toBe('idle');
     // 回到起点之后开抽照旧受理，中选也换得掉。
     expect(session.begin()).toBe(true);
-    session.settle(lanzhou);
+    stopAndWait(harness);
     expect(session.state).toEqual({ phase: 'settled', winner: lanzhou });
   });
 });
@@ -69,9 +102,10 @@ describe('开抽只在还没开抽时受理', () => {
 
   it('抽出了中选时 begin() 返回 false 且状态不变', () => {
     // 卡片还挂着的时候盘面照旧锁死，中选也不该被悄悄换掉。
-    const { session, card } = makeSession();
+    const harness = makeSession();
+    const { session, card } = harness;
     session.begin();
-    session.settle(shaxian);
+    stopAndWait(harness);
     const before = session.state;
     expect(session.begin()).toBe(false);
     expect(session.state).toBe(before);
@@ -88,9 +122,10 @@ describe('开抽只在还没开抽时受理', () => {
 
 describe('摇出中选', () => {
   it('状态携带的与卡片收到的是同一个中选', () => {
-    const { session, card } = makeSession();
+    const harness = makeSession();
+    const { session, card } = harness;
     session.begin();
-    session.settle(shaxian);
+    stopAndWait(harness);
 
     expect(session.state).toEqual({ phase: 'settled', winner: shaxian });
     // 判别联合钉住了「没抽完就没有中选」，所以取中选前得先分辨阶段。
@@ -105,9 +140,10 @@ describe('摇出中选', () => {
 
 describe('收下中选', () => {
   it('回到还没开抽、卡片被收起、玩法的回调被调用一次', () => {
-    const { session, card, onDismiss } = makeSession();
+    const harness = makeSession();
+    const { session, card, onDismiss } = harness;
     session.begin();
-    session.settle(shaxian);
+    stopAndWait(harness);
     session.dismiss();
 
     expect(session.state.phase).toBe('idle');
@@ -119,16 +155,22 @@ describe('收下中选', () => {
   it('回调被调用时状态已经回到还没开抽，所以回调里可以立刻再开一次抽', () => {
     // 回调里再开一次抽必须受理：这是会话对玩法的承诺，不管玩法当下接不接（转盘现在不接，弹球机只退回待发）。
     const card = fakeResultCard();
+    const timer = fakeTimer();
     let acceptedInsideCallback: boolean | undefined;
     const session: RollSession = createRollSession({
       card,
+      drawWinner: () => shaxian,
+      onReveal: () => {},
+      onErase: () => {},
       onDismiss: () => {
         acceptedInsideCallback = session.begin();
       },
+      schedule: timer.schedule,
     });
 
     session.begin();
-    session.settle(shaxian);
+    session.boardStopped();
+    timer.advance(REVEAL_PAUSE_MS);
     session.dismiss();
 
     expect(acceptedInsideCallback).toBe(true);
@@ -148,10 +190,11 @@ describe('收下中选', () => {
 
   it('卡片本来就没开时不重复收', () => {
     // 沿用现有卡片模块的口径：本来就没开就什么都不做，免得抢走当前按钮的焦点。
-    const { session, card, onDismiss } = makeSession();
+    const harness = makeSession();
+    const { session, card, onDismiss } = harness;
 
     session.begin();
-    session.settle(shaxian);
+    stopAndWait(harness);
     session.dismiss();
     expect(card.hideCount).toBe(1);
     expect(onDismiss).toHaveBeenCalledTimes(1);
@@ -166,13 +209,14 @@ describe('收下中选', () => {
 
 describe('订阅阶段变化', () => {
   it('每一次阶段变化都叫一遍订阅者，订阅者读到的是变化之后的阶段', () => {
-    // 换一批和「转」就是这么把自己重画的：玩法不必在推过会话之后手工补一句同步。
-    const { session } = makeSession();
+    // 「转」就是这么把自己重画的：玩法不必在推过会话之后手工补一句同步。
+    const harness = makeSession();
+    const { session } = harness;
     const seen: string[] = [];
     session.subscribe(() => seen.push(session.state.phase));
 
     session.begin();
-    session.settle(shaxian);
+    stopAndWait(harness);
     session.dismiss();
 
     expect(seen).toEqual(['rolling', 'settled', 'idle']);
@@ -210,17 +254,314 @@ describe('订阅阶段变化', () => {
   });
 });
 
+describe('盘面停下之后才抽中选', () => {
+  it('盘面停下之前没有中选，也没有去抽', () => {
+    // 开抽那一刻就抽好，统计上等价，但玩法就有机会提前知道中选了（ADR-0010）。
+    const { session, drawWinner, onReveal, card } = makeSession();
+    session.begin();
+
+    expect(session.state).toEqual({ phase: 'rolling' });
+    expect(drawWinner).not.toHaveBeenCalled();
+    expect(onReveal).not.toHaveBeenCalled();
+    expect(card.showCount).toBe(0);
+  });
+
+  it('接口上没有由玩法交进中选的方法', () => {
+    // 玩法只推得动「开抽」和「盘面停下」两下，都不带中选（ADR-0010）。
+    const { session } = makeSession();
+    expect('settle' in session).toBe(false);
+    expect(session.boardStopped.length).toBe(0);
+  });
+
+  it('盘面停下后立即揭晓，卡片却还没弹，阶段仍是正在抽且锁住', () => {
+    const { session, drawWinner, onReveal, card } = makeSession([lanzhou]);
+    session.begin();
+    session.boardStopped();
+
+    expect(drawWinner).toHaveBeenCalledTimes(1);
+    expect(onReveal).toHaveBeenCalledTimes(1);
+    expect(onReveal).toHaveBeenCalledWith(lanzhou);
+    // 揭晓那一拍属于「正在抽」：卡片没弹，盘面照旧锁着，「转」按不动。
+    expect(card.showCount).toBe(0);
+    expect(session.state).toEqual({ phase: 'rolling' });
+    expect(isRollLocked(session.state)).toBe(true);
+    expect(session.begin()).toBe(false);
+  });
+
+  it('停一拍之后进入抽出了中选，卡片带着揭晓的那个中选弹出', () => {
+    const { session, card, timer, onReveal } = makeSession([lanzhou]);
+    session.begin();
+    session.boardStopped();
+
+    // 差一点点都不该弹：名字得先在盘面上清清楚楚地亮一会儿。
+    timer.advance(REVEAL_PAUSE_MS - 1);
+    expect(card.showCount).toBe(0);
+    expect(session.state.phase).toBe('rolling');
+
+    timer.advance(1);
+    expect(session.state).toEqual({ phase: 'settled', winner: lanzhou });
+    expect(card.showCount).toBe(1);
+    expect(card.shownWinner).toBe(lanzhou);
+    expect(onReveal.mock.calls[0]?.[0]).toBe(card.shownWinner);
+  });
+
+  it('停一拍大约是 0.8 秒', () => {
+    // 起点值可以凭手感微调，但既不能短到名字一亮就被遮罩盖住，也不能长到让人干等。
+    expect(REVEAL_PAUSE_MS).toBeGreaterThanOrEqual(500);
+    expect(REVEAL_PAUSE_MS).toBeLessThanOrEqual(1500);
+  });
+
+  it('揭晓那一拍里再报一次盘面停下不受理：不会抽第二次，也不会弹两张卡片', () => {
+    const { session, card, timer, drawWinner, onReveal } = makeSession([shaxian, lanzhou]);
+    session.begin();
+    session.boardStopped();
+    session.boardStopped();
+
+    expect(drawWinner).toHaveBeenCalledTimes(1);
+    expect(onReveal).toHaveBeenCalledTimes(1);
+
+    timer.advance(REVEAL_PAUSE_MS * 2);
+    expect(card.showCount).toBe(1);
+    expect(session.state).toEqual({ phase: 'settled', winner: shaxian });
+  });
+
+  it('还没开抽时盘面停下静默不受理', () => {
+    const { session, card, timer, drawWinner, onReveal } = makeSession();
+    const observe = vi.fn();
+    session.subscribe(observe);
+
+    session.boardStopped();
+    timer.advance(REVEAL_PAUSE_MS * 2);
+
+    expect(drawWinner).not.toHaveBeenCalled();
+    expect(onReveal).not.toHaveBeenCalled();
+    expect(card.showCount).toBe(0);
+    expect(timer.pendingCount).toBe(0);
+    expect(session.state.phase).toBe('idle');
+    expect(observe).not.toHaveBeenCalled();
+  });
+
+  it('抽出了中选之后盘面停下不受理，中选不会被悄悄换掉', () => {
+    const { session, card, timer, drawWinner } = makeSession([shaxian, lanzhou]);
+    session.begin();
+    session.boardStopped();
+    timer.advance(REVEAL_PAUSE_MS);
+
+    session.boardStopped();
+    timer.advance(REVEAL_PAUSE_MS);
+
+    expect(drawWinner).toHaveBeenCalledTimes(1);
+    expect(card.showCount).toBe(1);
+    expect(session.state).toEqual({ phase: 'settled', winner: shaxian });
+  });
+
+  it('订阅者在揭晓那一拍里不被惊动，停一拍之后才看到抽出了中选', () => {
+    // 揭晓不是一个阶段：它仍属「正在抽」，看着阶段的控件没什么可重画的。
+    const { session, timer } = makeSession();
+    const seen: string[] = [];
+    session.subscribe(() => seen.push(session.state.phase));
+
+    session.begin();
+    session.boardStopped();
+    expect(seen).toEqual(['rolling']);
+
+    timer.advance(REVEAL_PAUSE_MS);
+    expect(seen).toEqual(['rolling', 'settled']);
+  });
+
+  it('每一次开抽都在各自停下之后重新抽', () => {
+    const { session, timer, card, drawWinner } = makeSession([shaxian, lanzhou]);
+
+    session.begin();
+    session.boardStopped();
+    timer.advance(REVEAL_PAUSE_MS);
+    expect(card.shownWinner).toBe(shaxian);
+    session.dismiss();
+
+    session.begin();
+    expect(drawWinner).toHaveBeenCalledTimes(1);
+    session.boardStopped();
+    timer.advance(REVEAL_PAUSE_MS);
+    expect(card.shownWinner).toBe(lanzhou);
+    expect(session.state).toEqual({ phase: 'settled', winner: lanzhou });
+  });
+});
+
+describe('收下揭晓过的中选', () => {
+  it('先收卡片，再抹掉名字，再回到还没开抽，最后才叫玩法的回调', () => {
+    const card = fakeResultCard();
+    const timer = fakeTimer();
+    const log: string[] = [];
+    const session: RollSession = createRollSession({
+      card,
+      drawWinner: () => shaxian,
+      onReveal: (winner) => log.push(`reveal ${winner.name}`),
+      // 抹名字时卡片已经收起，但阶段还没回到起点：盘面要先干净了才算回去。
+      onErase: () => log.push(`erase card=${card.isOpen ? 'open' : 'closed'} phase=${session.state.phase}`),
+      onDismiss: () => log.push(`dismiss card=${card.isOpen ? 'open' : 'closed'} phase=${session.state.phase}`),
+      schedule: timer.schedule,
+    });
+    session.subscribe(() => log.push(`phase ${session.state.phase}`));
+
+    session.begin();
+    session.boardStopped();
+    timer.advance(REVEAL_PAUSE_MS);
+    session.dismiss();
+
+    expect(log).toEqual([
+      'phase rolling',
+      'reveal 沙县小吃',
+      'phase settled',
+      'erase card=closed phase=settled',
+      'phase idle',
+      'dismiss card=closed phase=idle',
+    ]);
+    expect(card.hideCount).toBe(1);
+  });
+
+  it('揭晓那一拍里收下静默不受理：卡片还没弹，没有中选可收', () => {
+    const { session, card, timer, onErase, onDismiss } = makeSession();
+    session.begin();
+    session.boardStopped();
+
+    session.dismiss();
+    expect(onErase).not.toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(session.state.phase).toBe('rolling');
+
+    // 那一拍照常走完，卡片照常弹出。
+    timer.advance(REVEAL_PAUSE_MS);
+    expect(card.isOpen).toBe(true);
+    expect(session.state).toEqual({ phase: 'settled', winner: shaxian });
+  });
+
+  it('还没开抽时收下也不抹名字', () => {
+    const { session, onErase, onDismiss } = makeSession();
+    session.dismiss();
+    expect(onErase).not.toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+});
+
+describe('换页拆卸', () => {
+  it('揭晓那一拍里拆卸：那一拍被掐掉，卡片不会在别的页面上弹出来', () => {
+    // 页面拆掉时名字刚亮出来、卡片还在计时器上等着：拆卸之后它不能再弹。
+    const { session, card, timer } = makeSession();
+    const observe = vi.fn();
+    session.subscribe(observe);
+    session.begin();
+    session.boardStopped();
+    observe.mockClear();
+
+    session.dispose();
+    expect(timer.pendingCount).toBe(0);
+
+    timer.advance(REVEAL_PAUSE_MS * 2);
+    expect(card.showCount).toBe(0);
+    expect(session.state.phase).toBe('rolling');
+    expect(observe).not.toHaveBeenCalled();
+  });
+
+  it('拆卸之后盘面才停下：不抽中选、不揭晓、不排那一拍', () => {
+    // 转盘的动画不随页面拆卸而停，转完仍会报一声「盘面停下」。
+    const { session, card, timer, drawWinner, onReveal } = makeSession();
+    session.begin();
+    session.dispose();
+
+    session.boardStopped();
+    timer.advance(REVEAL_PAUSE_MS * 2);
+
+    expect(drawWinner).not.toHaveBeenCalled();
+    expect(onReveal).not.toHaveBeenCalled();
+    expect(timer.pendingCount).toBe(0);
+    expect(card.showCount).toBe(0);
+  });
+
+  it('拆卸之后开抽、收下都静默不受理', () => {
+    const harness = makeSession();
+    const { session, card, onErase, onDismiss } = harness;
+    session.begin();
+    stopAndWait(harness);
+    session.dispose();
+
+    session.dismiss();
+    expect(card.hideCount).toBe(0);
+    expect(onErase).not.toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(session.begin()).toBe(false);
+  });
+
+  it('重复拆卸无害', () => {
+    const { session } = makeSession();
+    session.begin();
+    session.boardStopped();
+    session.dispose();
+    expect(() => session.dispose()).not.toThrow();
+  });
+});
+
+describe('默认计时器', () => {
+  it('不注入计时器时用真实的 setTimeout 停那一拍', () => {
+    vi.useFakeTimers();
+    try {
+      const card = fakeResultCard();
+      const session = createRollSession({
+        card,
+        onDismiss: () => {},
+        drawWinner: () => shaxian,
+        onReveal: () => {},
+        onErase: () => {},
+      });
+      session.begin();
+      session.boardStopped();
+      expect(card.isOpen).toBe(false);
+
+      vi.advanceTimersByTime(REVEAL_PAUSE_MS);
+      expect(card.shownWinner).toBe(shaxian);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('拆卸掐得掉真实的 setTimeout', () => {
+    vi.useFakeTimers();
+    try {
+      const card = fakeResultCard();
+      const session = createRollSession({
+        card,
+        onDismiss: () => {},
+        drawWinner: () => shaxian,
+        onReveal: () => {},
+        onErase: () => {},
+      });
+      session.begin();
+      session.boardStopped();
+      session.dispose();
+
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(REVEAL_PAUSE_MS * 2);
+      expect(card.showCount).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('「已经开抽」的判据', () => {
   it('与 begin() 受不受理是同一句话', () => {
     // 两处各写一遍就会分叉：按钮宣告自己按得动，按下去却被 begin() 静静退回。
-    const { session } = makeSession();
+    const { session, timer } = makeSession();
     expect(isRollLocked(session.state)).toBe(false);
 
     session.begin();
     expect(isRollLocked(session.state)).toBe(true);
     expect(session.begin()).toBe(false);
 
-    session.settle(shaxian);
+    session.boardStopped();
+    expect(isRollLocked(session.state)).toBe(true);
+    expect(session.begin()).toBe(false);
+
+    timer.advance(REVEAL_PAUSE_MS);
     expect(isRollLocked(session.state)).toBe(true);
     expect(session.begin()).toBe(false);
 
