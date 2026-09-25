@@ -14,7 +14,6 @@ import { createById } from './byId';
 import { burstConfetti } from './confetti';
 import { escapeHtml } from './escapeHtml';
 import type { Candidate } from './rosterSession';
-import type { Theme } from './themes';
 
 /**
  * 结果卡片的 HTML。放进玩法页的 body 里，再交给 `createResultCard` 接上行为。
@@ -22,11 +21,10 @@ import type { Theme } from './themes';
  * @param closeLabel 关掉卡片那个按钮上的字。它说什么就得真的做什么，
  *   所以文案由玩法给：转盘写「再来一次」，弹球机写「再打一发」，按下去就真的回到能再来的状态。
  */
-export function resultCardMarkup(theme: Theme, closeLabel: string): string {
+export function resultCardMarkup(closeLabel: string): string {
   return `
       <div class="card" id="card" hidden role="dialog" aria-live="polite">
         <div class="card__inner">
-          <p class="card__label">${escapeHtml(theme.resultPhrase)}</p>
           <p class="card__name" id="card-name"></p>
           <button class="card__close" id="card-close" type="button">${escapeHtml(closeLabel)}</button>
         </div>

@@ -2,7 +2,7 @@
  * 主题清单与主题解析。
  *
  * 一个主题就是 `public/` 下的一份名单 CSV：它面向使用者的那套说法写在同一份文件的
- * 头部注释里（`# entry:` / `# title:` / `# result:`），清单在构建期扫 `public/*.csv`
+ * 头部注释里（`# entry:` / `# title:`），清单在构建期扫 `public/*.csv`
  * 得出（见 ADR-0009）。清单不手写，是因为「CSV 在、记录忘了加」这类漂移只要有两处
  * 事实就一定会发生；发现只在构建期做，浏览器里因此不多一次请求、不多一种失败模式，
  * ADR-0005 当年拒绝把清单放进 `public/` 的理由仍然成立。加第四个主题 = 往 `public/`
@@ -27,8 +27,6 @@ export interface Theme {
   readonly title: string;
   /** 选主题页上这个入口的说法。 */
   readonly entryLabel: string;
-  /** 结果卡片上中选名字前面那句话，例如「今天就吃」。 */
-  readonly resultPhrase: string;
 }
 
 /**
