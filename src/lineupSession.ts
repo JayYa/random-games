@@ -2,10 +2,11 @@
  * 名单会话 (Lineup Session)：这个项目的无头核心，玩法无关。
  *
  * 吃 CSV 原文、一个注入的随机源和一个上盘名单上限，产出上盘名单 (Lineup)、
- * 启用/停用的数目、名单的状态、是否抽样、解析错误，以及换一批。
+ * 启用/停用的数目、名单的状态、是否抽样、解析错误、换一批，以及抽一个中选。
  *
- * 它不认识任何一种玩法：上限是入参，由玩法说了算（转盘 12、弹球机 8，见
- * ADR-0002）。怎么把上盘名单摇成中选 (Winner)，是各玩法自己那一层的事。
+ * 它不认识任何一种玩法：上限是入参，由玩法说了算（转盘 12、弹球机 8）。
+ * 中选 (Winner) 从全部启用的候选里等概率抽，与上盘名单无关（ADR-0010）；
+ * 什么时候抽由开抽会话说了算——盘面停下之后。上盘名单这一套是正在退场的旧路径。
  *
  * 它不引用 Canvas、不引用 DOM、也不发网络请求——加载 CSV 是渲染层的事。
  * 注入的 `random` 是这个模块唯一的不确定性来源。
@@ -65,6 +66,14 @@ export interface LineupSession {
   readonly error?: string;
   /** 换一批：重新抽取上盘名单。`enabledCount ≤ cap` 时无操作。 */
   reshuffle(): void;
+  /**
+   * 抽一个中选：从名单中全部启用的候选里等概率取一个（ADR-0010）。
+   * 不看上盘名单——没摆上盘面的候选也有同样的机会。
+   *
+   * 不依赖 `this`，可以直接摘下来交给开抽会话当「抽一个中选」。
+   * 一个启用的候选都没有时抛错：那几种名单走不到开抽，走到了就是调用方的错。
+   */
+  drawWinner(): Candidate;
 }
 
 /** Fisher–Yates：把 `pool` 整体打乱，返回新数组，不改动入参。 */
@@ -116,6 +125,12 @@ export function createLineupSession(options: LineupSessionOptions): LineupSessio
     reshuffle() {
       if (!isSampled) return;
       lineup = drawLineup();
+    },
+    drawWinner: () => {
+      if (enabledCount === 0) throw new Error('名单里没有启用的候选，抽不出中选');
+      // `Math.min` 给 `random()` 恰好吐出 1 的实现兜底，免得下标越界。
+      const index = Math.min(enabledCount - 1, Math.floor(random() * enabledCount));
+      return enabled[index]!;
     },
   };
 }

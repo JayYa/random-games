@@ -8,6 +8,7 @@
 import { expect } from 'vitest';
 import type { Candidate } from './lineupSession';
 import type { ResultCard } from './resultCard';
+import type { Schedule } from './rollSession';
 
 /**
  * mulberry32：一个确定但各不相同的伪随机源。种子不同数列就不同，同一个种子
@@ -130,6 +131,48 @@ export function fakeResultCard(): FakeResultCard {
       if (!isOpen) return;
       isOpen = false;
       hideCount += 1;
+    },
+  };
+}
+
+/**
+ * 一个手动拨动的假计时器：开抽会话揭晓那一拍的测试替身。
+ *
+ * 与 `fakeResultCard` 同一性质——把真的 `setTimeout` 换成用例说走才走的时钟，
+ * 用例不必真等那 0.8 秒，也不必动全局的计时器。
+ */
+export interface FakeTimer {
+  /** 交给会话的计时器。 */
+  readonly schedule: Schedule;
+  /** 让时间往前走 `ms` 毫秒：这期间到点的回调按到点的先后依次叫。 */
+  advance(ms: number): void;
+  /** 还有几个回调没到点。 */
+  readonly pendingCount: number;
+}
+
+export function fakeTimer(): FakeTimer {
+  let now = 0;
+  const pending: Array<{ readonly at: number; readonly callback: () => void }> = [];
+
+  return {
+    schedule(callback, delayMs) {
+      pending.push({ at: now + delayMs, callback });
+    },
+    advance(ms) {
+      const until = now + ms;
+      for (;;) {
+        const due = pending
+          .filter((task) => task.at <= until)
+          .sort((a, b) => a.at - b.at)[0];
+        if (!due) break;
+        pending.splice(pending.indexOf(due), 1);
+        now = due.at;
+        due.callback();
+      }
+      now = until;
+    },
+    get pendingCount() {
+      return pending.length;
     },
   };
 }

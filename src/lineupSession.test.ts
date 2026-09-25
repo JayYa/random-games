@@ -1,5 +1,5 @@
 /**
- * 名单会话的用例：解析、四种状态、抽样、换一批、打乱。
+ * 名单会话的用例：解析、四种状态、抽样、换一批、打乱、抽一个中选。
  *
  * 这些都是玩法无关的性质——转盘和弹球机看到的是同一份上盘名单逻辑，
  * 差别只在上限是多少。转盘的角度用例在 `games/wheel/session.test.ts`。
@@ -370,6 +370,71 @@ describe('上盘名单', () => {
     expect(names(a.lineup)).toEqual(names(b.lineup));
   });
 
+});
+
+/**
+ * 建一个会话，建好之后才把 `values` 依次交给抽中选。
+ *
+ * 建会话时打乱上盘名单要取几个随机数是会话自己的事，用例不该知道；这里让那几个
+ * 随便取，排好的数只落到接下来的抽中选上——用例于是只钉「抽一个」这件事本身。
+ */
+function drawingSession(csvText: string, values: number[]) {
+  let source: RandomSource = () => 0.5;
+  const session = makeSession({ csvText, random: () => source() });
+  source = scriptedRandom(values);
+  return session;
+}
+
+describe('抽一个中选', () => {
+  it('只会抽到启用的候选', () => {
+    // 启用与停用交错排列，随机值把 [0, 1) 扫一遍：停用的名字一次都不该出来。
+    const session = drawingSession(
+      csv('沙县小吃,true', '关门大吉,false', '兰州拉面,true', '停业,no', '黄焖鸡,true', '搬走了,0'),
+      Array.from({ length: 50 }, (_, i) => i / 50),
+    );
+    const drawn = new Set(Array.from({ length: 50 }, () => session.drawWinner().name));
+    expect([...drawn].sort()).toEqual(['兰州拉面', '沙县小吃', '黄焖鸡'].sort());
+  });
+
+  it('注入的随机序列下抽到的是预期的那一个', () => {
+    // 启用的候选按 CSV 的书写顺序排成一列，随机值乘上启用数取整就是下标。
+    const session = drawingSession(
+      csv('沙县小吃,true', '关门大吉,false', '兰州拉面,true', '黄焖鸡,true', '麻辣烫,true'),
+      [0, 0.3, 0.5, 0.99, 0.26],
+    );
+    const drawn = Array.from({ length: 5 }, () => session.drawWinner().name);
+    expect(drawn).toEqual(['沙县小吃', '兰州拉面', '黄焖鸡', '麻辣烫', '兰州拉面']);
+  });
+
+  it('random() 恰好返回 1 时抽到最后一个启用的候选，不越界', () => {
+    const session = drawingSession(csv('沙县小吃,true', '兰州拉面,true', '关门大吉,false'), [1]);
+    expect(session.drawWinner()).toEqual({ name: '兰州拉面', enabled: true });
+  });
+
+  it('每个启用的候选都抽得到，包括没摆上盘面的那些', () => {
+    // 20 个启用的候选多于上限 12：抽中选看的是名单里全部启用的候选，不是上盘名单。
+    const count = 20;
+    const session = drawingSession(
+      roster(count),
+      Array.from({ length: count }, (_, i) => (i + 0.5) / count),
+    );
+    const drawn = Array.from({ length: count }, () => session.drawWinner().name);
+    expect(drawn).toEqual(rosterNames(count));
+  });
+
+  it('只有一个启用的候选时总是它', () => {
+    const session = drawingSession(csv('关门大吉,false', '沙县小吃,true'), [0, 0.42, 0.99, 1]);
+    for (let i = 0; i < 4; i += 1) {
+      expect(session.drawWinner().name).toBe('沙县小吃');
+    }
+  });
+
+  it('一个启用的候选都没有时抽不出来，直接报错', () => {
+    // 这几种名单渲染层会给整页错误提示，根本走不到开抽；真走到了就是调用方的错。
+    for (const csvText of ['', csv('沙县小吃,false'), csv('"没关引号,true')]) {
+      expect(() => makeSession({ csvText }).drawWinner()).toThrow();
+    }
+  });
 });
 
 describe('上盘名单上限是入参', () => {

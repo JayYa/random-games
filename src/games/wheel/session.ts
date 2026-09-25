@@ -73,6 +73,7 @@ export function createWheelSession(options: WheelSessionOptions): WheelSession {
     reshuffle() {
       lineupSession.reshuffle();
     },
+    drawWinner: lineupSession.drawWinner,
     spin() {
       const current = lineupSession.lineup;
       if (current.length === 0) {
