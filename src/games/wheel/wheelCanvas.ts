@@ -1,13 +1,15 @@
 /**
- * 渲染层：把上盘名单画成转盘。薄，不测。
+ * 渲染层：把扇区画成转盘。薄，不测。
+ *
+ * 平时只画有颜色的扇区，不画任何名字——盘面是匿名的（ADR-0010）。唯一一次
+ * 画名字是揭晓：把中选的名字写进停下的那个扇区，收下中选时再画回匿名。
  *
  * 每一格画在哪一段弧，向扇区模块要——角度约定只在那里说一次。
  */
 
 import { TAU } from '../../angles';
 import { PALETTE } from '../../palette';
-import { createSectors } from './sectors';
-import type { Candidate } from './session';
+import type { Sectors } from './sectors';
 
 /**
  * 扇区 i 用的颜色。相邻扇区必然不同色，包括跨 0 度的首尾相邻。
@@ -41,51 +43,52 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return kept > 0 ? `${chars.slice(0, kept).join('')}…` : '…';
 }
 
+/** 揭晓：中选的名字写在哪个扇区上。 */
+export interface Reveal {
+  /** 停下时指针底下的那个扇区的下标。 */
+  readonly sector: number;
+  /** 中选的名字。 */
+  readonly name: string;
+}
+
 export interface DrawOptions {
-  readonly lineup: readonly Candidate[];
+  /** 转盘上的扇区，数目是转盘自己的常量，与名单大小无关。 */
+  readonly sectors: Sectors;
   /** 转盘逆时针转过的弧度。 */
   readonly rotation: number;
   /** 画布的 CSS 边长（正方形）。 */
   readonly size: number;
+  /** 正在揭晓时给出；平时不给，转盘上一个名字都不画。 */
+  readonly reveal?: Reveal;
 }
 
 export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): void {
-  const { lineup, rotation, size } = options;
+  const { sectors, rotation, size, reveal } = options;
   const center = size / 2;
   const radius = center - Math.max(8, size * 0.04);
 
   ctx.clearRect(0, 0, size, size);
 
-  if (lineup.length === 0) {
-    ctx.save();
-    ctx.fillStyle = '#e8e8ef';
-    ctx.beginPath();
-    ctx.arc(center, center, radius, 0, TAU);
-    ctx.fill();
-    ctx.restore();
-    drawPointer(ctx, center, center - radius, size);
-    return;
-  }
-
-  const sectors = createSectors(lineup.length);
-
   ctx.save();
   ctx.translate(center, center);
 
-  for (let i = 0; i < lineup.length; i += 1) {
+  for (let i = 0; i < sectors.count; i += 1) {
     const { start, end } = sectors.arc(i, rotation);
 
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.arc(0, 0, radius, start, end);
     ctx.closePath();
-    ctx.fillStyle = sectorColor(i, lineup.length);
+    ctx.fillStyle = sectorColor(i, sectors.count);
     ctx.fill();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
     ctx.lineWidth = Math.max(1, size * 0.004);
     ctx.stroke();
+  }
 
+  if (reveal) {
     // 文字沿扇区横排
+    const { start, end } = sectors.arc(reveal.sector, rotation);
     ctx.save();
     ctx.rotate((start + end) / 2);
     ctx.textAlign = 'right';
@@ -94,7 +97,7 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
     ctx.font = `600 ${Math.max(11, Math.round(size * 0.038))}px system-ui, sans-serif`;
     // 文字只占扇区外侧较宽的一段（0.30r ~ 0.90r），别探进靠近轴心的窄尖角里。
     const maxWidth = radius * 0.6;
-    ctx.fillText(truncate(ctx, lineup[i]!.name, maxWidth), radius * 0.9, 0);
+    ctx.fillText(truncate(ctx, reveal.name, maxWidth), radius * 0.9, 0);
     ctx.restore();
   }
 
