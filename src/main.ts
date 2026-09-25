@@ -6,7 +6,7 @@ import { renderThemePicker } from './themePicker';
 import { createRenderGuard } from './renderGuard';
 import { SITE_TITLE } from './themes';
 import { gameHash, resolveRoute, rollGame, type GameTeardown } from './games';
-import { recentWinnersMemory, type RecentStorage } from './recentStorage';
+import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('缺少 #app 挂载点');
@@ -37,7 +37,7 @@ const guard = createRenderGuard();
 let teardown: GameTeardown | undefined;
 
 /**
- * 这台浏览器的 localStorage，存最近中选用（ADR-0011）。
+ * 这台浏览器的 localStorage，存最近中选和最近玩法用（ADR-0011）。
  *
  * 禁用存储时连取 `window.localStorage` 这一下都会抛错，所以包一层：拿不到就是
  * `undefined`，存储适配把它当成没有记忆，照常能抽。
@@ -71,7 +71,11 @@ function render(): void {
     // ——不进历史，后退键才从玩法页直接回首页，而不是回到一个「再抽一次」的中间页
     //（ADR-0007）。replaceState 不触发 hashchange，所以得自己再画一次；
     // 新的这次会领一张新号，把上面那张作废掉，不会画两遍。
-    history.replaceState(null, '', gameHash(theme, rollGame(Math.random)));
+    //
+    // 只有这里真正替人抽玩法，所以只有这里带上最近玩法（ADR-0011）：上一次抽出的
+    // 这一次不出。直接打开带玩法的地址不走这里，也就不会被记下。
+    const recentGames = recentGamesMemory(browserStorage());
+    history.replaceState(null, '', gameHash(theme, rollGame(Math.random, { recentGames })));
     render();
     return;
   }

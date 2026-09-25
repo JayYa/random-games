@@ -1,7 +1,7 @@
 /**
  * 浏览器存储适配：把 Storage（生产为 localStorage）包成冷却要用的记忆（ADR-0011）。
  *
- * 最近中选按主题分键，各主题互不影响；每个键只留最新的 N 条。
+ * 最近中选按主题分键，各主题互不影响；最近玩法全站一个键。每个键只留最新的 N 条。
  *
  * 记忆对使用者不可见，存不了就静默退化成没有记忆：读不出、JSON 坏掉、形状不对
  * 一律当空记录；读写抛错（无痕模式、禁用存储、配额满了）一律吞掉。冷却只是让抽取
@@ -11,7 +11,7 @@
  * 在禁用存储时都会抛错，拿不拿得到是调用方的事，拿不到就传 `undefined`。
  */
 
-import { RECENT_WINNERS_COUNT, latestRecent, type RecentMemory } from './cooldown';
+import { RECENT_GAMES_COUNT, RECENT_WINNERS_COUNT, latestRecent, type RecentMemory } from './cooldown';
 
 /** 这里只用得着 Storage 的读和写两样。 */
 export type RecentStorage = Pick<Storage, 'getItem' | 'setItem'>;
@@ -22,6 +22,11 @@ const KEY_PREFIX = 'random-games:';
 /** 一个主题的最近中选：按主题 slug 分键，只留最新的 7 条。 */
 export function recentWinnersMemory(storage: RecentStorage | undefined, themeSlug: string): RecentMemory {
   return storedMemory(storage, `${KEY_PREFIX}recent-winners:${themeSlug}`, RECENT_WINNERS_COUNT);
+}
+
+/** 最近玩法：全站一个键、不分主题，只留最新的 1 条。 */
+export function recentGamesMemory(storage: RecentStorage | undefined): RecentMemory {
+  return storedMemory(storage, `${KEY_PREFIX}recent-games`, RECENT_GAMES_COUNT);
 }
 
 /**
