@@ -1,9 +1,9 @@
 /**
- * 渲染层：弹球机自己的盘面绘制、柱塞拖拽与轨迹回放。薄，不测。
+ * 渲染层：弹球机的盘面——自己的盘面绘制、柱塞拖拽与轨迹回放。薄，不测。
  *
- * 页头、加载态、错误页、结果卡片和撒花都不在这里——它们与玩法无关，住在共用的
- * 渲染层里（`src/gamePage.ts`、`src/rosterFailure.ts`、`src/resultCard.ts`），
- * 弹球机与转盘用的是同一份。
+ * 页头、错误页、结果卡片、撒花和开抽的接线都不在这里——它们与弹球机无关，由玩法页
+ * 宿主（`src/gamePageHost.ts`）接好（ADR-0012），转盘用的是同一份。弹球机只交一个
+ * 盘面：交出自己的 HTML 和卡片按钮上的字，挂上之后只管画、演。
  *
  * 这里只做三件事：
  * 1. 照着 `board.ts` 那张常量表把盘面画出来——几何只有一处，绝不在渲染层再抄一遍；
@@ -11,22 +11,16 @@
  * 3. 把模拟吐回来的轨迹按真实时间回放。
  *
  * 盘面是匿名的：8 个落格只有颜色，没有序号，也没有图例。球落进哪一格由物理决定
- * （ADR-0006），但谁中选与此无关（ADR-0010）——球进格只通知开抽会话「盘面停下」，
- * 中选由它抽，再叫这里把名字浮在那一格上方揭晓。
+ * （ADR-0006），但谁中选与此无关（ADR-0010）——球进格只报一声「盘面停下」，
+ * 中选由宿主抽，再叫这里把名字浮在那一格上方揭晓。
  * 页面上不提玩法的名字、不解释玩法是抽出来的、也没有换玩法的入口（ADR-0007）。
  * 不提供键盘操作，同样是 ADR-0006 里记录在案的取舍。
  */
 
 import { createById } from '../../byId';
-import type { GameMountOptions } from '../../games';
-import { gamePage } from '../../gamePage';
+import type { Board, MountedBoard, RollHandle } from '../../gamePageHost';
 import { canvasPixelRatio } from '../../pixelRatio';
-import { createRosterSession, type RosterSession } from '../../rosterSession';
 import { PALETTE } from '../../palette';
-import { createResultCard, resultCardMarkup } from '../../resultCard';
-import { createRollSession, isRollLocked } from '../../rollSession';
-import { showRosterFailure } from '../../rosterFailure';
-import type { Theme } from '../../themes';
 import {
   BOARD,
   LANE_CENTER_X,
@@ -120,32 +114,15 @@ interface Flight {
   landed: boolean;
 }
 
-interface PinballElements {
-  readonly board: HTMLCanvasElement;
-}
+const BOARD_HTML = `
+      <div class="pinball__stage">
+        <canvas class="pinball__board" id="pinball-board"></canvas>
+      </div>
+    `;
 
 /** 落格 i 的颜色。落格排成一条线，首尾不相邻，所以不需要转盘那套接缝补丁。 */
 function slotColor(index: number): string {
   return PALETTE[index % PALETTE.length] ?? INK;
-}
-
-function buildDom(root: HTMLElement, theme: Theme): PinballElements {
-  root.innerHTML = gamePage(
-    theme,
-    `
-      <div class="pinball__stage">
-        <canvas class="pinball__board" id="pinball-board"></canvas>
-      </div>
-      ${resultCardMarkup(CLOSE_LABEL)}
-    `,
-    { block: 'pinball' },
-  );
-
-  const byId = createById(root);
-
-  return {
-    board: byId<HTMLCanvasElement>('pinball-board'),
-  };
 }
 
 /** 圆角矩形：`roundRect` 不是所有浏览器都有，自己画一条路径省心。 */
@@ -486,19 +463,18 @@ function drawPlunger(ctx: CanvasRenderingContext2D, power: number): void {
   ctx.stroke();
 }
 
-export function mountPinball(root: HTMLElement, options: GameMountOptions): (() => void) | void {
-  const { theme } = options;
-  // 弹球机只用名单会话的状态（给整页错误提示）与「抽一个中选」（给开抽会话）。
-  // 落格数是盘面自己的常量（见 ./board.ts），与名单大小无关。
-  const session: RosterSession = createRosterSession({
-    csvText: options.csvText,
-    recentWinners: options.recentWinners,
-  });
+/** 弹球机的盘面。每进一次玩法页造一个：球落在哪一格、风车转到哪个相位都不跨页。 */
+export function createPinballBoard(): Board {
+  return {
+    html: BOARD_HTML,
+    block: 'pinball',
+    closeLabel: CLOSE_LABEL,
+    mount: mountPinballBoard,
+  };
+}
 
-  // 开不了抽时不画盘面：一个空盘面看着像程序坏了，说不清是名单哪里出了问题。
-  if (showRosterFailure(root, theme, session)) return;
-
-  const elements = buildDom(root, theme);
+function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
+  const canvas = createById(root)<HTMLCanvasElement>('pinball-board');
 
   let power = 0;
   /** 风车相位（弧度）。发射瞬间快照它，喂给模拟。 */
@@ -525,7 +501,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
    * `fullPullY` 在按下的那一刻就定死，之后 `pointermove` 一路照它算——同一次
    * 拖拽里力度的手感不该中途变。
    *
-   * 它只管画柱塞，是弹球机自己的事，不进开抽会话：球还没出去，这一发随时可以
+   * 它只管画柱塞，是弹球机自己的事，不经开抽句柄：球还没出去，这一发随时可以
    * 拖回原位作废，不满足「开抽之后盘面锁死」的语义（见 `src/rollSession.ts`）。
    */
   let drag:
@@ -537,36 +513,12 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   let rafId = 0;
   let lastFrameAt = 0;
 
-  const card = createResultCard(root, {
-    // 「再打一发」经由开抽会话收场：卡片收掉、这一次开抽结束，才轮到下面的
-    // `onDismiss` 把盘面退回待发。
-    onClose: () => roll.dismiss(),
-    // 弹球机整页没有可聚焦的操作（ADR-0006），焦点没有可交回的按钮。
-  });
-
   /**
-   * 这一次开抽走到哪一步了：阶段、「什么时候算已开抽」、以及「停下 → 抽 → 揭晓 →
-   * 停一拍 → 弹卡片 → 收下 → 抹掉」这条顺序都在 `src/rollSession.ts`，这里只在
-   * 发射、球进格、收卡片三个时刻推它一把，再把揭晓和抹掉画出来。
+   * 收下中选之后回到能再打一发的状态：盘面不变，换的只是球。宿主在卡片收掉、
+   * 名字抹掉、锁解开之后才叫它；从不自动发射，下一发由用户再拉柱塞。
    */
-  const roll = createRollSession({
-    card,
-    // 中选由会话在盘面停下之后抽，从启用且不在冷却中的候选里等概率取（ADR-0010、ADR-0011）。
-    drawWinner: session.drawWinner,
-    // 揭晓：球停下的那一格高亮，名字浮在它上方。盘面由一直在跑的 rAF 下一帧重画。
-    onReveal: (winner) => {
-      revealed = { slotIndex: landedSlot, name: winner.name };
-    },
-    // 收下中选：高亮和名字一并抹掉，盘面回到匿名。
-    onErase: () => {
-      revealed = undefined;
-    },
-    // 收掉卡片就回到能再打一发的状态：盘面不变，换的只是球。
-    onDismiss: () => resetToReady(),
-  });
-
   function resetToReady(): void {
-    // 只把球退回柱塞上待发；名字已经在 `onErase` 里抹掉了。余韵要是还没播完
+    // 只把球退回柱塞上待发；名字已经在 `erase` 里抹掉了。余韵要是还没播完
     // （卡片弹得快、收得也快），就地掐掉，风车从当下的角度接着转，画面不跳。
     if (flight) finishFlight();
     power = 0;
@@ -597,19 +549,19 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   }
 
   function draw(): void {
-    const context = elements.board.getContext('2d');
+    const context = canvas.getContext('2d');
     if (!context) return;
     // 宽度完全由 CSS 决定（见 .pinball__board），这里只把像素缓冲对齐到设备像素比，
     // 再把坐标系缩放成盘面自己的像素——于是下面所有绘制都能直接用 board.ts 的数字。
-    const cssWidth = elements.board.clientWidth;
+    const cssWidth = canvas.clientWidth;
     if (cssWidth === 0) return;
     const ratio = canvasPixelRatio();
     const pixelWidth = Math.round(cssWidth * ratio);
     const pixelHeight = Math.round(((cssWidth * VIEW_HEIGHT) / BOARD.width) * ratio);
     // 改 width/height 会清空画布并重置上下文，尺寸没变就别动。
-    if (elements.board.width !== pixelWidth || elements.board.height !== pixelHeight) {
-      elements.board.width = pixelWidth;
-      elements.board.height = pixelHeight;
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
     }
     const scale = (cssWidth / BOARD.width) * ratio;
     // 上移 VIEW_TOP：画的时候照旧用盘面自己的坐标，只是把看不到的那一截移出画布。
@@ -658,8 +610,9 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
 
   /**
    * 球进格即盘面停下（ADR-0006 的「进格即定」）：记下是哪一格，好让揭晓知道名字
-   * 浮在哪儿，再通知开抽会话。落格只决定名字亮在哪儿，不决定谁中选——中选由
-   * 开抽会话此刻才抽，卡片也由它弹。同一发只报一次。
+   * 浮在哪儿，再经句柄报一声「盘面停下」。落格只决定名字亮在哪儿，不决定谁中选
+   * ——中选由宿主此刻才抽，卡片也由它弹；格子下标只有这里记着，不交给宿主。
+   * 同一发只报一次。
    *
    * 揭晓那一拍仍算正在抽，柱塞照旧拉不动，锁不会松一下；球在落格里的余韵照播，
    * 名字在它弹跳时就已经亮着了。
@@ -689,8 +642,9 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
       // 风车从挂载起就一直转，由真实时间驱动——用户挑得到自己想要的那个时机。
       windmillPhase += delta * WINDMILL_RADIANS_PER_MS;
       angles = anglesFromPhase(windmillPhase);
-      // 没在开抽就是待发或正拖着柱塞，两种情形球都坐在柱塞头上。
-      if (!isRollLocked(roll.state)) {
+      // 句柄上没锁就是待发或正拖着柱塞，两种情形球都坐在柱塞头上。揭晓那一拍和
+      // 卡片挂着时锁着，球留在落格里。
+      if (!roll.locked) {
         // 球坐在柱塞头上，柱塞压下去它跟着走。
         ballX = LANE_CENTER_X;
         ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - 2;
@@ -715,7 +669,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
    * 左右和上方仍旧照盘面算，「拖出界外取消」这条路没有丢。
    */
   function withinValidArea(event: PointerEvent, fullPullY: number): boolean {
-    const rect = elements.board.getBoundingClientRect();
+    const rect = canvas.getBoundingClientRect();
     const bottom = Math.max(rect.bottom + CANCEL_MARGIN_PX, fullPullY + CANCEL_MARGIN_PX);
     return (
       event.clientX >= rect.left - CANCEL_MARGIN_PX &&
@@ -729,7 +683,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
    * 作废这一发：柱塞弹回原位，球还坐在上面。
    *
    * 三条作废的路（拖回原位、拖出有效区域、系统抢走指针）都走这里，而这里不碰
-   * 开抽会话——拖柱塞根本没进过开抽，自然也没什么可退的。
+   * 开抽句柄——拖柱塞根本没进过开抽，自然也没什么可退的。
    */
   function cancelDrag(): void {
     drag = undefined;
@@ -737,7 +691,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   }
 
   function launch(): void {
-    // 发射这一刻才算开抽：球出去了就收不回来，盘面从此锁死（见 rollSession.ts）。
+    // 发射这一刻才算开抽：球出去了就收不回来，盘面从此锁死。受不受理由宿主说了算。
     if (!roll.begin()) return;
 
     // 力度整段行程都有效：最轻的一发也绕得过顶弧，不存在「打空」（见 board.ts）。
@@ -760,12 +714,12 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
 
   // 柱塞是指针交互：按下抓住、移动改力度、抬起发射。鼠标和触屏走同一条路。
   // 球在飞的时候整块盘面都不受理——一发就是一发。
-  elements.board.addEventListener(
+  canvas.addEventListener(
     'pointerdown',
     (event: PointerEvent) => {
       // 开抽期间（球在飞、揭晓那一拍、卡片挂着）整块盘面都不受理；已经拖着一根指头时，
       // 第二根指头按下去也不该抢走这一发。
-      if (drag || isRollLocked(roll.state)) return;
+      if (drag || roll.locked) return;
       event.preventDefault();
       drag = {
         pointerId: event.pointerId,
@@ -773,12 +727,12 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
         fullPullY: event.clientY + FULL_PULL_PX,
       };
       power = 0;
-      elements.board.setPointerCapture(event.pointerId);
+      canvas.setPointerCapture(event.pointerId);
     },
     listen,
   );
 
-  elements.board.addEventListener(
+  canvas.addEventListener(
     'pointermove',
     (event: PointerEvent) => {
       const current = drag;
@@ -794,7 +748,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     listen,
   );
 
-  elements.board.addEventListener(
+  canvas.addEventListener(
     'pointerup',
     (event: PointerEvent) => {
       const current = drag;
@@ -811,19 +765,30 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   );
 
   // 系统抢走指针（来电、手势返回）时按取消算，绝不糊里糊涂打出一发。
-  elements.board.addEventListener('pointercancel', cancelDrag, listen);
+  canvas.addEventListener('pointercancel', cancelDrag, listen);
 
   rafId = requestAnimationFrame((now) => {
     lastFrameAt = now;
     frame(now);
   });
 
-  // 拆卸：停掉动画帧、解绑所有监听、掐掉揭晓那一拍。风车的 rAF 一直在跑，不停的话
-  // 换页之后它还会一直转下去，一帧一帧地画一块已经不在文档里的画布；揭晓那一拍
-  // 不掐的话，球刚进格就换了页，卡片还会在下一页上弹出来。
-  return () => {
-    cancelAnimationFrame(rafId);
-    controller.abort();
-    roll.dispose();
+  return {
+    // 揭晓：中选由宿主在盘面停下之后抽（ADR-0010），弹球机只把球停下的那一格
+    // 高亮、名字浮在它上方。盘面由一直在跑的 rAF 下一帧重画。
+    reveal: (winner) => {
+      revealed = { slotIndex: landedSlot, name: winner.name };
+    },
+    // 收下中选：高亮和名字一并抹掉，盘面回到匿名。
+    erase: () => {
+      revealed = undefined;
+    },
+    reset: resetToReady,
+    // 不给焦点去向：弹球机整页没有可聚焦的操作（ADR-0006），卡片收起后焦点不动。
+    // 拆卸：停掉动画帧、解绑所有监听。风车的 rAF 一直在跑，不停的话换页之后它还会
+    // 一直转下去，一帧一帧地画一块已经不在文档里的画布。揭晓那一拍由宿主先掐掉。
+    teardown: () => {
+      cancelAnimationFrame(rafId);
+      controller.abort();
+    },
   };
 }

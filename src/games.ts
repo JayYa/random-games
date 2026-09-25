@@ -18,7 +18,7 @@ import type { RandomSource } from './rosterSession';
 import { resolveTheme, type Theme } from './themes';
 import type { Board } from './gamePageHost';
 import { createWheelBoard } from './games/wheel/ui';
-import { mountPinball } from './games/pinball/ui';
+import { createPinballBoard } from './games/pinball/ui';
 
 /**
  * 旧形式的挂载函数要的全部东西。玩法自己不取文件、不认得地址。
@@ -77,7 +77,7 @@ export type Game = MountedGame | BoardGame;
  */
 export const GAMES: readonly Game[] = [
   { slug: 'wheel', createBoard: createWheelBoard },
-  { slug: 'pinball', mount: mountPinball },
+  { slug: 'pinball', createBoard: createPinballBoard },
 ];
 
 /** 抽玩法时可以换掉的东西。 */
