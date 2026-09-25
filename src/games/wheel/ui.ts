@@ -13,6 +13,7 @@ import { canvasPixelRatio } from '../../pixelRatio';
 import { showRosterFailure } from '../../rosterFailure';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
 import { createRollSession, isRollLocked } from '../../rollSession';
+import { createRosterSession, type RosterSession } from '../../rosterSession';
 import type { Theme } from '../../themes';
 import { createWheelSession, type WheelSession } from './session';
 import { drawWheel, type Reveal } from './wheelCanvas';
@@ -36,7 +37,7 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
       <button class="wheel__spin" id="wheel-spin" type="button">转</button>
       ${resultCardMarkup(theme, CLOSE_LABEL)}
     `,
-    { block: 'wheel', shellId: 'wheel-shell' },
+    { block: 'wheel' },
   );
 
   const byId = createById(root);
@@ -49,11 +50,14 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
 
 export function mountWheel(root: HTMLElement, options: GameMountOptions): GameTeardown | void {
   const { theme } = options;
-  // 转盘的扇区数是它自己的常量（见 ./session.ts），与名单大小无关。
-  const session: WheelSession = createWheelSession({ csvText: options.csvText });
+  // 名单会话只用来给整页错误提示，以及交给开抽会话当「抽一个中选」。
+  const rosterSession: RosterSession = createRosterSession({ csvText: options.csvText });
 
   // 转不起来时不画转盘：空转盘看着像程序坏了，说不清到底是名单哪里出了问题。
-  if (showRosterFailure(root, theme, session)) return;
+  if (showRosterFailure(root, theme, rosterSession)) return;
+
+  // 转盘的扇区数是它自己的常量（见 ./session.ts），与名单大小无关。
+  const session: WheelSession = createWheelSession();
 
   const elements = buildDom(root, theme);
 
@@ -102,7 +106,8 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): GameTe
   const roll = createRollSession({
     card,
     onDismiss: () => {},
-    drawWinner: session.drawWinner,
+    // 中选由会话在盘面停下之后抽，从全部启用的候选里等概率取（ADR-0010）。
+    drawWinner: rosterSession.drawWinner,
     onReveal: (winner) => {
       reveal = { sector: stoppedSector, name: winner.name };
       render();

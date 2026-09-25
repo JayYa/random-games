@@ -105,7 +105,7 @@ function rosterFailureView(session: RosterFailureSource, theme: Theme): FailureV
 }
 
 /**
- * 名单摇不起来时替掉整个页面，并回答「还要不要接着画盘面」。
+ * 名单开不了抽时替掉整个页面，并回答「还要不要接着画盘面」。
  *
  * 每个玩法的挂载函数开头都问这一句：返回 `true` 表示页面已经换成错误提示了，
  * 直接 return；返回 `false` 表示这份名单是好的，可以往下画。

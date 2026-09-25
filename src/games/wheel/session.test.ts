@@ -3,38 +3,31 @@
  *
  * 解析、四种状态、抽一个中选都是玩法无关的，用例在 `src/rosterSession.test.ts`；
  * 盘面停下之后怎么揭晓、怎么弹卡片在 `src/rollSession.test.ts`。这里只钉转盘
- * 自己那几件事。
+ * 自己那几件事。转盘会话压根不认识名单，「扇区数与名单大小无关」从接口上就成立。
  */
 
 import { describe, expect, it } from 'vitest';
 import { TAU } from '../../angles';
 import { createWheelSession, SECTOR_COUNT } from './session';
 import { spinDelta } from './spinAnimation';
-import { roster, rosterNames, scriptedRandom, seededRandom, stagedRandom } from '../../testHelpers';
-
-/** 名单大小特意跨过 12 的两边：扇区数不该跟着它变。 */
-const ROSTER_SIZES = [1, 2, 3, 5, 12, 13, 40] as const;
+import { seededRandom, stagedRandom } from '../../testHelpers';
 
 describe('扇区数', () => {
-  it('恒为 12，与名单大小无关', () => {
+  it('恒为 12', () => {
     // 格数要是跟着候选数走，盘面的形状就把名单有多大泄露出去了（ADR-0010）。
     expect(SECTOR_COUNT).toBe(12);
-    for (const size of ROSTER_SIZES) {
-      const session = createWheelSession({ csvText: roster(size), random: seededRandom(size) });
-      expect(session.sectors.count).toBe(SECTOR_COUNT);
-    }
+    const session = createWheelSession({ random: seededRandom(1) });
+    expect(session.sectors.count).toBe(SECTOR_COUNT);
   });
 
-  it('不论名单多大，12 个扇区每一个都停得到', () => {
-    for (const size of ROSTER_SIZES) {
-      const random = stagedRandom();
-      const session = createWheelSession({ csvText: roster(size), random: random.random });
-      const stopped = Array.from({ length: SECTOR_COUNT }, (_, index) => {
-        random.stage((index + 0.5) / SECTOR_COUNT, 0.3);
-        return session.spin().sector;
-      });
-      expect(stopped).toEqual(Array.from({ length: SECTOR_COUNT }, (_, index) => index));
-    }
+  it('12 个扇区每一个都停得到', () => {
+    const random = stagedRandom();
+    const session = createWheelSession({ random: random.random });
+    const stopped = Array.from({ length: SECTOR_COUNT }, (_, index) => {
+      random.stage((index + 0.5) / SECTOR_COUNT, 0.3);
+      return session.spin().sector;
+    });
+    expect(stopped).toEqual(Array.from({ length: SECTOR_COUNT }, (_, index) => index));
   });
 });
 
@@ -48,7 +41,7 @@ describe('转一次', () => {
       [0.99, 11],
     ] as const) {
       const random = stagedRandom();
-      const session = createWheelSession({ csvText: roster(4), random: random.random });
+      const session = createWheelSession({ random: random.random });
       random.stage(sectorSeed, 0.3);
       expect(session.spin().sector).toBe(sector);
     }
@@ -56,7 +49,7 @@ describe('转一次', () => {
 
   it('随机数取到 1 的边界时不会越出最后一个扇区', () => {
     const random = stagedRandom();
-    const session = createWheelSession({ csvText: roster(3), random: random.random });
+    const session = createWheelSession({ random: random.random });
     random.stage(1, 0.3);
     const { sector, targetAngle } = session.spin();
     expect(sector).toBe(SECTOR_COUNT - 1);
@@ -68,7 +61,7 @@ describe('转一次', () => {
     for (const offsetSeed of [0, 0.25, 0.5, 0.75, 0.999999]) {
       it(`第 ${index + 1} 个扇区的目标角度压在该扇区上 (offset=${offsetSeed})`, () => {
         const random = stagedRandom();
-        const session = createWheelSession({ csvText: roster(5), random: random.random });
+        const session = createWheelSession({ random: random.random });
         random.stage((index + 0.5) / SECTOR_COUNT, offsetSeed);
         const { sector, targetAngle } = session.spin();
 
@@ -79,18 +72,6 @@ describe('转一次', () => {
       });
     }
   }
-});
-
-describe('抽一个中选', () => {
-  it('看的是名单里全部启用的候选，不受扇区数所限', () => {
-    // 40 个启用的候选多于 12 个扇区：每一个都得抽得到。
-    const count = 40;
-    let source: () => number = () => 0.5;
-    const session = createWheelSession({ csvText: roster(count), random: () => source() });
-    source = scriptedRandom(Array.from({ length: count }, (_, i) => (i + 0.5) / count));
-    const drawn = Array.from({ length: count }, () => session.drawWinner().name);
-    expect(drawn).toEqual(rosterNames(count));
-  });
 });
 
 /**
@@ -116,14 +97,12 @@ describe('指针底下就是先定的那个扇区', () => {
 
   it('几十个种子 × 多个起始角 × 遍历圈数，转停后压在指针底下的都是先定的扇区', () => {
     for (let seed = 1; seed <= 40; seed += 1) {
-      for (const size of [1, 3, 12, 40]) {
-        const session = createWheelSession({ csvText: roster(size), random: seededRandom(seed) });
-        const { sector, targetAngle } = session.spin();
-        for (const from of startAngles) {
-          for (const turns of turnsRange) {
-            const finalRotation = from + spinDelta(from, targetAngle, turns);
-            expect(session.sectors.sectorAt(finalRotation)).toBe(sector);
-          }
+      const session = createWheelSession({ random: seededRandom(seed) });
+      const { sector, targetAngle } = session.spin();
+      for (const from of startAngles) {
+        for (const turns of turnsRange) {
+          const finalRotation = from + spinDelta(from, targetAngle, turns);
+          expect(session.sectors.sectorAt(finalRotation)).toBe(sector);
         }
       }
     }
@@ -133,7 +112,7 @@ describe('指针底下就是先定的那个扇区', () => {
     for (let index = 0; index < SECTOR_COUNT; index += 1) {
       for (const offsetSeed of [0, 0.5, 0.999999]) {
         const random = stagedRandom();
-        const session = createWheelSession({ csvText: roster(5), random: random.random });
+        const session = createWheelSession({ random: random.random });
         random.stage((index + 0.5) / SECTOR_COUNT, offsetSeed);
         const { sector, targetAngle } = session.spin();
         expect(sector).toBe(index);

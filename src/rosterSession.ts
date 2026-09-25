@@ -12,6 +12,7 @@
  * 注入的 `random` 是这个模块唯一的不确定性来源。
  */
 
+import { randomIndex } from './randomIndex';
 import { parseRoster, type Candidate } from './roster';
 
 export type { Candidate };
@@ -26,12 +27,12 @@ export interface RosterSessionOptions {
 }
 
 /**
- * 名单的状态：三类「摇不起来」的毛病彼此可区分，渲染层照此给出不同的提示。
+ * 名单的状态：三类「开不了抽」的毛病彼此可区分，渲染层照此给出不同的提示。
  *
  * 「取不到文件」不在这里——那发生在会话之前，由渲染层的取数负责（ADR-0001）。
  */
 export type RosterStatus =
-  /** 至少有一个启用的候选，可以摇。 */
+  /** 至少有一个启用的候选，可以开抽。 */
   | 'ok'
   /** 某一行读不懂，`error` 里带原始行号。 */
   | 'parse-error'
@@ -85,9 +86,7 @@ export function createRosterSession(options: RosterSessionOptions): RosterSessio
     error,
     drawWinner: () => {
       if (enabledCount === 0) throw new Error('名单里没有启用的候选，抽不出中选');
-      // `Math.min` 给 `random()` 恰好吐出 1 的实现兜底，免得下标越界。
-      const index = Math.min(enabledCount - 1, Math.floor(random() * enabledCount));
-      return enabled[index]!;
+      return enabled[randomIndex(random, enabledCount)]!;
     },
   };
 }
