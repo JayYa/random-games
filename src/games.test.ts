@@ -58,9 +58,14 @@ describe('玩法清单', () => {
     expect(new Set(GAMES.map((game) => game.slug)).size).toBe(GAMES.length);
   });
 
-  it('每条记录都有挂载函数', () => {
+  // 过渡期两种形式并存（ADR-0012）：每条记录恰好带其中一种。
+  it('每条记录都有盘面工厂或挂载函数，恰好一种', () => {
     for (const game of GAMES) {
-      expect(typeof game.mount, `玩法 ${game.slug} 没有挂载函数`).toBe('function');
+      const forms = [
+        'createBoard' in game && typeof game.createBoard === 'function',
+        'mount' in game && typeof game.mount === 'function',
+      ].filter(Boolean);
+      expect(forms, `玩法 ${game.slug} 应当恰好带盘面工厂或挂载函数之一`).toHaveLength(1);
     }
   });
 });
