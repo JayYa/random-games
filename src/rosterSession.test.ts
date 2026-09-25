@@ -337,8 +337,8 @@ describe('最近中选冷却', () => {
     expect(sorted(drawableNames(roster(3), ['候选3', '候选1', '候选2']))).toEqual(['候选3']);
   });
 
-  it('冷却个数最多 7 个：更早的记录不再冷却', () => {
-    // 最近中选里有 9 条：只有最新的 7 条（候选3 到 候选9）在冷却。
+  it('冷却个数最多 7 个：更早的最近中选不再冷却', () => {
+    // 最近中选里有 9 个：只有最新的 7 个（候选3 到 候选9）在冷却。
     const recent = rosterNames(9);
     expect(sorted(drawableNames(roster(10), recent))).toEqual(sorted(['候选1', '候选2', '候选10']));
   });
@@ -349,14 +349,14 @@ describe('最近中选冷却', () => {
   });
 
   it('最近中选里的失效名字照旧占一格，不回溯补满', () => {
-    // 3 个启用，冷却 2 格：最新的两条是「候选2」和一个名单里已经没有的名字。
+    // 3 个启用，冷却 2 格：最新的两个是「候选2」和一个名单里已经没有的名字。
     // 失效的名字占掉一格，所以更早的候选1 不冷却。
     expect(sorted(drawableNames(roster(3), ['候选1', '候选2', '改了名的']))).toEqual(sorted(['候选1', '候选3']));
   });
 
   it('停用了的名字同样照旧占一格', () => {
     const csvText = csv('候选1,true', '候选2,true', '候选3,false', '候选4,true');
-    // 3 个启用，冷却 2 格：最新的两条是「候选2」和停用的「候选3」。
+    // 3 个启用，冷却 2 格：最新的两个是「候选2」和停用的「候选3」。
     expect(sorted(drawableNames(csvText, ['候选1', '候选2', '候选3']))).toEqual(sorted(['候选1', '候选4']));
   });
 
@@ -366,18 +366,12 @@ describe('最近中选冷却', () => {
     expect(sorted(drawableNames(csvText, ['兰州拉面', '沙县小吃']))).toEqual(['兰州拉面']);
   });
 
-  it('每抽一次都把中选按先后记下', () => {
-    const memory = fakeRecentMemory();
+  // 最近中选只留 7 个是存储适配的事，在 recentStorage.test.ts 里测；这里只看记下了谁。
+  it('每抽一次都把中选按先后记进最近中选', () => {
+    const memory = fakeRecentMemory(['候选1']);
     const session = makeSession({ csvText: roster(10), random: seededRandom(7), recentWinners: memory });
     const drawn = Array.from({ length: 3 }, () => session.drawWinner().name);
-    expect(memory.saved).toEqual(drawn);
-  });
-
-  it('记下的最近中选最多保留 7 条，留的是最新的', () => {
-    const memory = fakeRecentMemory();
-    const session = makeSession({ csvText: roster(10), random: seededRandom(11), recentWinners: memory });
-    const drawn = Array.from({ length: 20 }, () => session.drawWinner().name);
-    expect(memory.saved).toEqual(drawn.slice(-7));
+    expect(memory.names).toEqual(['候选1', ...drawn]);
   });
 
   it('候选够多时连抽 8 次都不重复', () => {

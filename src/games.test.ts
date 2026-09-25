@@ -100,13 +100,14 @@ describe('rollGame', () => {
 describe('rollGame 的最近玩法', () => {
   const SEEDS = Array.from({ length: 40 }, (_, i) => 20260925 + i);
 
-  it('抽完把这次的玩法记下，只留最近 1 次', () => {
+  // 最近玩法只留 1 个是存储适配的事，在 recentStorage.test.ts 里测；这里只看记下了谁。
+  it('每抽一次都把这次的玩法记进最近玩法', () => {
     const random = seededRandom(1);
     const recentGames = fakeRecentMemory();
     const first = rollGame(random, { recentGames });
-    expect(recentGames.saved).toEqual([first.slug]);
+    expect(recentGames.names).toEqual([first.slug]);
     const second = rollGame(random, { recentGames });
-    expect(recentGames.saved).toEqual([second.slug]);
+    expect(recentGames.names).toEqual([first.slug, second.slug]);
   });
 
   it('两种玩法时严格轮流', () => {
@@ -122,7 +123,7 @@ describe('rollGame 的最近玩法', () => {
     }
   });
 
-  it('没有记录时每种玩法都抽得到', () => {
+  it('没有最近玩法时每种玩法都抽得到', () => {
     const seen = new Set<string>();
     for (const seed of SEEDS) {
       seen.add(rollGame(seededRandom(seed), { recentGames: fakeRecentMemory() }).slug);

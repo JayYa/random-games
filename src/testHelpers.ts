@@ -71,25 +71,26 @@ export function rosterNames(count: number): string[] {
 }
 
 /**
- * 一份放在内存里的假记忆：名单会话的用例用它当最近中选。
+ * 一份放在内存里的假记忆：名单会话的用例用它当最近中选，抽玩法的用例用它当最近玩法。
  *
- * 与 `fakeResultCard` 同一性质——把浏览器存储换成可预测、可查问的替身。它不替
- * 会话截断、不替会话去重：写进来什么就原样留着什么，用例看到的就是会话记下的。
+ * 与 `fakeResultCard` 同一性质——把浏览器存储换成可预测、可查问的替身。它不按 N
+ * 截断（只留几个是存储适配的事，在那边测）、也不去重：预先放进去的和记下的一个不少，
+ * 用例才能预置任意长的最近中选，也才看得到被测的一方到底记下了什么。
  */
 export interface FakeRecentMemory extends RecentMemory {
-  /** 此刻记着的记录，按先后，最早的在前。 */
-  readonly saved: readonly string[];
+  /** 此刻记着的名字，按先后，最早的在前：预先放进去的在前，之后记下的依次跟上。 */
+  readonly names: readonly string[];
 }
 
 export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMemory {
-  let saved: readonly string[] = [...initial];
+  const names: string[] = [...initial];
   return {
-    get saved() {
-      return saved;
+    get names() {
+      return [...names];
     },
-    read: () => saved,
-    write(recent) {
-      saved = [...recent];
+    read: () => [...names],
+    remember(name) {
+      names.push(name);
     },
   };
 }
