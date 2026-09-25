@@ -9,6 +9,15 @@ import type { RecentMemory } from './cooldown';
 import type { Candidate } from './rosterSession';
 import type { ResultCard } from './resultCard';
 import type { Schedule } from './rollSession';
+import type { RosterStatus } from './rosterSession';
+import type { Theme } from './themes';
+import type {
+  Board,
+  GamePageView,
+  MountedBoard,
+  PageAdapter,
+  RollHandle,
+} from './gamePageHost';
 
 /**
  * mulberry32：一个确定但各不相同的伪随机源。种子不同数列就不同，同一个种子
@@ -192,6 +201,192 @@ export function fakeTimer(): FakeTimer {
     },
     get pendingCount() {
       return pending.length;
+    },
+  };
+}
+
+/** 假页面记下的一次名单错误页：画给哪个主题、名单是哪种毛病。 */
+export interface RecordedRosterFailure {
+  readonly theme: Theme;
+  readonly status: RosterStatus;
+  readonly error: string | undefined;
+  readonly disabledCount: number;
+}
+
+/**
+ * 一份记录调用的假页面适配器：玩法页宿主的用例用它当测试替身。
+ *
+ * 与 `fakeResultCard` 同一性质——把写 DOM 的那一层换成可预测、可查问的替身，
+ * 宿主的用例才能在 node 里跑。它记下被叫去画了什么，写玩法页之后交回的卡片是
+ * 一张 `fakeResultCard`，卡片上的按钮用 `pressClose()` 按。
+ *
+ * 给了 `log` 就把每一下往里记一行（`page …`），与 `fakeBoard` 共用同一份，
+ * 用例就看得到页面和盘面被叫到的先后。
+ */
+export interface FakeGamePage extends PageAdapter {
+  /** 画过的名单错误页，按先后。 */
+  readonly rosterFailures: readonly RecordedRosterFailure[];
+  /** 写过的玩法页，按先后。 */
+  readonly gamePages: readonly GamePageView[];
+  /** 接上行为的那张卡片；还没接过则为 undefined。 */
+  readonly card: FakeResultCard | undefined;
+  /** 接卡片时交给它的焦点去向。 */
+  readonly returnFocusTo: HTMLElement | undefined;
+  /**
+   * 按一下卡片上的关掉按钮。卡片没挂着时按不到——真按钮藏着的时候点不着，
+   * 所以这时什么都不发生。
+   */
+  pressClose(): void;
+}
+
+export function fakeGamePage(log?: string[]): FakeGamePage {
+  const rosterFailures: RecordedRosterFailure[] = [];
+  const gamePages: GamePageView[] = [];
+  let card: FakeResultCard | undefined;
+  let returnFocusTo: HTMLElement | undefined;
+  let onClose: (() => void) | undefined;
+
+  return {
+    get rosterFailures() {
+      return [...rosterFailures];
+    },
+    get gamePages() {
+      return [...gamePages];
+    },
+    get card() {
+      return card;
+    },
+    get returnFocusTo() {
+      return returnFocusTo;
+    },
+    showRosterFailure(_root, theme, roster) {
+      log?.push(`page roster-failure ${roster.status}`);
+      rosterFailures.push({
+        theme,
+        status: roster.status,
+        error: roster.error,
+        disabledCount: roster.disabledCount,
+      });
+    },
+    showGamePage(_root, view) {
+      log?.push('page game');
+      gamePages.push(view);
+      return (options) => {
+        log?.push('page card');
+        card = fakeResultCard();
+        returnFocusTo = options.returnFocusTo;
+        onClose = options.onClose;
+        return card;
+      };
+    },
+    pressClose() {
+      if (!card?.isOpen) return;
+      onClose?.();
+    },
+  };
+}
+
+/** 假盘面可以不给的那几项：用例靠它验证宿主在盘面不给时照常工作。 */
+export interface FakeBoardOptions {
+  /** 给不给「收下之后复位」，默认给。 */
+  readonly reset?: boolean;
+  /** 给不给自己的拆卸，默认给。 */
+  readonly teardown?: boolean;
+  /** 卡片收起来之后焦点交给谁，默认不给。 */
+  readonly returnFocusTo?: HTMLElement;
+  /** 与 `fakeGamePage` 共用的调用记录，每一下记一行（`board …`）。 */
+  readonly log?: string[];
+}
+
+/**
+ * 一个记录调用的假盘面：玩法页宿主的用例用它当测试替身。
+ *
+ * 与 `fakeResultCard` 同一性质——不画画布、不跑动画，只记下被叫到了什么。
+ * 盘面上此刻亮着哪个名字看 `revealed`；挂上之后拿到的开抽句柄在 `handle` 上，
+ * 用例拿它开抽、报停，就像真盘面在按「转」、转完报一声。
+ */
+export interface FakeBoard extends Board {
+  /** 挂上之后拿到的开抽句柄；还没挂上则为 undefined。 */
+  readonly handle: RollHandle | undefined;
+  /** 被挂上过几次。 */
+  readonly mountCount: number;
+  /** 盘面上此刻亮着的中选；没在揭晓时为 undefined，盘面是匿名的。 */
+  readonly revealed: Candidate | undefined;
+  /** 被叫去揭晓过的中选，按先后。 */
+  readonly reveals: readonly Candidate[];
+  /** 被叫去抹掉过几次。 */
+  readonly eraseCount: number;
+  /** 被叫去复位过几次。 */
+  readonly resetCount: number;
+  /** 自己的拆卸被调过几次。 */
+  readonly teardownCount: number;
+}
+
+export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
+  const { reset = true, teardown = true, returnFocusTo, log } = options;
+  let handle: RollHandle | undefined;
+  let mountCount = 0;
+  let revealed: Candidate | undefined;
+  const reveals: Candidate[] = [];
+  let eraseCount = 0;
+  let resetCount = 0;
+  let teardownCount = 0;
+
+  return {
+    html: '<canvas class="fake__board" id="fake-board"></canvas>',
+    block: 'fake',
+    closeLabel: '再抽一次',
+    get handle() {
+      return handle;
+    },
+    get mountCount() {
+      return mountCount;
+    },
+    get revealed() {
+      return revealed;
+    },
+    get reveals() {
+      return [...reveals];
+    },
+    get eraseCount() {
+      return eraseCount;
+    },
+    get resetCount() {
+      return resetCount;
+    },
+    get teardownCount() {
+      return teardownCount;
+    },
+    mount(_root, roll) {
+      log?.push('board mount');
+      mountCount += 1;
+      handle = roll;
+      const mounted: MountedBoard = {
+        reveal(winner) {
+          log?.push(`board reveal ${winner.name}`);
+          revealed = winner;
+          reveals.push(winner);
+        },
+        erase() {
+          log?.push('board erase');
+          revealed = undefined;
+          eraseCount += 1;
+        },
+        returnFocusTo,
+        ...(reset && {
+          reset() {
+            log?.push('board reset');
+            resetCount += 1;
+          },
+        }),
+        ...(teardown && {
+          teardown() {
+            log?.push('board teardown');
+            teardownCount += 1;
+          },
+        }),
+      };
+      return mounted;
     },
   };
 }
