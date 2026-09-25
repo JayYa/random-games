@@ -18,6 +18,14 @@ import { randomIndex } from './randomIndex';
 export const RECENT_WINNERS_COUNT = 7;
 
 /**
+ * 最近玩法记几次：上一次抽出的玩法这一次不出。只有两种玩法时就是轮流。
+ *
+ * 放在这里而不是 `games.ts`：那边引着各玩法的挂载函数，存储适配要是从那边拿
+ * 这个数，就把整套玩法都拖进来了。
+ */
+export const RECENT_GAMES_COUNT = 1;
+
+/**
  * 一份最近记录的记忆：读出来、整份写回去。
  *
  * 只管存，不管留几条——留几条是冷却规则的事（它知道 N）。记忆读不出来时给空记录，

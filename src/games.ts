@@ -12,8 +12,7 @@
  * 才不会一边改了格式另一边还在按老样子解析。
  */
 
-import type { RecentMemory } from './cooldown';
-import { randomIndex } from './randomIndex';
+import { NO_RECENT_MEMORY, RECENT_GAMES_COUNT, drawWithCooldown, type RecentMemory } from './cooldown';
 import type { RandomSource } from './rosterSession';
 import { resolveTheme, type Theme } from './themes';
 import { mountWheel } from './games/wheel/ui';
@@ -50,27 +49,42 @@ export interface Game {
 }
 
 /**
- * 全部玩法。等概率抽，没有默认玩法、没有先后之分——顺序只影响 `rollGame` 里
- * 哪个下标对应哪条记录，不影响任何一个玩法出现的概率。
+ * 全部玩法。除了避开最近玩法之外等概率抽，没有默认玩法、没有先后之分——顺序只
+ * 影响 `rollGame` 里哪个下标对应哪条记录，不影响任何一个玩法出现的概率。
  */
 export const GAMES: readonly Game[] = [
   { slug: 'wheel', mount: mountWheel },
   { slug: 'pinball', mount: mountPinball },
 ];
 
-/** 抽玩法时可以换掉的东西。生产代码一样都不用传。 */
+/** 抽玩法时可以换掉的东西。 */
 export interface RollGameOptions {
+  /**
+   * 最近玩法（ADR-0011）：全站一份、不分主题。上一次抽出的玩法这一次不出，抽完
+   * 记下这一次。不传就是没有记忆，在全部玩法里等概率。
+   */
+  readonly recentGames?: RecentMemory;
   /** 在哪份清单里抽，默认是全部玩法。用例靠它临时造一份三种玩法的清单。 */
   readonly games?: readonly Game[];
 }
 
 /**
- * 从清单里等概率抽一个玩法。
+ * 从清单里抽一个玩法：按冷却规则避开最近玩法，其余等概率。
  *
- * 随机源可注入，测试才能钉住"抽出了哪一条"。
+ * 只有真正替人抽玩法的地方才该调它——直接打开带玩法的地址不算抽，不能记进
+ * 最近玩法。随机源可注入，测试才能钉住"抽出了哪一条"。
  */
-export function rollGame(random: RandomSource, { games = GAMES }: RollGameOptions = {}): Game {
-  return games[randomIndex(random, games.length)]!;
+export function rollGame(
+  random: RandomSource,
+  { recentGames = NO_RECENT_MEMORY, games = GAMES }: RollGameOptions = {},
+): Game {
+  return drawWithCooldown({
+    pool: games,
+    keyOf: (game) => game.slug,
+    memory: recentGames,
+    count: RECENT_GAMES_COUNT,
+    random,
+  });
 }
 
 /** 一个玩法页的地址。 */
