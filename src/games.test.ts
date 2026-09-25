@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAMES, gameHash, resolveRoute, rollGame } from './games';
+import { GAMES, gameHash, resolveRoute, rollGame, type Game } from './games';
 import { THEMES } from './themes';
 import { scriptedRandom, seededRandom } from './testHelpers';
 
@@ -87,4 +87,17 @@ describe('rollGame', () => {
     }
     expect(seen.size).toBe(GAMES.length);
   });
+
+  it('注入的清单替掉全部玩法：只在那份清单里抽', () => {
+    const games = threeGames();
+    games.forEach((game, index) => {
+      const random = scriptedRandom([(index + 0.5) / games.length]);
+      expect(rollGame(random, { games })).toBe(game);
+    });
+  });
 });
+
+/** 临时造的三种玩法：现在只有两种，冷却在多于两种时的样子只能靠它看。 */
+function threeGames(): Game[] {
+  return ['a', 'b', 'c'].map((slug) => ({ slug, mount: () => {} }));
+}

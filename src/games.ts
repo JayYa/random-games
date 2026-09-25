@@ -13,6 +13,7 @@
  */
 
 import type { RecentMemory } from './cooldown';
+import { randomIndex } from './randomIndex';
 import type { RandomSource } from './rosterSession';
 import { resolveTheme, type Theme } from './themes';
 import { mountWheel } from './games/wheel/ui';
@@ -57,15 +58,19 @@ export const GAMES: readonly Game[] = [
   { slug: 'pinball', mount: mountPinball },
 ];
 
+/** 抽玩法时可以换掉的东西。生产代码一样都不用传。 */
+export interface RollGameOptions {
+  /** 在哪份清单里抽，默认是全部玩法。用例靠它临时造一份三种玩法的清单。 */
+  readonly games?: readonly Game[];
+}
+
 /**
  * 从清单里等概率抽一个玩法。
  *
- * 随机源可注入，测试才能钉住"抽出了哪一条"。`Math.min` 是给 `random()` 恰好
- * 吐出 1 的实现兜底：越界的下标会让这里返回 `undefined`。
+ * 随机源可注入，测试才能钉住"抽出了哪一条"。
  */
-export function rollGame(random: RandomSource): Game {
-  const index = Math.min(GAMES.length - 1, Math.floor(random() * GAMES.length));
-  return GAMES[index]!;
+export function rollGame(random: RandomSource, { games = GAMES }: RollGameOptions = {}): Game {
+  return games[randomIndex(random, games.length)]!;
 }
 
 /** 一个玩法页的地址。 */
