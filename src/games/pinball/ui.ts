@@ -24,7 +24,7 @@ import { canvasPixelRatio } from '../../pixelRatio';
 import { createRosterSession, type RosterSession } from '../../rosterSession';
 import { PALETTE } from '../../palette';
 import { createResultCard, resultCardMarkup } from '../../resultCard';
-import { createRollSession } from '../../rollSession';
+import { createRollSession, isRollLocked } from '../../rollSession';
 import { showRosterFailure } from '../../rosterFailure';
 import type { Theme } from '../../themes';
 import {
@@ -690,7 +690,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
       windmillPhase += delta * WINDMILL_RADIANS_PER_MS;
       angles = anglesFromPhase(windmillPhase);
       // 没在开抽就是待发或正拖着柱塞，两种情形球都坐在柱塞头上。
-      if (roll.state.phase === 'idle') {
+      if (!isRollLocked(roll.state)) {
         // 球坐在柱塞头上，柱塞压下去它跟着走。
         ballX = LANE_CENTER_X;
         ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - 2;
@@ -765,7 +765,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
     (event: PointerEvent) => {
       // 开抽期间（球在飞、揭晓那一拍、卡片挂着）整块盘面都不受理；已经拖着一根指头时，
       // 第二根指头按下去也不该抢走这一发。
-      if (drag || roll.state.phase !== 'idle') return;
+      if (drag || isRollLocked(roll.state)) return;
       event.preventDefault();
       drag = {
         pointerId: event.pointerId,
