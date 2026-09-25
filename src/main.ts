@@ -1,5 +1,7 @@
 import './style.css';
 import { showRosterLoading } from './gamePage';
+import { mountGamePage } from './gamePageHost';
+import { browserPage } from './browserPage';
 import { showRosterLoadFailure } from './rosterFailure';
 import { fetchRosterCsv } from './loadRoster';
 import { renderThemePicker } from './themePicker';
@@ -115,11 +117,22 @@ function render(): void {
   //
   // 三类错误——取不到文件、某行读不懂、没有一个启用的候选——都落在页面上，
   // 而且共用同一套版式（`rosterFailure.ts`）：取不到文件在这里呈现，
-  // 另外两类在玩法的挂载函数里呈现。
+  // 另外两类由玩法页宿主呈现（还没改成盘面的玩法仍在自己的挂载函数里）。
   fetchRosterCsv(theme.rosterFile).then(
     (csvText) => {
       if (!isCurrent()) return;
       const recentWinners = recentWinnersMemory(browserStorage(), theme.slug);
+      // 只交盘面的玩法由宿主接名单、开抽与结果卡片（ADR-0012）；旧形式照旧自己挂。
+      if ('createBoard' in game) {
+        teardown = mountGamePage(root, {
+          theme,
+          csvText,
+          recentWinners,
+          board: game.createBoard(),
+          page: browserPage,
+        });
+        return;
+      }
       const disposer = game.mount(root, { csvText, theme, recentWinners });
       teardown = typeof disposer === 'function' ? disposer : undefined;
     },
