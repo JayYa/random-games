@@ -4,9 +4,16 @@ import { showRosterLoadFailure } from './rosterFailure';
 import { fetchRosterCsv } from './loadRoster';
 import { renderThemePicker } from './themePicker';
 import { createRenderGuard } from './renderGuard';
-import { SITE_TITLE } from './themes';
+import { SITE_TITLE, THEME_PICKER_HASH } from './themes';
 import { gameHash, resolveRoute, rollGame, type GameTeardown } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
+import {
+  entryState,
+  isPlainClick,
+  pickerReturn,
+  readEntryState,
+  shouldRewriteToPicker,
+} from './backToPicker';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('缺少 #app 挂载点');
@@ -19,8 +26,8 @@ const root: HTMLDivElement = app;
  * 地址分三档（解析在 `games.ts` 的 `resolveRoute`）：
  * `#/<主题>/<玩法>` 直接进那一页；`#/<主题>` 是稳定入口，进来先抽一次玩法，
  * 再把抽到的写进地址（ADR-0007）；其余一切（空 hash、`#/`、不认识的 slug、
- * 多余的路径段）回落到选主题页——站点不记住上次选的主题（ADR-0005），
- * 根地址永远落在首页。
+ * 多余的路径段）回落到选主题页，地址栏也跟着改成 `#/`——站点不记住上次选的
+ * 主题（ADR-0005），根地址永远落在首页。
  */
 
 /**
@@ -35,6 +42,12 @@ const guard = createRenderGuard();
  * 还没到点的计时器）要在这里收拾。
  */
 let teardown: GameTeardown | undefined;
+
+/**
+ * 上一次画的是不是选主题页。新压进来的玩法页历史靠它记下「上一页是不是首页」，
+ * 页头的「换个主题」据此决定后退还是原地换（`backToPicker.ts`）。
+ */
+let lastPageWasPicker = false;
 
 /**
  * 这台浏览器的 localStorage，存最近中选和最近玩法用（ADR-0011）。
@@ -57,11 +70,23 @@ function render(): void {
   teardown = undefined;
 
   const route = resolveRoute(window.location.hash);
+  const cameFromPicker = lastPageWasPicker;
+  lastPageWasPicker = !route;
+
   if (!route) {
+    if (shouldRewriteToPicker(window.location.hash)) {
+      history.replaceState(null, '', THEME_PICKER_HASH);
+    }
     document.title = SITE_TITLE;
     // 选主题页不发任何请求：三个按钮不该等任何网络往返。
     renderThemePicker(root);
     return;
+  }
+
+  // 新压进来的这条历史还没记过上一页是谁，现在记下。记过的不改：前进后退回到
+  // 一条老历史时，上一次画的是哪一页和它在历史里挨着谁无关。
+  if (!readEntryState(history.state)) {
+    history.replaceState(entryState(cameFromPicker), '');
   }
 
   const { theme } = route;
@@ -75,7 +100,8 @@ function render(): void {
     // 只有这里真正替人抽玩法，所以只有这里带上最近玩法（ADR-0011）：上一次抽出的
     // 这一次不出。直接打开带玩法的地址不走这里，也就不会被记下。
     const recentGames = recentGamesMemory(browserStorage());
-    history.replaceState(null, '', gameHash(theme, rollGame(Math.random, { recentGames })));
+    // 换地址时带上刚记下的那一条：抽玩法不改「上一页是不是首页」。
+    history.replaceState(history.state, '', gameHash(theme, rollGame(Math.random, { recentGames })));
     render();
     return;
   }
@@ -106,4 +132,18 @@ function render(): void {
 
 // 切换 hash 时整页重建：盘面、动画、监听都随着 DOM 一起换掉，不留上一页的残余。
 window.addEventListener('hashchange', render);
+
+// 页头的「换个主题」：普通左键单击改成后退，或者在直接落进来的页上原地换成首页
+//（ADR-0007）。挂在 `#app` 上而不是链接上：整页重建时链接换了，`#app` 不换。
+root.addEventListener('click', (event) => {
+  if (!(event.target instanceof Element)) return;
+  if (!event.target.closest('[data-to-picker]') || !isPlainClick(event)) return;
+  event.preventDefault();
+  if (pickerReturn(history.state) === 'back') {
+    history.back();
+  } else {
+    location.replace(THEME_PICKER_HASH);
+  }
+});
+
 render();

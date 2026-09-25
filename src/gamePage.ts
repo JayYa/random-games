@@ -26,7 +26,9 @@ export interface GamePageOptions {
  * 东西——标题让人知道自己在哪一页上，入口让从别人的链接落进来的人知道还有别的主题，
  * 也让一个坏掉的主题困不住人。
  *
- * 入口是真链接不是按钮：能中键新开、能长按看菜单、能看到目标地址。
+ * 入口是真链接不是按钮：能中键新开、能长按看菜单、能看到目标地址。但普通的左键单击
+ * 由路由层接走，改成后退（`data-to-picker`，见 `backToPicker.ts` 与 ADR-0007）——
+ * 照链接走会在历史上再压一页首页，后退键又把人送回这一页。
  * 它和标题同占一行（见 style.css 的 .page__header）：盘面的高度是这一页最金贵的
  * 东西，多一个入口不该让盘面矮一截。
  */
@@ -35,7 +37,7 @@ export function gamePage(theme: Theme, body: string, options: GamePageOptions = 
   return `
     <main class="page${block}">
       <header class="page__header">
-        <a class="page__home" href="${THEME_PICKER_HASH}">← 换个主题</a>
+        <a class="page__home" data-to-picker href="${THEME_PICKER_HASH}">← 换个主题</a>
         <h1 class="page__title">${escapeHtml(theme.title)}</h1>
       </header>
       ${body}
