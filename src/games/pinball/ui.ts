@@ -490,7 +490,10 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
   const { theme } = options;
   // 弹球机只用名单会话的状态（给整页错误提示）与「抽一个中选」（给开抽会话）。
   // 落格数是盘面自己的常量（见 ./board.ts），与名单大小无关。
-  const session: RosterSession = createRosterSession({ csvText: options.csvText });
+  const session: RosterSession = createRosterSession({
+    csvText: options.csvText,
+    recentWinners: options.recentWinners,
+  });
 
   // 开不了抽时不画盘面：一个空盘面看着像程序坏了，说不清是名单哪里出了问题。
   if (showRosterFailure(root, theme, session)) return;
@@ -548,7 +551,7 @@ export function mountPinball(root: HTMLElement, options: GameMountOptions): (() 
    */
   const roll = createRollSession({
     card,
-    // 中选由会话在盘面停下之后抽，从全部启用的候选里等概率取（ADR-0010）。
+    // 中选由会话在盘面停下之后抽，从启用且不在冷却中的候选里等概率取（ADR-0010、ADR-0011）。
     drawWinner: session.drawWinner,
     // 揭晓：球停下的那一格高亮，名字浮在它上方。盘面由一直在跑的 rAF 下一帧重画。
     onReveal: (winner) => {
