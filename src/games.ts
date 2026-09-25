@@ -12,6 +12,7 @@
  * 才不会一边改了格式另一边还在按老样子解析。
  */
 
+import type { RecentMemory } from './cooldown';
 import type { RandomSource } from './rosterSession';
 import { resolveTheme, type Theme } from './themes';
 import { mountWheel } from './games/wheel/ui';
@@ -23,6 +24,11 @@ export interface GameMountOptions {
   readonly csvText: string;
   /** 当前主题：标题和错误提示里的文件名都从这里来。 */
   readonly theme: Theme;
+  /**
+   * 当前主题的最近中选（ADR-0011），建名单会话时交给它。存在哪里是路由层的事，
+   * 玩法不碰浏览器存储；不论用哪种玩法摇，同一个主题拿到的是同一份。
+   */
+  readonly recentWinners: RecentMemory;
 }
 
 /**

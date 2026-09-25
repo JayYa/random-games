@@ -51,7 +51,10 @@ function buildDom(root: HTMLElement, theme: Theme): WheelElements {
 export function mountWheel(root: HTMLElement, options: GameMountOptions): GameTeardown | void {
   const { theme } = options;
   // 名单会话只用来给整页错误提示，以及交给开抽会话当「抽一个中选」。
-  const rosterSession: RosterSession = createRosterSession({ csvText: options.csvText });
+  const rosterSession: RosterSession = createRosterSession({
+    csvText: options.csvText,
+    recentWinners: options.recentWinners,
+  });
 
   // 转不起来时不画转盘：空转盘看着像程序坏了，说不清到底是名单哪里出了问题。
   if (showRosterFailure(root, theme, rosterSession)) return;
@@ -106,7 +109,7 @@ export function mountWheel(root: HTMLElement, options: GameMountOptions): GameTe
   const roll = createRollSession({
     card,
     onDismiss: () => {},
-    // 中选由会话在盘面停下之后抽，从全部启用的候选里等概率取（ADR-0010）。
+    // 中选由会话在盘面停下之后抽，从启用且不在冷却中的候选里等概率取（ADR-0010、ADR-0011）。
     drawWinner: rosterSession.drawWinner,
     onReveal: (winner) => {
       reveal = { sector: stoppedSector, name: winner.name };

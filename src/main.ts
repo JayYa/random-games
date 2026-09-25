@@ -6,6 +6,7 @@ import { renderThemePicker } from './themePicker';
 import { createRenderGuard } from './renderGuard';
 import { SITE_TITLE } from './themes';
 import { gameHash, resolveRoute, rollGame, type GameTeardown } from './games';
+import { recentWinnersMemory, type RecentStorage } from './recentStorage';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('缺少 #app 挂载点');
@@ -34,6 +35,20 @@ const guard = createRenderGuard();
  * 还没到点的计时器）要在这里收拾。
  */
 let teardown: GameTeardown | undefined;
+
+/**
+ * 这台浏览器的 localStorage，存最近中选用（ADR-0011）。
+ *
+ * 禁用存储时连取 `window.localStorage` 这一下都会抛错，所以包一层：拿不到就是
+ * `undefined`，存储适配把它当成没有记忆，照常能抽。
+ */
+function browserStorage(): RecentStorage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
 
 function render(): void {
   const isCurrent = guard.begin();
@@ -74,7 +89,8 @@ function render(): void {
   fetchRosterCsv(theme.rosterFile).then(
     (csvText) => {
       if (!isCurrent()) return;
-      const disposer = game.mount(root, { csvText, theme });
+      const recentWinners = recentWinnersMemory(browserStorage(), theme.slug);
+      const disposer = game.mount(root, { csvText, theme, recentWinners });
       teardown = typeof disposer === 'function' ? disposer : undefined;
     },
     (cause: unknown) => {
