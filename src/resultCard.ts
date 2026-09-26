@@ -19,7 +19,7 @@ import type { Candidate } from './rosterSession';
  * 结果卡片的 HTML。放进玩法页的 body 里，再交给 `createResultCard` 接上行为。
  *
  * @param closeLabel 关掉卡片那个按钮上的字。它说什么就得真的做什么，
- *   所以文案由玩法给：转盘写「再来一次」，弹球机写「再打一发」，按下去就真的回到能再来的状态。
+ *   所以文案由盘面给：转盘写「再来一次」，弹球机写「再打一发」，按下去就真的回到能再来的状态。
  */
 export function resultCardMarkup(closeLabel: string): string {
   return `

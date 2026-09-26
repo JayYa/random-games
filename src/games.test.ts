@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GAMES, gameHash, resolveRoute, rollGame, type Game } from './games';
 import { THEMES } from './themes';
-import { fakeRecentMemory, scriptedRandom, seededRandom } from './testHelpers';
+import { fakeBoard, fakeRecentMemory, scriptedRandom, seededRandom } from './testHelpers';
 
 describe('resolveRoute', () => {
   it('把每个主题加玩法的地址解析成那两条记录', () => {
@@ -58,9 +58,14 @@ describe('玩法清单', () => {
     expect(new Set(GAMES.map((game) => game.slug)).size).toBe(GAMES.length);
   });
 
-  it('每条记录都有挂载函数', () => {
+  // 宿主拿盘面交出的这几样写页面、再调它的 mount：少一样，这个玩法页就是坏的。
+  it('每条记录都造得出盘面：HTML、块名、按钮上的字都不空，带着挂载函数', () => {
     for (const game of GAMES) {
-      expect(typeof game.mount, `玩法 ${game.slug} 没有挂载函数`).toBe('function');
+      const board = game.createBoard();
+      expect(board.html.trim(), game.slug).not.toBe('');
+      expect(board.block, game.slug).not.toBe('');
+      expect(board.closeLabel, game.slug).not.toBe('');
+      expect(board.mount, game.slug).toBeTypeOf('function');
     }
   });
 });
@@ -144,5 +149,5 @@ describe('rollGame 的最近玩法', () => {
 
 /** 临时造的三种玩法：现在只有两种，冷却在多于两种时的样子只能靠它看。 */
 function threeGames(): Game[] {
-  return ['a', 'b', 'c'].map((slug) => ({ slug, mount: () => {} }));
+  return ['a', 'b', 'c'].map((slug) => ({ slug, createBoard: () => fakeBoard() }));
 }

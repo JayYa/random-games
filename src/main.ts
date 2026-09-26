@@ -1,11 +1,13 @@
 import './style.css';
 import { showRosterLoading } from './gamePage';
+import { mountGamePage } from './gamePageHost';
+import { browserPage } from './browserPage';
 import { showRosterLoadFailure } from './rosterFailure';
 import { fetchRosterCsv } from './loadRoster';
 import { renderThemePicker } from './themePicker';
 import { createRenderGuard } from './renderGuard';
 import { SITE_TITLE, THEME_PICKER_HASH } from './themes';
-import { gameHash, resolveRoute, rollGame, type GameTeardown } from './games';
+import { gameHash, resolveRoute, rollGame } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
 import {
   entryState,
@@ -37,11 +39,11 @@ const root: HTMLDivElement = app;
 const guard = createRenderGuard();
 
 /**
- * 上一页留下的拆卸函数。换页时整块 DOM 连同挂在它上面的监听一起被替换掉，
- * 只有活过 DOM 的东西（挂在 `window` 上的监听、还在跑的动画帧、揭晓那一拍
- * 还没到点的计时器）要在这里收拾。
+ * 上一页玩法页由玩法页宿主交回的拆卸函数。换页时整块 DOM 连同挂在它上面的监听
+ * 一起被替换掉，只有活过 DOM 的东西（揭晓那一拍还没到点的计时器、盘面挂在
+ * `window` 上的监听、还在跑的动画帧）要在这里收拾——怎么收拾、按什么顺序由宿主定。
  */
-let teardown: GameTeardown | undefined;
+let teardown: (() => void) | undefined;
 
 /**
  * 上一次画的是不是选主题页。新压进来的玩法页历史靠它记下「上一页是不是首页」，
@@ -111,17 +113,23 @@ function render(): void {
   document.title = theme.title;
   showRosterLoading(root, theme);
 
-  // 取文件的是路由层，玩法只拿到文本（ADR-0001）。进玩法页时才取，一次只取一个主题的名单。
+  // 取文件的是路由层，宿主只拿到文本（ADR-0001）。进玩法页时才取，一次只取一个主题的名单。
   //
   // 三类错误——取不到文件、某行读不懂、没有一个启用的候选——都落在页面上，
   // 而且共用同一套版式（`rosterFailure.ts`）：取不到文件在这里呈现，
-  // 另外两类在玩法的挂载函数里呈现。
+  // 另外两类由玩法页宿主呈现。
   fetchRosterCsv(theme.rosterFile).then(
     (csvText) => {
       if (!isCurrent()) return;
-      const recentWinners = recentWinnersMemory(browserStorage(), theme.slug);
-      const disposer = game.mount(root, { csvText, theme, recentWinners });
-      teardown = typeof disposer === 'function' ? disposer : undefined;
+      // 名单、开抽与结果卡片由玩法页宿主接，玩法只交盘面（ADR-0012）。最近中选
+      // 存在哪里是路由层的事，宿主拿去建名单会话，盘面碰不到它（ADR-0011）。
+      teardown = mountGamePage(root, {
+        theme,
+        csvText,
+        recentWinners: recentWinnersMemory(browserStorage(), theme.slug),
+        board: game.createBoard(),
+        page: browserPage,
+      });
     },
     (cause: unknown) => {
       if (!isCurrent()) return;
