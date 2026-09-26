@@ -24,7 +24,9 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `pnpm build && pnpm preview --port ${PORT} --strictPort`,
+    // 常驻的 preview 直接用 node 起：隔着 pnpm 起的话，测试跑完 Linux 上的 vite
+    // 进程收不到结束信号，Playwright 一直等它退出，CI 就挂在那里。
+    command: `pnpm build && node node_modules/vite/bin/vite.js preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}/random-games/`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
