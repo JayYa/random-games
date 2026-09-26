@@ -8,7 +8,7 @@
  * 排序、跳过判定全在这里，外面那层 Vite 插件薄到不值得测。
  */
 
-import type { Theme } from './themes';
+import type { Theme } from './themes.ts';
 
 /** 一份被跳过的名单文件，以及跳过它的原因。 */
 export interface SkippedRoster {

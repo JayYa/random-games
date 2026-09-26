@@ -7,7 +7,7 @@
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
-import type { RosterFile } from './collectThemes';
+import type { RosterFile } from './collectThemes.ts';
 
 /**
  * 读出 `publicDir` 下的全部名单文件，不做任何判断——合不合规是 `collectThemes` 的事。
