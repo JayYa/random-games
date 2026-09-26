@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
@@ -16,6 +17,7 @@
     "@playwright/test": "1.63.0",
     "@types/matter-js": "0.20.2",
     "@types/node": "26.6.2",
+    "oxlint": "1.85.0",
     "typescript": "7.0.2",
     "vite": "8.3.0",
     "vitest": "5.0.1"
