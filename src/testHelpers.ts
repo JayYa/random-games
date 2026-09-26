@@ -124,10 +124,10 @@ export interface FakeResultCard extends ResultCard {
   /** 真的收起来过几次；本来就没开的那几次不计。 */
   readonly hideCount: number;
   /**
-   * 最近一次真的收起来时收到的焦点去向；没给、或者从没真的收起来过则为 undefined。
+   * 每次真的收起来时收到的焦点去向，按先后；盘面不给焦点去向时那一项是 undefined。
    * 本来就没开的那几次不计：真卡片那时也不挪焦点。
    */
-  readonly returnedFocusTo: HTMLElement | undefined;
+  readonly focusReturns: readonly (HTMLElement | undefined)[];
 }
 
 function fakeResultCard(): FakeResultCard {
@@ -135,7 +135,7 @@ function fakeResultCard(): FakeResultCard {
   let shownWinner: Candidate | undefined;
   let showCount = 0;
   let hideCount = 0;
-  let returnedFocusTo: HTMLElement | undefined;
+  const focusReturns: (HTMLElement | undefined)[] = [];
 
   return {
     get isOpen() {
@@ -150,20 +150,20 @@ function fakeResultCard(): FakeResultCard {
     get hideCount() {
       return hideCount;
     },
-    get returnedFocusTo() {
-      return returnedFocusTo;
+    get focusReturns() {
+      return [...focusReturns];
     },
     show(winner) {
       isOpen = true;
       shownWinner = winner;
       showCount += 1;
     },
-    hide(focusTo) {
+    hide(focusTo: HTMLElement | undefined) {
       // 与真卡片一致：本来就没开就什么都不做。
       if (!isOpen) return;
       isOpen = false;
       hideCount += 1;
-      returnedFocusTo = focusTo;
+      focusReturns.push(focusTo);
     },
   };
 }

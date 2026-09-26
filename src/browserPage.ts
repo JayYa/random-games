@@ -17,6 +17,6 @@ export const browserPage: PageAdapter = {
     // 整页只写一次 DOM：盘面和卡片的 HTML 一起进这一次 `innerHTML`，写完当场
     // 接上卡片的行为交回去。焦点交给谁等收起时由宿主再说。
     root.innerHTML = gamePage(theme, `${html}${resultCardMarkup(closeLabel)}`, { block });
-    return createResultCard(root, { onClose });
+    return createResultCard(root, onClose);
   },
 };

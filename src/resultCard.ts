@@ -32,11 +32,6 @@ export function resultCardMarkup(closeLabel: string): string {
   `;
 }
 
-export interface ResultCardOptions {
-  /** 按下关掉按钮时做什么。收掉卡片之后玩法接着干什么由玩法定：转盘什么都不做，等用户再按「转」。 */
-  readonly onClose: () => void;
-}
-
 export interface ResultCard {
   /** 弹出卡片：写上中选的名字，撒一阵花，焦点落到关掉按钮上。 */
   show(winner: Candidate): void;
@@ -45,24 +40,26 @@ export interface ResultCard {
    *
    * @param returnFocusTo 收起来之后把焦点交给谁。卡片上的按钮即将从可聚焦的位置
    *   消失，焦点得有地方去；由收起的那一方当场告诉卡片（宿主从盘面那里问来），
-   *   卡片接上时不必知道。没有可交回的按钮的玩法不给，焦点就不动。
+   *   卡片接上时不必知道。没有可交回的按钮的玩法（弹球机）给 undefined，焦点就不动。
    */
-  hide(returnFocusTo?: HTMLElement): void;
+  hide(returnFocusTo: HTMLElement | undefined): void;
 }
 
 /**
  * 把已经写进 `root` 的那张卡片接上行为。
  *
  * @param root 已经含有 `resultCardMarkup` 那段 HTML 的容器。
+ * @param onClose 按下关掉按钮时做什么。收掉卡片之后玩法接着干什么由玩法定：
+ *   转盘什么都不做，等用户再按「转」。
  */
-export function createResultCard(root: HTMLElement, options: ResultCardOptions): ResultCard {
+export function createResultCard(root: HTMLElement, onClose: () => void): ResultCard {
   const byId = createById(root);
 
   const card = byId<HTMLDivElement>('card');
   const cardName = byId<HTMLParagraphElement>('card-name');
   const cardClose = byId<HTMLButtonElement>('card-close');
 
-  cardClose.addEventListener('click', options.onClose);
+  cardClose.addEventListener('click', onClose);
 
   return {
     show(winner: Candidate): void {
@@ -71,7 +68,7 @@ export function createResultCard(root: HTMLElement, options: ResultCardOptions):
       burstConfetti();
       cardClose.focus();
     },
-    hide(returnFocusTo?: HTMLElement): void {
+    hide(returnFocusTo: HTMLElement | undefined): void {
       // 卡片本来就没开时什么都不做，免得抢走当前按钮的焦点。
       if (card.hidden) return;
       card.hidden = true;
