@@ -72,9 +72,11 @@ describe('普通点击', () => {
   });
 });
 
-describe('认不出的地址改写成首页', () => {
-  it('认不出的地址要改', () => {
-    for (const hash of ['#/foo', '#/eat/xyz', '#/eat/', '#/eat/wheel/1', '#foo']) {
+describe('落到选主题页时地址栏要不要改写成首页', () => {
+  // 这个函数不认路由：地址认不认得出是调用方（main.ts）判断的，认不出、落到选主题页
+  // 之后才来问这里。这里只管「除了首页和根地址，一律改」。
+  it('首页和根地址以外的地址都要改', () => {
+    for (const hash of ['#/foo', '#/eat/wheel/1', '#foo']) {
       expect(shouldRewriteToPicker(hash)).toBe(true);
     }
   });

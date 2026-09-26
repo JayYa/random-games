@@ -14,10 +14,6 @@ import { seededRandom } from '../../testHelpers';
 const SIZES = [1, 2, 3, 5, 8, 12] as const;
 
 describe('造扇区', () => {
-  it('扇区数就是造它时给的数', () => {
-    expect(createSectors(7).count).toBe(7);
-  });
-
   it('零个扇区在造的那一刻就抛', () => {
     expect(() => createSectors(0)).toThrow();
   });

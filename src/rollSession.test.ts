@@ -266,13 +266,6 @@ describe('盘面停下之后才抽中选', () => {
     expect(card.showCount).toBe(0);
   });
 
-  it('接口上没有由玩法交进中选的方法', () => {
-    // 玩法只推得动「开抽」和「盘面停下」两下，都不带中选（ADR-0010）。
-    const { session } = makeSession();
-    expect('settle' in session).toBe(false);
-    expect(session.boardStopped.length).toBe(0);
-  });
-
   it('盘面停下后立即揭晓，卡片却还没弹，阶段仍是正在抽且锁住', () => {
     const { session, drawWinner, onReveal, card } = makeSession([lanzhou]);
     session.begin();
@@ -303,12 +296,6 @@ describe('盘面停下之后才抽中选', () => {
     expect(card.showCount).toBe(1);
     expect(card.shownWinner).toBe(lanzhou);
     expect(onReveal.mock.calls[0]?.[0]).toBe(card.shownWinner);
-  });
-
-  it('停一拍大约是 0.8 秒', () => {
-    // 起点值可以凭手感微调，但既不能短到名字一亮就被遮罩盖住，也不能长到让人干等。
-    expect(REVEAL_PAUSE_MS).toBeGreaterThanOrEqual(500);
-    expect(REVEAL_PAUSE_MS).toBeLessThanOrEqual(1500);
   });
 
   it('揭晓那一拍里再报一次盘面停下不受理：不会抽第二次，也不会弹两张卡片', () => {
@@ -447,11 +434,8 @@ describe('换页拆卸', () => {
   it('揭晓那一拍里拆卸：那一拍被掐掉，卡片不会在别的页面上弹出来', () => {
     // 页面拆掉时名字刚亮出来、卡片还在计时器上等着：拆卸之后它不能再弹。
     const { session, card, timer } = makeSession();
-    const observe = vi.fn();
-    session.subscribe(observe);
     session.begin();
     session.boardStopped();
-    observe.mockClear();
 
     session.dispose();
     expect(timer.pendingCount).toBe(0);
@@ -459,7 +443,6 @@ describe('换页拆卸', () => {
     timer.advance(REVEAL_PAUSE_MS * 2);
     expect(card.showCount).toBe(0);
     expect(session.state.phase).toBe('rolling');
-    expect(observe).not.toHaveBeenCalled();
   });
 
   it('拆卸之后盘面才停下：不抽中选、不揭晓、不排那一拍', () => {

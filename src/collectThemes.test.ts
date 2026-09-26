@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { collectThemes } from './collectThemes';
 
-/** 现有 `public/eat.csv` 头部那段写给人读的说明，逐字照搬。 */
+/**
+ * 名单头部那段写给人读的说明。
+ *
+ * 前半段逐字照搬现有 `public/breakfast.csv` 的头部说明（其余几份名单的也是同一段）。
+ * 光有它不够：里面没有一行以 `entry` / `title` 开头，任何只认这两个键的实现都能过。
+ * 所以后半段补上几行宽松实现会误认的：键不在行首、键后面跟的是全角冒号。
+ */
 const PROSE_HEADER = [
   '# 名单 (Roster)：每行一个候选，两列 name,enabled',
   '#',
@@ -11,7 +17,10 @@ const PROSE_HEADER = [
   '#         其余一切取值——包括留空和整列缺失——都算启用。',
   '#',
   '# 空行和 # 开头的注释行会被跳过，可以拿来给名单分组。',
-  '# 改完这个文件推上去，刷新页面转盘就跟着变。下面是占位假数据，请直接替换。',
+  '# 说明里提到 entry: 这不是配置',
+  '# 说明里提到 title: 这也不是配置',
+  '# entry：全角冒号',
+  '# title：全角冒号',
 ].join('\n');
 
 describe('collectThemes', () => {
@@ -147,7 +156,7 @@ describe('collectThemes', () => {
     expect(warnings.map((warning) => warning.fileName)).toEqual(['read.csv', '喝的.csv']);
   });
 
-  // 名单头部那段说明是写给人读的，里面既有全角冒号也有 `name` 字样：
+  // 名单头部那段说明是写给人读的，里面有全角冒号、`name` 字样，也会顺嘴提到 `entry:`：
   // 它一旦被当成配置，改名单的人就会莫名其妙地改坏首页入口（故事 12）。
   it('头部那段散文注释不会被误解析成元数据', () => {
     const { themes, warnings } = collectThemes([
@@ -160,11 +169,12 @@ describe('collectThemes', () => {
     ]);
   });
 
+  // 散文放在元数据前面：放在后面的话，「先写的赢」会把误解析出来的值挡掉，看不出来。
   it('散文注释和元数据同在一份文件里时只认元数据', () => {
     const { themes } = collectThemes([
       {
         fileName: 'eat.csv',
-        csvText: `# entry: 今天吃什么\n# title: 今天吃哪家\n${PROSE_HEADER}\n\n肠粉,true\n`,
+        csvText: `${PROSE_HEADER}\n# entry: 今天吃什么\n# title: 今天吃哪家\n\n肠粉,true\n`,
       },
     ]);
 

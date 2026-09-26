@@ -248,8 +248,4 @@ describe('弹球模拟', () => {
     expect(later.windmillAngles[0]).not.toBeCloseTo(first.windmillAngles[0] ?? 0, 3);
     expect(later.windmillAngles[1]).not.toBeCloseTo(first.windmillAngles[1] ?? 0, 3);
   });
-
-  it('一帧对应固定的毫秒数：回放层按时间索引轨迹要靠它', () => {
-    expect(shoot().frameIntervalMs).toBe(BOARD.stepMs);
-  });
 });

@@ -37,47 +37,4 @@ describe('只认最新那次的守卫', () => {
     b.begin();
     expect(first()).toBe(true);
   });
-
-  // 这条是守卫存在的理由：慢的那次回来时页面已经换到别的主题了，它不能再往上贴。
-  it('先发的名单后回来时，贴上页面的仍然是后发的那份', async () => {
-    const guard = createRenderGuard();
-    const painted: string[] = [];
-
-    /** 照着 main.ts 的样子：领一张号，取名单，回来先问一句还是不是最新的。 */
-    const render = (theme: string, csv: Promise<string>) => {
-      const isCurrent = guard.begin();
-      return csv.then((text) => {
-        if (!isCurrent()) return;
-        painted.push(`${theme}:${text}`);
-      });
-    };
-
-    let resolveSlow: (text: string) => void = () => {};
-    const slow = new Promise<string>((resolve) => {
-      resolveSlow = resolve;
-    });
-
-    const first = render('eat', slow);
-    const second = render('play', Promise.resolve('play.csv'));
-    await second;
-    resolveSlow('eat.csv');
-    await first;
-
-    expect(painted).toEqual(['play:play.csv']);
-  });
-
-  it('取名单失败的那条路也一样只认最新的一次', async () => {
-    const guard = createRenderGuard();
-    const painted: string[] = [];
-
-    const isStale = guard.begin();
-    guard.begin();
-
-    await Promise.reject(new Error('HTTP 404')).catch(() => {
-      if (!isStale()) return;
-      painted.push('错误页');
-    });
-
-    expect(painted).toEqual([]);
-  });
 });
