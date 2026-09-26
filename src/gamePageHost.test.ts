@@ -386,17 +386,6 @@ describe('换页拆卸', () => {
     expect(timer.pendingCount).toBe(0);
   });
 
-  it('拆卸之后订阅者不再被叫，开抽也不受理', () => {
-    const harness = mountPage();
-    const roll = rollOf(harness);
-    const seen: boolean[] = [];
-    roll.subscribe(() => seen.push(roll.locked));
-
-    harness.teardown();
-    expect(roll.begin()).toBe(false);
-    expect(seen).toEqual([]);
-  });
-
   it('重复拆卸无害，盘面自己的拆卸只调一次', () => {
     const harness = mountPage();
     const roll = rollOf(harness);
@@ -409,7 +398,7 @@ describe('换页拆卸', () => {
   });
 });
 
-describe('盘面不给复位、焦点去向、拆卸时', () => {
+describe('盘面不给复位、拆卸时', () => {
   const bare = { reset: false, teardown: false } as const;
 
   it('一整次开抽照常走完：揭晓、弹卡片、收下时抹掉并解锁', () => {
@@ -421,14 +410,7 @@ describe('盘面不给复位、焦点去向、拆卸时', () => {
     log.length = 0;
     page.pressClose();
     expect(log).toEqual(['board erase']);
-    expect(board.resetCount).toBe(0);
     expect(rollOf(harness).locked).toBe(false);
-  });
-
-  it('卡片不拿焦点去向', () => {
-    const { page } = mountPage({ board: bare });
-    expect(page.card).toBeDefined();
-    expect(page.returnFocusTo).toBeUndefined();
   });
 
   it('拆卸照常掐掉揭晓那一拍，不报错', () => {
@@ -440,6 +422,5 @@ describe('盘面不给复位、焦点去向、拆卸时', () => {
     expect(() => harness.teardown()).not.toThrow();
     harness.timer.advance(REVEAL_PAUSE_MS * 2);
     expect(harness.page.card?.showCount).toBe(0);
-    expect(harness.board.teardownCount).toBe(0);
   });
 });

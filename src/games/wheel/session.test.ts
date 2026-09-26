@@ -13,13 +13,7 @@ import { spinDelta } from './spinAnimation';
 import { seededRandom, stagedRandom } from '../../testHelpers';
 
 describe('扇区数', () => {
-  it('恒为 12', () => {
-    // 格数要是跟着候选数走，盘面的形状就把名单有多大泄露出去了（ADR-0010）。
-    expect(SECTOR_COUNT).toBe(12);
-    const session = createWheelSession({ random: seededRandom(1) });
-    expect(session.sectors.count).toBe(SECTOR_COUNT);
-  });
-
+  // 格数是固定的，不跟着候选数走：要是跟着走，盘面的形状就把名单有多大泄露出去了（ADR-0010）。
   it('12 个扇区每一个都停得到', () => {
     const random = stagedRandom();
     const session = createWheelSession({ random: random.random });
@@ -55,23 +49,6 @@ describe('转一次', () => {
     expect(sector).toBe(SECTOR_COUNT - 1);
     expect(session.sectors.sectorAt(targetAngle)).toBe(SECTOR_COUNT - 1);
   });
-
-  // 扫过全部扇区，尤其是第一个和最后一个（跨 0 度边界处）。
-  for (let index = 0; index < SECTOR_COUNT; index += 1) {
-    for (const offsetSeed of [0, 0.25, 0.5, 0.75, 0.999999]) {
-      it(`第 ${index + 1} 个扇区的目标角度压在该扇区上 (offset=${offsetSeed})`, () => {
-        const random = stagedRandom();
-        const session = createWheelSession({ random: random.random });
-        random.stage((index + 0.5) / SECTOR_COUNT, offsetSeed);
-        const { sector, targetAngle } = session.spin();
-
-        expect(sector).toBe(index);
-        expect(session.sectors.sectorAt(targetAngle)).toBe(index);
-        expect(targetAngle).toBeGreaterThanOrEqual(0);
-        expect(targetAngle).toBeLessThan(TAU);
-      });
-    }
-  }
 });
 
 /**

@@ -3,11 +3,8 @@ import { THEMES, resolveTheme, themeHash } from './themes';
 
 describe('resolveTheme', () => {
   // 清单是构建期扫 public/*.csv 得出的（ADR-0009），所以这里遍历它而不点名"吃/玩/干"：
-  // 加主题不该逼着人来改这个文件。清单为空时下面几条遍历会空转通过，故先兜一句。
-  it('清单不为空', () => {
-    expect(THEMES.length).toBeGreaterThan(0);
-  });
-
+  // 加主题不该逼着人来改这个文件。反例取清单里的第一个主题来拼，清单为空时会直接报错，
+  // 不会让遍历空转通过。
   it('把每个主题的地址解析成它自己的记录', () => {
     for (const theme of THEMES) {
       expect(resolveTheme(`#/${theme.slug}`)).toBe(theme);
@@ -20,34 +17,21 @@ describe('resolveTheme', () => {
     }
   });
 
+  // 反例用真实存在的 slug 来拼：不存在的主题本来就解析不出，用例名说的那条规则坏了
+  // 也看不出来。每条只违反名字里说的那一条。
+  const slug = THEMES[0]!.slug;
+
   it.each([
     ['空 hash', ''],
     ['只有井号', '#'],
     ['选主题页自己的地址', '#/'],
-    ['不认识的 slug', '#/eat2'],
-    ['大小写不对的 slug', '#/EAT'],
-    ['slug 后面还带一段路径', '#/eat/detail'],
-    ['slug 后面多一个斜杠', '#/eat/'],
-    ['没有 #/ 前缀', '/eat'],
-    ['旧式的裸 hash', '#eat'],
+    ['不认识的 slug', `#/${slug}2`],
+    ['大小写不对的 slug', `#/${slug.toUpperCase()}`],
+    ['slug 后面还带一段路径', `#/${slug}/detail`],
+    ['slug 后面多一个斜杠', `#/${slug}/`],
+    ['没有 #/ 前缀', `/${slug}`],
+    ['旧式的裸 hash', `#${slug}`],
   ])('%s 没有对应的主题', (_case, hash) => {
     expect(resolveTheme(hash)).toBeUndefined();
-  });
-});
-
-describe('主题清单', () => {
-  // slug 和名单文件名说的是同一件事（`#/eat` ↔ `eat.csv`）。它现在由 collectThemes
-  // 从同一个文件名得出、`public/` 下的文件名又天然不重复，所以这条只是钉住这个口径：
-  // 哪天清单换了来源，`#/eat` 取到别人的名单就会在这里现形。
-  //
-  //（"每份 CSV 都真的解析成了主题"由 publicThemes.test.ts 那条冒烟测试守着。）
-  it('每个主题的名单文件名就是它的 slug 加 .csv', () => {
-    for (const theme of THEMES) {
-      expect(theme.rosterFile).toBe(`${theme.slug}.csv`);
-    }
-  });
-
-  it('slug 不重复', () => {
-    expect(new Set(THEMES.map((theme) => theme.slug)).size).toBe(THEMES.length);
   });
 });

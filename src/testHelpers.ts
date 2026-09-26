@@ -316,10 +316,6 @@ export interface FakeBoard extends Board {
   readonly revealed: Candidate | undefined;
   /** 被叫去揭晓过的中选，按先后。 */
   readonly reveals: readonly Candidate[];
-  /** 被叫去抹掉过几次。 */
-  readonly eraseCount: number;
-  /** 被叫去复位过几次。 */
-  readonly resetCount: number;
   /** 自己的拆卸被调过几次。 */
   readonly teardownCount: number;
 }
@@ -330,8 +326,6 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
   let mountCount = 0;
   let revealed: Candidate | undefined;
   const reveals: Candidate[] = [];
-  let eraseCount = 0;
-  let resetCount = 0;
   let teardownCount = 0;
 
   return {
@@ -350,12 +344,6 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
     get reveals() {
       return [...reveals];
     },
-    get eraseCount() {
-      return eraseCount;
-    },
-    get resetCount() {
-      return resetCount;
-    },
     get teardownCount() {
       return teardownCount;
     },
@@ -372,13 +360,11 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
         erase() {
           log?.push('board erase');
           revealed = undefined;
-          eraseCount += 1;
         },
         returnFocusTo,
         ...(reset && {
           reset() {
             log?.push('board reset');
-            resetCount += 1;
           },
         }),
         ...(teardown && {

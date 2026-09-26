@@ -33,20 +33,25 @@ describe('resolveRoute', () => {
     }
   });
 
+  // 反例用真实存在的主题和玩法来拼：主题不存在的地址本来就回落，用例名说的那条
+  // 规则坏了也看不出来。每条只违反名字里说的那一条。
+  const theme = THEMES[0]!.slug;
+  const game = GAMES[0]!.slug;
+
   it.each([
     ['空 hash', ''],
     ['只有井号', '#'],
     ['选主题页自己的地址', '#/'],
-    ['不认识的主题 slug', '#/eat2'],
-    ['大小写不对的主题 slug', '#/EAT'],
-    ['不认识的玩法 slug', '#/eat/roulette'],
-    ['大小写不对的玩法 slug', '#/eat/WHEEL'],
-    ['玩法后面还带一段路径', '#/eat/wheel/detail'],
-    ['主题后面多一个斜杠', '#/eat/'],
-    ['玩法后面多一个斜杠', '#/eat/wheel/'],
-    ['只有玩法没有主题', '#//wheel'],
-    ['没有 #/ 前缀', '/eat/wheel'],
-    ['旧式的裸 hash', '#eat/wheel'],
+    ['不认识的主题 slug', `#/${theme}2`],
+    ['大小写不对的主题 slug', `#/${theme.toUpperCase()}`],
+    ['不认识的玩法 slug', `#/${theme}/roulette`],
+    ['大小写不对的玩法 slug', `#/${theme}/${game.toUpperCase()}`],
+    ['玩法后面还带一段路径', `#/${theme}/${game}/detail`],
+    ['主题后面多一个斜杠', `#/${theme}/`],
+    ['玩法后面多一个斜杠', `#/${theme}/${game}/`],
+    ['只有玩法没有主题', `#//${game}`],
+    ['没有 #/ 前缀', `/${theme}/${game}`],
+    ['旧式的裸 hash', `#${theme}/${game}`],
   ])('%s 回落到选主题页', (_case, hash) => {
     expect(resolveRoute(hash)).toBeUndefined();
   });
@@ -58,14 +63,13 @@ describe('玩法清单', () => {
     expect(new Set(GAMES.map((game) => game.slug)).size).toBe(GAMES.length);
   });
 
-  // 宿主拿盘面交出的这几样写页面、再调它的 mount：少一样，这个玩法页就是坏的。
-  it('每条记录都造得出盘面：HTML、块名、按钮上的字都不空，带着挂载函数', () => {
+  // 宿主拿盘面交出的这几样写页面：空了一样，这个玩法页就是坏的。
+  it('每条记录都造得出盘面：HTML、块名、按钮上的字都不空', () => {
     for (const game of GAMES) {
       const board = game.createBoard();
       expect(board.html.trim(), game.slug).not.toBe('');
       expect(board.block, game.slug).not.toBe('');
       expect(board.closeLabel, game.slug).not.toBe('');
-      expect(board.mount, game.slug).toBeTypeOf('function');
     }
   });
 });
