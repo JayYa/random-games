@@ -14,7 +14,10 @@ export default defineConfig({
   timeout: 30_000,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? 'github' : 'list',
+  // 卡住时先由 Playwright 自己收尾、写下 trace，不等 job 超时被硬杀。
+  globalTimeout: process.env.CI ? 5 * 60_000 : undefined,
+  // github 只在最后打注解；list 逐条打进度，CI 日志里才看得出卡在哪一条。
+  reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}/random-games/`,
     trace: 'retain-on-failure',
