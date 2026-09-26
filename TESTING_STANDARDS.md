@@ -35,6 +35,10 @@ it('把每个主题的地址解析成它自己的记录', () => {
 - Use the public API only
 - Survive internal refactors
 - One logical assertion per test
+- Can go red: name the line of production code whose removal fails it. A
+  scenario the interface can't reach (a fake page drops a press on a hidden
+  card's button before the host ever sees it) pins nothing — reach the guard
+  through a scenario the interface allows, or delete the test
 
 ## Bad tests
 

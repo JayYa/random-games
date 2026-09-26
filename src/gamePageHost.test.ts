@@ -322,32 +322,6 @@ describe('报停与收下只在对的时候受理', () => {
     expect(page.card?.shownWinner?.name).toBe('候选1');
   });
 
-  it('揭晓那一拍里按卡片的关掉按钮：不受理，名字不抹、盘面不复位', () => {
-    // 卡片还没弹，没有中选可收：收了它就会在回到起点之后才弹出来。
-    const harness = mountPage();
-    const { page, log } = harness;
-    const roll = rollOf(harness);
-    roll.begin();
-    roll.boardStopped();
-
-    log.length = 0;
-    page.pressClose();
-    expect(log).toEqual([]);
-  });
-
-  it('揭晓那一拍里按过关掉按钮，那一拍走完卡片照常带着中选弹出', () => {
-    const harness = mountPage();
-    const { page, timer } = harness;
-    const roll = rollOf(harness);
-    roll.begin();
-    roll.boardStopped();
-    page.pressClose();
-
-    timer.advance(REVEAL_PAUSE_MS);
-    expect(page.card?.isOpen).toBe(true);
-    expect(page.card?.shownWinner?.name).toBe('候选1');
-  });
-
   it('盘面还没挂完就报停下：手里还没有揭晓的办法，不抽', () => {
     const harness = mountPage({
       board: {

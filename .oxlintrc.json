@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // 只开类型检查拦不下、又真出过事的规则。默认那一类先关着，要开就一条条加。
+  "categories": {
+    "correctness": "off"
+  },
+  "rules": {
+    // 闭包读下面才声明的 const：tsc 放行，真被提前叫到就是 ReferenceError。
+    // 函数声明会提升，照常先用后写。
+    "no-use-before-define": ["error", { "functions": false }]
+  }
+}

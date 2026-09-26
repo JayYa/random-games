@@ -1,4 +1,4 @@
-# PR 的护栏：合进 master 之前跑一遍类型检查、单元测试、构建和冒烟测试。
+# PR 的护栏：合进 master 之前跑一遍 lint、类型检查、单元测试、构建和冒烟测试。
 # deploy.yml 只在推送到 master 时跑，PR 上本来一次检查都没有。
 name: CI
 
@@ -30,6 +30,9 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # 规则见 .oxlintrc.json：只放类型检查拦不下的那几条。
+      - run: pnpm lint
 
       - run: pnpm test
 
