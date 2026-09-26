@@ -74,7 +74,7 @@ export interface RollHandle {
    * 盘面停下：宿主此刻才抽中选，立即叫盘面揭晓，停一拍再弹结果卡片。
    *
    * 不带参数：盘面从接口上就没有办法指定中选（ADR-0010）。没开抽、已经报过、
-   * 或者页面已经拆掉时静默不受理。
+   * 盘面还没挂完（`mount` 还没返回）、或者页面已经拆掉时静默不受理。
    */
   boardStopped(): void;
   /**
@@ -180,10 +180,22 @@ export interface GamePageHostOptions {
 }
 
 /**
- * 一次开抽走到哪一步了：还没开抽（没锁，可以开抽）、正在抽（转盘转着、球飞着，
- * 揭晓那一拍也算在这里面）、抽出了中选（结果卡片挂着，直到用户收下）。
+ * 这一页的开抽走到哪一格了。一格一个状态，受不受理都只问这一格，不必把几个标志
+ * 拼起来算：
+ *
+ * - 还没开抽：没锁，可以开抽。
+ * - 正在抽：转盘转着、球飞着，等盘面报停下。
+ * - 揭晓中：中选已经抽出、亮在盘面上，等那一拍走完再弹卡片；带着掐掉那一拍的办法。
+ *   同一次开抽只抽一次，靠的就是报停只在「正在抽」受理。
+ * - 抽出了中选：结果卡片挂着，直到用户收下；带着亮着名字的那个盘面，收下时抹掉它。
+ * - 拆掉了：换页了，此后开抽、报停、收下一律静默不受理，也一直算锁着。
  */
-type RollPhase = 'idle' | 'rolling' | 'settled';
+type RollState =
+  | { readonly phase: 'idle' }
+  | { readonly phase: 'rolling' }
+  | { readonly phase: 'revealing'; readonly cancel: CancelScheduled }
+  | { readonly phase: 'settled'; readonly shownOn: MountedBoard }
+  | { readonly phase: 'tornDown' };
 
 /**
  * 挂上一页玩法页，返回拆掉它的办法，路由换页前调用。
@@ -206,32 +218,38 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
     return () => {};
   }
 
-  let phase: RollPhase = 'idle';
-  /**
-   * 揭晓那一拍还没走完时，掐掉它的办法；其余时候为空。
-   * 它同时就是「这一次开抽已经揭晓过」的记号：同一次开抽只抽一次。
-   */
-  let cancelReveal: CancelScheduled | undefined;
-  /** 拆掉之后开抽、报停、收下一律静默不受理：盘面上的动画可能还会跑完、报一声停下。 */
-  let tornDown = false;
+  let state: RollState = { phase: 'idle' };
   const observers: Array<() => void> = [];
+  /**
+   * 盘面交回的挂载结果；`board.mount` 还没返回时为空。句柄在挂载期间已经是活的，
+   * 盘面那时报停下，报停就凭它是空的知道手里还没有揭晓的办法。
+   */
+  let mounted: MountedBoard | undefined;
 
   /**
-   * 「开抽之后锁死，直到收下中选」的唯一判据：只有「还没开抽」这一档能开抽。
+   * 「开抽之后锁死，直到收下中选」的唯一判据：只有「还没开抽」这一格能开抽。
    * 「按不按得动」和「`begin()` 受不受理」都问它，免得哪天改了一处，按钮宣告自己
-   * 按得动、按下去却什么都不发生。拆掉之后开抽不受理，也就一直算锁着。
+   * 按得动、按下去却什么都不发生。拆掉了也不是「还没开抽」，所以一直算锁着。
    */
-  const isLocked = (): boolean => tornDown || phase !== 'idle';
+  const isLocked = (): boolean => state.phase !== 'idle';
 
   /**
-   * 锁只在开抽和收下这两下变：「正在抽 → 抽出了中选」两头都锁着，不惊动订阅者。
+   * 锁只在开抽和收下这两下变：「正在抽 → 揭晓中 → 抽出了中选」一路都锁着，不惊动订阅者。
    */
-  const moveTo = (next: RollPhase): void => {
+  const moveTo = (next: RollState): void => {
     const wasLocked = isLocked();
-    phase = next;
+    state = next;
     if (isLocked() === wasLocked) return;
     for (const observe of observers) observe();
   };
+
+  // 关掉按钮推的 `dismiss` 是下面的函数声明，靠提升先交出去。它头一件事是看这一格，
+  // 不在「抽出了中选」就走人，所以哪怕卡片还没交回来就被按了，也碰不到 `card`。
+  const card = page.showGamePage(
+    root,
+    { theme, html: board.html, block: board.block, closeLabel: board.closeLabel },
+    dismiss,
+  );
 
   /**
    * 收下中选：卡片上的关掉按钮推它。只在「抽出了中选」时受理——揭晓那一拍里卡片还
@@ -241,58 +259,58 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
    * 先收卡片、抹掉名字，再回到「还没开抽」，最后才复位：复位运行时锁必须已经解开，
    * 在里面想立刻再开抽也受理，不会被上一次的残留挡掉。收下从不自动开下一次抽。
    */
-  const dismiss = (): void => {
-    if (tornDown || phase !== 'settled') return;
+  function dismiss(): void {
+    if (state.phase !== 'settled') return;
+    const { shownOn } = state;
     // 收起卡片时当场把盘面给的焦点去向交给它：转盘给「转」，弹球机不给，焦点不动。
-    card.hide(mounted.returnFocusTo);
-    mounted.erase();
-    moveTo('idle');
-    mounted.reset?.();
-  };
-
-  const card = page.showGamePage(
-    root,
-    { theme, html: board.html, block: board.block, closeLabel: board.closeLabel },
-    dismiss,
-  );
+    card.hide(shownOn.returnFocusTo);
+    shownOn.erase();
+    moveTo({ phase: 'idle' });
+    shownOn.reset?.();
+  }
 
   const handle: RollHandle = {
     begin() {
       if (isLocked()) return false;
-      moveTo('rolling');
+      moveTo({ phase: 'rolling' });
       return true;
     },
     boardStopped() {
-      if (tornDown || phase !== 'rolling' || cancelReveal) return;
+      if (state.phase !== 'rolling') return;
+      // 盘面还在 `mount` 里、没交回挂载结果就报停下：没有揭晓的办法，这一声与别的
+      // 不在时候上的报停一样静默不受理。开抽照样算数、照样锁着，挂完再报一次就照常
+      // 揭晓——挂载期间不另立规矩。
+      const shownOn = mounted;
+      if (!shownOn) return;
       // 停下之后才抽：从启用且不在冷却中的候选里等概率取，抽完当场记进最近中选
       // （ADR-0010、ADR-0011）。抽完立即揭晓；卡片等一拍再弹，好让名字先在盘面上亮着。
       const winner = roster.drawWinner();
-      mounted.reveal(winner);
-      cancelReveal = schedule(() => {
-        cancelReveal = undefined;
-        moveTo('settled');
+      shownOn.reveal(winner);
+      const cancel = schedule(() => {
+        moveTo({ phase: 'settled', shownOn });
         card.show(winner);
       }, REVEAL_PAUSE_MS);
+      moveTo({ phase: 'revealing', cancel });
     },
     get locked() {
       return isLocked();
     },
     subscribe(onChange) {
-      if (tornDown) return;
+      if (state.phase === 'tornDown') return;
       observers.push(onChange);
       onChange();
     },
   };
 
-  // 盘面停下只会在它挂上、演完之后才报，揭晓与收下用到的 `mounted` 那时一定已经在了。
-  const mounted = board.mount(root, handle);
+  const mountedBoard = board.mount(root, handle);
+  mounted = mountedBoard;
 
   return () => {
-    if (tornDown) return;
-    tornDown = true;
-    cancelReveal?.();
-    cancelReveal = undefined;
+    if (state.phase === 'tornDown') return;
+    if (state.phase === 'revealing') state.cancel();
+    // 先清空订阅者再进「拆掉了」：这一下锁可能从没锁变成锁着，但拆卸之后订阅者一律不再被叫。
     observers.length = 0;
-    mounted.teardown?.();
+    moveTo({ phase: 'tornDown' });
+    mountedBoard.teardown?.();
   };
 }

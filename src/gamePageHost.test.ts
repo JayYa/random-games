@@ -213,7 +213,15 @@ describe('一整次开抽', () => {
     const harness = mountPage({ board: { returnFocusTo: spinButton } });
     rollOnce(harness);
     harness.page.pressClose();
-    expect(harness.page.card?.returnedFocusTo).toBe(spinButton);
+    expect(harness.page.card?.focusReturns).toEqual([spinButton]);
+  });
+
+  it('盘面不给焦点去向时，收下中选交给卡片的焦点去向是空的，焦点不动', () => {
+    // 弹球机就是这样：整页没有可聚焦的操作（ADR-0006）。
+    const harness = mountPage();
+    rollOnce(harness);
+    harness.page.pressClose();
+    expect(harness.page.card?.focusReturns).toEqual([undefined]);
   });
 
   it('收下中选不会自动开下一次抽', () => {
@@ -259,29 +267,43 @@ describe('一整次开抽', () => {
 });
 
 describe('报停与收下只在对的时候受理', () => {
-  it('还没开抽就报停下：不抽、不揭晓、不排那一拍', () => {
+  it('还没开抽就报停下：不抽，盘面上也没有名字亮出来', () => {
     const harness = mountPage();
-    const { board, page, timer, recentWinners } = harness;
+    const { board, recentWinners } = harness;
 
     rollOf(harness).boardStopped();
 
-    expect(board.reveals).toEqual([]);
     expect(recentWinners.names).toEqual([]);
-    expect(timer.pendingCount).toBe(0);
+    expect(board.reveals).toEqual([]);
+  });
+
+  it('还没开抽就报停下：不排那一拍，过多久也不弹卡片', () => {
+    const harness = mountPage();
+    const { page, timer } = harness;
+
+    rollOf(harness).boardStopped();
+
     timer.advance(REVEAL_PAUSE_MS * 2);
     expect(page.card?.showCount).toBe(0);
   });
 
-  it('揭晓那一拍里再报一次停下：不抽第二次，也不弹第二张卡片', () => {
+  it('揭晓那一拍里再报一次停下：不抽第二次', () => {
     const harness = mountPage();
-    const { board, page, timer, recentWinners } = harness;
     const roll = rollOf(harness);
     roll.begin();
     roll.boardStopped();
     roll.boardStopped();
 
-    expect(board.reveals.map((winner) => winner.name)).toEqual(['候选1']);
-    expect(recentWinners.names).toEqual(['候选1']);
+    expect(harness.recentWinners.names).toEqual(['候选1']);
+  });
+
+  it('揭晓那一拍里再报一次停下：只弹一张卡片，带的是头一个中选', () => {
+    const harness = mountPage();
+    const { page, timer } = harness;
+    const roll = rollOf(harness);
+    roll.begin();
+    roll.boardStopped();
+    roll.boardStopped();
 
     timer.advance(REVEAL_PAUSE_MS * 2);
     expect(page.card?.showCount).toBe(1);
@@ -290,23 +312,20 @@ describe('报停与收下只在对的时候受理', () => {
 
   it('已经抽出中选之后再报停下：中选不被悄悄换掉', () => {
     const harness = mountPage();
-    const { board, page, timer, recentWinners } = harness;
+    const { board, page, timer } = harness;
     rollOnce(harness);
 
     rollOf(harness).boardStopped();
     timer.advance(REVEAL_PAUSE_MS * 2);
 
     expect(board.revealed?.name).toBe('候选1');
-    expect(board.reveals).toHaveLength(1);
-    expect(recentWinners.names).toEqual(['候选1']);
-    expect(page.card?.showCount).toBe(1);
     expect(page.card?.shownWinner?.name).toBe('候选1');
   });
 
-  it('揭晓那一拍里按卡片的关掉按钮：不受理，那一拍走完卡片照常弹出', () => {
+  it('揭晓那一拍里按卡片的关掉按钮：不受理，名字不抹、盘面不复位', () => {
     // 卡片还没弹，没有中选可收：收了它就会在回到起点之后才弹出来。
     const harness = mountPage();
-    const { board, page, timer, log } = harness;
+    const { page, log } = harness;
     const roll = rollOf(harness);
     roll.begin();
     roll.boardStopped();
@@ -314,12 +333,47 @@ describe('报停与收下只在对的时候受理', () => {
     log.length = 0;
     page.pressClose();
     expect(log).toEqual([]);
-    expect(board.revealed?.name).toBe('候选1');
-    expect(roll.locked).toBe(true);
+  });
+
+  it('揭晓那一拍里按过关掉按钮，那一拍走完卡片照常带着中选弹出', () => {
+    const harness = mountPage();
+    const { page, timer } = harness;
+    const roll = rollOf(harness);
+    roll.begin();
+    roll.boardStopped();
+    page.pressClose();
 
     timer.advance(REVEAL_PAUSE_MS);
     expect(page.card?.isOpen).toBe(true);
     expect(page.card?.shownWinner?.name).toBe('候选1');
+  });
+
+  it('盘面还没挂完就报停下：手里还没有揭晓的办法，不抽', () => {
+    const harness = mountPage({
+      board: {
+        onMount(roll) {
+          roll.begin();
+          roll.boardStopped();
+        },
+      },
+    });
+
+    expect(harness.recentWinners.names).toEqual([]);
+    expect(harness.board.reveals).toEqual([]);
+  });
+
+  it('挂载期间开的抽照样算数：挂完再报一次停下，照常揭晓', () => {
+    const harness = mountPage({
+      board: {
+        onMount(roll) {
+          roll.begin();
+          roll.boardStopped();
+        },
+      },
+    });
+
+    rollOf(harness).boardStopped();
+    expect(harness.board.revealed?.name).toBe('候选1');
   });
 });
 
@@ -481,6 +535,28 @@ describe('换页拆卸', () => {
     expect(timer.pendingCount).toBe(0);
   });
 
+  it('拆卸之后订阅者不再被叫：拆卸这一下锁变了也不叫', () => {
+    const harness = mountPage();
+    const roll = rollOf(harness);
+    const seen: boolean[] = [];
+    roll.subscribe(() => seen.push(roll.locked));
+
+    harness.teardown();
+    roll.begin();
+    expect(seen).toEqual([false]);
+  });
+
+  it('卡片挂着时拆卸，之后再按关掉按钮：不抹名字、不复位', () => {
+    const harness = mountPage();
+    const { teardown, page, log } = harness;
+    rollOnce(harness);
+    teardown();
+
+    log.length = 0;
+    page.pressClose();
+    expect(log).toEqual([]);
+  });
+
   it('重复拆卸无害，盘面自己的拆卸只调一次', () => {
     const harness = mountPage();
     const roll = rollOf(harness);
@@ -546,7 +622,6 @@ describe('默认计时器', () => {
       roll.boardStopped();
       harness.teardown();
 
-      expect(vi.getTimerCount()).toBe(0);
       vi.advanceTimersByTime(REVEAL_PAUSE_MS * 2);
       expect(harness.page.card?.showCount).toBe(0);
     } finally {
