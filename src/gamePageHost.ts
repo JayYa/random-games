@@ -3,12 +3,12 @@
  *
  * 路由取到名单原文之后只调它（ADR-0012）。它依次：建名单会话（带上最近中选）→
  * 名单开不了抽就画错误页、到此为止，不挂盘面 → 写出玩法页（页头 + 盘面 HTML +
- * 结果卡片）→ 把挂载点和开抽句柄交给盘面，拿回盘面的回调 → 接上结果卡片 →
+ * 结果卡片），拿回结果卡片 → 把挂载点和开抽句柄交给盘面，拿回盘面的回调 →
  * 建开抽会话，接上「抽一个中选」、盘面的揭晓与抹掉、收下之后的复位。这条先后
  * 只有这一份实现，加一个玩法只需要写盘面。
  *
- * 结果卡片接在盘面挂上之后：卡片收起来之后焦点交给谁要问盘面，而那个元素要等
- * 页面写进 DOM、盘面挂上才拿得到。
+ * 卡片收起来之后焦点交给谁要问盘面，而那个元素要等盘面挂上才拿得到：所以不在
+ * 接卡片时说，而是收下中选、收起卡片的那一刻再从盘面的回调里取来交给卡片。
  *
  * 盘面拿到的只有挂载点和一个开抽句柄：拿不到名单、名单原文和最近中选，从接口上
  * 钉住「盘面只是表演」（ADR-0010）；也拿不到开抽阶段，只能问「锁没锁」，判锁
@@ -20,7 +20,7 @@
  */
 
 import type { RecentMemory } from './cooldown';
-import type { ResultCard, ResultCardOptions } from './resultCard';
+import type { ResultCard } from './resultCard';
 import { createRollSession, isRollLocked, type RollSession, type Schedule } from './rollSession';
 import type { RosterFailureSource } from './rosterFailure';
 import { createRosterSession, type Candidate, type RandomSource } from './rosterSession';
@@ -114,19 +114,17 @@ export type GamePageView = Pick<Board, 'html' | 'block' | 'closeLabel'> & {
 };
 
 /**
- * 把已经写进页面的那张结果卡片接上行为。页面适配器写完玩法页时交回它，
- * 宿主等盘面挂上、知道焦点交给谁之后才调。
- */
-export type AttachResultCard = (options: ResultCardOptions) => ResultCard;
-
-/**
  * 页面适配器：宿主碰 DOM 的唯一出口。生产用 `browserPage.ts`，用例用假页面。
  */
 export interface PageAdapter {
   /** 名单开不了抽：用整页错误提示替掉页面（三种毛病各说各的，见 `rosterFailure.ts`）。 */
   showRosterFailure(root: HTMLElement, theme: Theme, roster: RosterFailureSource): void;
-  /** 写出玩法页：页头、盘面 HTML 与结果卡片，一次写完。返回接上卡片行为的办法。 */
-  showGamePage(root: HTMLElement, view: GamePageView): AttachResultCard;
+  /**
+   * 写出玩法页：页头、盘面 HTML 与结果卡片，一次写完，交回接好行为的结果卡片。
+   *
+   * @param onClose 卡片上的关掉按钮被按下时做什么。
+   */
+  showGamePage(root: HTMLElement, view: GamePageView, onClose: () => void): ResultCard;
 }
 
 export interface GamePageHostOptions {
@@ -169,19 +167,19 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
     return () => {};
   }
 
-  const attachCard = page.showGamePage(root, {
-    theme,
-    html: board.html,
-    block: board.block,
-    closeLabel: board.closeLabel,
-  });
-
   /**
-   * 开抽会话要等卡片接好才建得出来，卡片又要等盘面挂上：盘面挂上的那一刻它还
-   * 不在。这期间句柄算锁着，开抽不受理——盘面本来就不该在挂上的同一刻开抽。
-   * 拆掉之后同理：开抽会话已经掐掉，开抽不受理，句柄也就一直算锁着。
+   * 开抽会话要接上盘面的回调才建得出来，盘面挂上的那一刻它还不在。这期间句柄
+   * 算锁着，开抽不受理——盘面本来就不该在挂上的同一刻开抽。拆掉之后同理：开抽
+   * 会话已经掐掉，开抽不受理，句柄也就一直算锁着。
    */
   let roll: RollSession | undefined;
+
+  // 卡片上的按钮经由开抽会话收场：卡片收掉、名字抹掉、锁解开，才轮到盘面复位。
+  const card = page.showGamePage(
+    root,
+    { theme, html: board.html, block: board.block, closeLabel: board.closeLabel },
+    () => roll?.dismiss(),
+  );
   let tornDown = false;
   const isLocked = (): boolean => tornDown || !roll || isRollLocked(roll.state);
 
@@ -208,14 +206,12 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
 
   const mounted = board.mount(root, handle);
 
-  // 卡片上的按钮经由开抽会话收场：卡片收掉、名字抹掉、锁解开，才轮到盘面复位。
-  const card = attachCard({
-    onClose: () => roll?.dismiss(),
-    returnFocusTo: mounted.returnFocusTo,
-  });
-
   const session = createRollSession({
-    card,
+    // 收起卡片时当场把盘面给的焦点去向交给它：转盘给「转」，弹球机不给，焦点不动。
+    card: {
+      show: (winner) => card.show(winner),
+      hide: () => card.hide(mounted.returnFocusTo),
+    },
     // 中选由会话在盘面停下之后抽，从启用且不在冷却中的候选里等概率取，抽完当场
     // 记进最近中选（ADR-0010、ADR-0011）。
     drawWinner: roster.drawWinner,

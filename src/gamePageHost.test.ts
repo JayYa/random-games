@@ -151,18 +151,6 @@ describe('名单正常时写出玩法页', () => {
     ]);
   });
 
-  it('先写玩法页，再把句柄交给盘面，最后才接卡片', () => {
-    // 盘面挂上时要去拿写进页面的元素；卡片要问盘面焦点交给谁，所以排在盘面之后。
-    const { log, board } = mountPage();
-    expect(log).toEqual(['page game', 'board mount', 'page card']);
-    expect(board.mountCount).toBe(1);
-  });
-
-  it('盘面给的焦点去向原样交给卡片', () => {
-    const { page } = mountPage({ board: { returnFocusTo: spinButton } });
-    expect(page.returnFocusTo).toBe(spinButton);
-  });
-
   it('接好之后没锁，也还什么都没抽、没揭晓', () => {
     const harness = mountPage();
     const { board, page, recentWinners } = harness;
@@ -213,6 +201,13 @@ describe('一整次开抽', () => {
     expect(page.card?.hideCount).toBe(1);
     expect(board.revealed).toBeUndefined();
     expect(roll.locked).toBe(false);
+  });
+
+  it('收下中选时卡片收到的焦点去向就是盘面给的那一个', () => {
+    const harness = mountPage({ board: { returnFocusTo: spinButton } });
+    rollOnce(harness);
+    harness.page.pressClose();
+    expect(harness.page.card?.returnedFocusTo).toBe(spinButton);
   });
 
   it('收下中选不会自动开下一次抽', () => {

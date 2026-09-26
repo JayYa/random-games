@@ -35,20 +35,19 @@ export function resultCardMarkup(closeLabel: string): string {
 export interface ResultCardOptions {
   /** 按下关掉按钮时做什么。收掉卡片之后玩法接着干什么由玩法定：转盘什么都不做，等用户再按「转」。 */
   readonly onClose: () => void;
-  /**
-   * 卡片收起来之后把焦点交给谁。
-   *
-   * 卡片上的按钮即将从可聚焦的位置消失，焦点得有地方去。没有可交回的按钮的玩法
-   * 不给这一项，焦点就不动。
-   */
-  readonly returnFocusTo?: HTMLElement;
 }
 
 export interface ResultCard {
   /** 弹出卡片：写上中选的名字，撒一阵花，焦点落到关掉按钮上。 */
   show(winner: Candidate): void;
-  /** 收起卡片。本来就没开时什么都不做。 */
-  hide(): void;
+  /**
+   * 收起卡片。本来就没开时什么都不做，也不挪焦点。
+   *
+   * @param returnFocusTo 收起来之后把焦点交给谁。卡片上的按钮即将从可聚焦的位置
+   *   消失，焦点得有地方去；由收起的那一方当场告诉卡片（宿主从盘面那里问来），
+   *   卡片接上时不必知道。没有可交回的按钮的玩法不给，焦点就不动。
+   */
+  hide(returnFocusTo?: HTMLElement): void;
 }
 
 /**
@@ -72,11 +71,11 @@ export function createResultCard(root: HTMLElement, options: ResultCardOptions):
       burstConfetti();
       cardClose.focus();
     },
-    hide(): void {
+    hide(returnFocusTo?: HTMLElement): void {
       // 卡片本来就没开时什么都不做，免得抢走当前按钮的焦点。
       if (card.hidden) return;
       card.hidden = true;
-      options.returnFocusTo?.focus();
+      returnFocusTo?.focus();
     },
   };
 }

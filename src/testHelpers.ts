@@ -123,6 +123,11 @@ export interface FakeResultCard extends ResultCard {
   readonly showCount: number;
   /** 真的收起来过几次；本来就没开的那几次不计。 */
   readonly hideCount: number;
+  /**
+   * 最近一次真的收起来时收到的焦点去向；没给、或者从没真的收起来过则为 undefined。
+   * 本来就没开的那几次不计：真卡片那时也不挪焦点。
+   */
+  readonly returnedFocusTo: HTMLElement | undefined;
 }
 
 export function fakeResultCard(): FakeResultCard {
@@ -130,6 +135,7 @@ export function fakeResultCard(): FakeResultCard {
   let shownWinner: Candidate | undefined;
   let showCount = 0;
   let hideCount = 0;
+  let returnedFocusTo: HTMLElement | undefined;
 
   return {
     get isOpen() {
@@ -144,16 +150,20 @@ export function fakeResultCard(): FakeResultCard {
     get hideCount() {
       return hideCount;
     },
+    get returnedFocusTo() {
+      return returnedFocusTo;
+    },
     show(winner) {
       isOpen = true;
       shownWinner = winner;
       showCount += 1;
     },
-    hide() {
+    hide(focusTo) {
       // 与真卡片一致：本来就没开就什么都不做。
       if (!isOpen) return;
       isOpen = false;
       hideCount += 1;
+      returnedFocusTo = focusTo;
     },
   };
 }
@@ -226,10 +236,8 @@ export interface FakeGamePage extends PageAdapter {
   readonly rosterFailures: readonly RecordedRosterFailure[];
   /** 写过的玩法页，按先后。 */
   readonly gamePages: readonly GamePageView[];
-  /** 接上行为的那张卡片；还没接过则为 undefined。 */
+  /** 写玩法页时交回的那张卡片；还没写过玩法页则为 undefined。 */
   readonly card: FakeResultCard | undefined;
-  /** 接卡片时交给它的焦点去向。 */
-  readonly returnFocusTo: HTMLElement | undefined;
   /**
    * 按一下卡片上的关掉按钮。卡片没挂着时按不到——真按钮藏着的时候点不着，
    * 所以这时什么都不发生。
@@ -241,7 +249,6 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
   const rosterFailures: RecordedRosterFailure[] = [];
   const gamePages: GamePageView[] = [];
   let card: FakeResultCard | undefined;
-  let returnFocusTo: HTMLElement | undefined;
   let onClose: (() => void) | undefined;
 
   return {
@@ -254,9 +261,6 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
     get card() {
       return card;
     },
-    get returnFocusTo() {
-      return returnFocusTo;
-    },
     showRosterFailure(_root, theme, roster) {
       log?.push(`page roster-failure ${roster.status}`);
       rosterFailures.push({
@@ -266,16 +270,12 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
         disabledCount: roster.disabledCount,
       });
     },
-    showGamePage(_root, view) {
+    showGamePage(_root, view, close) {
       log?.push('page game');
       gamePages.push(view);
-      return (options) => {
-        log?.push('page card');
-        card = fakeResultCard();
-        returnFocusTo = options.returnFocusTo;
-        onClose = options.onClose;
-        return card;
-      };
+      card = fakeResultCard();
+      onClose = close;
+      return card;
     },
     pressClose() {
       if (!card?.isOpen) return;

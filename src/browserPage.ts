@@ -13,10 +13,10 @@ import { showRosterFailure } from './rosterFailure';
 
 export const browserPage: PageAdapter = {
   showRosterFailure,
-  showGamePage(root, { theme, html, block, closeLabel }) {
-    // 整页只写一次 DOM：盘面和卡片的 HTML 一起进这一次 `innerHTML`，
-    // 卡片的行为等宿主问过盘面焦点交给谁之后再接。
+  showGamePage(root, { theme, html, block, closeLabel }, onClose) {
+    // 整页只写一次 DOM：盘面和卡片的 HTML 一起进这一次 `innerHTML`，写完当场
+    // 接上卡片的行为交回去。焦点交给谁等收起时由宿主再说。
     root.innerHTML = gamePage(theme, `${html}${resultCardMarkup(closeLabel)}`, { block });
-    return (options) => createResultCard(root, options);
+    return createResultCard(root, { onClose });
   },
 };
