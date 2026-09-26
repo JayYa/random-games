@@ -2,8 +2,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Plugin, type ViteDevServer, defineConfig } from 'vite';
-import { collectThemes } from './src/collectThemes';
-import { readRosterFiles } from './src/rosterFiles';
+import { collectThemes } from './src/collectThemes.ts';
+import { readRosterFiles } from './src/rosterFiles.ts';
 
 /** `src/themes.ts` 从这里取主题清单；`src/vite-env.d.ts` 里声明了它的类型。 */
 const THEMES_MODULE_ID = 'virtual:themes';

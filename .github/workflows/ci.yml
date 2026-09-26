@@ -1,0 +1,49 @@
+# PR 的护栏：合进 master 之前跑一遍类型检查、单元测试、构建和冒烟测试。
+# deploy.yml 只在推送到 master 时跑，PR 上本来一次检查都没有。
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 同一个 PR 推了新提交，旧的那次就不用跑完了。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # 版本跟着 package.json 里的 packageManager 字段走，不用在这里重复写死。
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.21.0'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test
+
+      # tsc --noEmit 在这一步里：类型错误同样拦下。
+      - run: pnpm build
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # 冒烟测试自己起 vite preview（见 playwright.config.ts）。
+      - run: pnpm test:e2e
+
+      - if: failure() || cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
