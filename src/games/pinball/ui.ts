@@ -505,7 +505,7 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
    * 拖拽里力度的手感不该中途变。
    *
    * 它只管画柱塞，是弹球机自己的事，不经开抽句柄：球还没出去，这一发随时可以
-   * 拖回原位作废，不满足「开抽之后盘面锁死」的语义（见 `src/rollSession.ts`）。
+   * 拖回原位作废，不满足「开抽之后盘面锁死」的语义（见 `src/gamePageHost.ts`）。
    */
   let drag:
     | { readonly pointerId: number; readonly startY: number; readonly fullPullY: number }

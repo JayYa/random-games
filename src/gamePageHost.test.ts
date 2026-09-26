@@ -1,18 +1,18 @@
 /**
  * 玩法页宿主的用例：名单写坏时画什么，名单正常时怎么把玩法页、盘面、结果卡片和
- * 开抽接起来，锁什么时候变，最近中选什么时候记，换页怎么拆。
+ * 开抽接起来，一次开抽怎么走，锁什么时候变，最近中选什么时候记，换页怎么拆。
  *
- * 只钉宿主接口上看得到的行为——页面适配器被叫去画了什么、盘面被叫到了哪些回调、
- * 先后如何、卡片弹了收了几次、最近中选记下了什么、句柄上的锁此刻是什么。开抽会话
- * 的阶段迁移与名单会话的冷却细节各有各的用例，这里不再验一遍。
+ * 宿主是唯一的开抽状态机，挂载入口是唯一的测试面：用例经开抽句柄推（开抽、报停、
+ * 读锁、订阅），经假页面上的「按关掉按钮」收下，只钉看得到的行为——页面适配器
+ * 被叫去画了什么、盘面上此刻亮着哪个名字、卡片挂没挂着、带的是哪个中选、最近中选
+ * 记下了什么、句柄上的锁此刻是什么。名单会话的冷却细节有它自己的用例，这里不再验一遍。
  *
  * 页面、盘面、卡片、计时器都是 `testHelpers.ts` 里记录调用的替身，所以这一批在
  * node 里跑，不需要 jsdom，也不必真等那一拍。
  */
 
-import { describe, expect, it } from 'vitest';
-import { mountGamePage, type RollHandle } from './gamePageHost';
-import { REVEAL_PAUSE_MS } from './rollSession';
+import { describe, expect, it, vi } from 'vitest';
+import { REVEAL_PAUSE_MS, mountGamePage, type RollHandle } from './gamePageHost';
 import type { Theme } from './themes';
 import {
   csv,
@@ -58,13 +58,20 @@ interface HarnessOptions {
   readonly csvText?: string;
   readonly recent?: readonly string[];
   readonly board?: Omit<FakeBoardOptions, 'log'>;
+  /** 不注入计时器，让宿主用它默认的真实计时器；用例自己装上测试框架的假时钟。 */
+  readonly defaultSchedule?: boolean;
 }
 
 /**
  * 挂一页。随机源恒给 0：在还能抽的候选里总取第一个，于是 `roster(3)` 第一次
  * 抽出的是「候选1」，冷却之后的第二次是「候选2」。
  */
-function mountPage({ csvText = roster(3), recent = [], board: boardOptions }: HarnessOptions = {}): Harness {
+function mountPage({
+  csvText = roster(3),
+  recent = [],
+  board: boardOptions,
+  defaultSchedule = false,
+}: HarnessOptions = {}): Harness {
   const log: string[] = [];
   const page = fakeGamePage(log);
   const board = fakeBoard({ ...boardOptions, log });
@@ -77,7 +84,7 @@ function mountPage({ csvText = roster(3), recent = [], board: boardOptions }: Ha
     board,
     page,
     random: scriptedRandom([0]),
-    schedule: timer.schedule,
+    ...(!defaultSchedule && { schedule: timer.schedule }),
   });
   return {
     teardown,
@@ -151,7 +158,7 @@ describe('名单正常时写出玩法页', () => {
     ]);
   });
 
-  it('接好之后没锁，也还什么都没抽、没揭晓', () => {
+  it('挂上之后没锁，也还什么都没抽、没揭晓', () => {
     const harness = mountPage();
     const { board, page, recentWinners } = harness;
     expect(rollOf(harness).locked).toBe(false);
@@ -159,7 +166,6 @@ describe('名单正常时写出玩法页', () => {
     expect(page.card?.showCount).toBe(0);
     expect(recentWinners.names).toEqual([]);
   });
-
 });
 
 describe('一整次开抽', () => {
@@ -233,6 +239,88 @@ describe('一整次开抽', () => {
     expect(board.reveals.map((winner) => winner.name)).toEqual(['候选1', '候选2']);
     expect(page.card?.shownWinner?.name).toBe('候选2');
   });
+
+  it('收下之后在盘面的复位里立刻开抽，照常受理', () => {
+    // 复位运行时锁已经解开：盘面在复位里想立刻再开一次抽，不会被上一次的残留挡掉。
+    let acceptedInReset: boolean | undefined;
+    const harness = mountPage({
+      board: {
+        onReset(roll) {
+          acceptedInReset = roll.begin();
+        },
+      },
+    });
+    rollOnce(harness);
+    harness.page.pressClose();
+
+    expect(acceptedInReset).toBe(true);
+    expect(rollOf(harness).locked).toBe(true);
+  });
+});
+
+describe('报停与收下只在对的时候受理', () => {
+  it('还没开抽就报停下：不抽、不揭晓、不排那一拍', () => {
+    const harness = mountPage();
+    const { board, page, timer, recentWinners } = harness;
+
+    rollOf(harness).boardStopped();
+
+    expect(board.reveals).toEqual([]);
+    expect(recentWinners.names).toEqual([]);
+    expect(timer.pendingCount).toBe(0);
+    timer.advance(REVEAL_PAUSE_MS * 2);
+    expect(page.card?.showCount).toBe(0);
+  });
+
+  it('揭晓那一拍里再报一次停下：不抽第二次，也不弹第二张卡片', () => {
+    const harness = mountPage();
+    const { board, page, timer, recentWinners } = harness;
+    const roll = rollOf(harness);
+    roll.begin();
+    roll.boardStopped();
+    roll.boardStopped();
+
+    expect(board.reveals.map((winner) => winner.name)).toEqual(['候选1']);
+    expect(recentWinners.names).toEqual(['候选1']);
+
+    timer.advance(REVEAL_PAUSE_MS * 2);
+    expect(page.card?.showCount).toBe(1);
+    expect(page.card?.shownWinner?.name).toBe('候选1');
+  });
+
+  it('已经抽出中选之后再报停下：中选不被悄悄换掉', () => {
+    const harness = mountPage();
+    const { board, page, timer, recentWinners } = harness;
+    rollOnce(harness);
+
+    rollOf(harness).boardStopped();
+    timer.advance(REVEAL_PAUSE_MS * 2);
+
+    expect(board.revealed?.name).toBe('候选1');
+    expect(board.reveals).toHaveLength(1);
+    expect(recentWinners.names).toEqual(['候选1']);
+    expect(page.card?.showCount).toBe(1);
+    expect(page.card?.shownWinner?.name).toBe('候选1');
+  });
+
+  it('揭晓那一拍里按卡片的关掉按钮：不受理，那一拍走完卡片照常弹出', () => {
+    // 卡片还没弹，没有中选可收：收了它就会在回到起点之后才弹出来。
+    const harness = mountPage();
+    const { board, page, timer, log } = harness;
+    const roll = rollOf(harness);
+    roll.begin();
+    roll.boardStopped();
+
+    log.length = 0;
+    page.pressClose();
+    expect(log).toEqual([]);
+    expect(board.revealed?.name).toBe('候选1');
+    expect(roll.locked).toBe(true);
+
+    timer.advance(REVEAL_PAUSE_MS);
+    expect(page.card?.isOpen).toBe(true);
+    expect(page.card?.shownWinner?.name).toBe('候选1');
+  });
 });
 
 describe('锁', () => {
@@ -260,36 +348,48 @@ describe('锁', () => {
     const roll = rollOf(harness);
     const seen: boolean[] = [];
     roll.subscribe(() => seen.push(roll.locked));
+    // 订阅当下那一次是初值。
+    expect(seen).toEqual([false]);
 
     roll.begin();
-    expect(seen).toEqual([true]);
+    expect(seen).toEqual([false, true]);
 
     // 连点：不受理，锁没变，订阅者不该被惊动。
     roll.begin();
     roll.boardStopped();
     timer.advance(REVEAL_PAUSE_MS);
-    expect(seen).toEqual([true]);
+    expect(seen).toEqual([false, true]);
 
     page.pressClose();
-    expect(seen).toEqual([true, false]);
+    expect(seen).toEqual([false, true, false]);
   });
 
-  it('挂上时就订阅的控件在接好那一刻被叫一次，读到没锁', () => {
-    // 盘面挂上的那一刻开抽还没接好：这时句柄算锁着，开抽不受理；接好了锁解开，
-    // 订阅者借这一次拿到初值。
+  it('挂上时就订阅的控件在订阅当下就拿到初值，读到没锁', () => {
+    // 句柄交到盘面手里时就是活的：不必等宿主再补发一次，「转」一进页面就是对的状态。
     const seen: boolean[] = [];
-    let acceptedWhileMounting: boolean | undefined;
     mountPage({
       board: {
         onMount(roll) {
-          acceptedWhileMounting = roll.begin();
           roll.subscribe(() => seen.push(roll.locked));
         },
       },
     });
 
-    expect(acceptedWhileMounting).toBe(false);
     expect(seen).toEqual([false]);
+  });
+
+  it('多个订阅者都会被叫到', () => {
+    const harness = mountPage();
+    const roll = rollOf(harness);
+    const first: boolean[] = [];
+    const second: boolean[] = [];
+    roll.subscribe(() => first.push(roll.locked));
+    roll.subscribe(() => second.push(roll.locked));
+
+    roll.begin();
+
+    expect(first).toEqual([false, true]);
+    expect(second).toEqual([false, true]);
   });
 });
 
@@ -336,7 +436,7 @@ describe('换页拆卸', () => {
     expect(board.teardownCount).toBe(1);
   });
 
-  it('先拆开抽会话，再拆盘面：盘面拆卸时开抽已经不受理', () => {
+  it('先停开抽，再拆盘面：盘面拆卸时开抽已经不受理', () => {
     let acceptedDuringTeardown: boolean | undefined;
     let lockedDuringTeardown: boolean | undefined;
     const { teardown } = mountPage({
@@ -417,5 +517,40 @@ describe('盘面不给复位、拆卸时', () => {
     expect(() => harness.teardown()).not.toThrow();
     harness.timer.advance(REVEAL_PAUSE_MS * 2);
     expect(harness.page.card?.showCount).toBe(0);
+  });
+});
+
+describe('默认计时器', () => {
+  it('不注入计时器时用真实的 setTimeout 停那一拍', () => {
+    vi.useFakeTimers();
+    try {
+      const harness = mountPage({ defaultSchedule: true });
+      const roll = rollOf(harness);
+      roll.begin();
+      roll.boardStopped();
+      expect(harness.page.card?.isOpen).toBe(false);
+
+      vi.advanceTimersByTime(REVEAL_PAUSE_MS);
+      expect(harness.page.card?.shownWinner).toBe(harness.board.revealed);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('拆卸掐得掉真实的 setTimeout', () => {
+    vi.useFakeTimers();
+    try {
+      const harness = mountPage({ defaultSchedule: true });
+      const roll = rollOf(harness);
+      roll.begin();
+      roll.boardStopped();
+      harness.teardown();
+
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(REVEAL_PAUSE_MS * 2);
+      expect(harness.page.card?.showCount).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

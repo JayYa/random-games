@@ -8,7 +8,6 @@
 
 import type { RecentMemory } from './cooldown';
 import type { ResultCard } from './resultCard';
-import type { Schedule } from './rollSession';
 import type { RosterFailureSource } from './rosterFailure';
 import type { Candidate } from './rosterSession';
 import type { Theme } from './themes';
@@ -18,6 +17,7 @@ import type {
   MountedBoard,
   PageAdapter,
   RollHandle,
+  Schedule,
 } from './gamePageHost';
 
 /**
@@ -106,7 +106,7 @@ export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMem
 }
 
 /**
- * 一张记录调用的假结果卡片：开抽会话的用例用它当测试替身。
+ * 一张记录调用的假结果卡片：假页面写玩法页时交回的就是它，只在假页面里造。
  *
  * 与 `scriptedRandom` / `stagedRandom` 同一性质——把一个真实依赖换成可预测、
  * 可查问的替身，好让用例不必碰 DOM（真卡片要写节点、要撒花、要挪焦点）。
@@ -130,7 +130,7 @@ export interface FakeResultCard extends ResultCard {
   readonly returnedFocusTo: HTMLElement | undefined;
 }
 
-export function fakeResultCard(): FakeResultCard {
+function fakeResultCard(): FakeResultCard {
   let isOpen = false;
   let shownWinner: Candidate | undefined;
   let showCount = 0;
@@ -169,13 +169,13 @@ export function fakeResultCard(): FakeResultCard {
 }
 
 /**
- * 一个手动拨动的假计时器：开抽会话揭晓那一拍的测试替身。
+ * 一个手动拨动的假计时器：玩法页宿主揭晓那一拍的测试替身。
  *
  * 与 `fakeResultCard` 同一性质——把真的 `setTimeout` 换成用例说走才走的时钟，
  * 用例不必真等那 0.8 秒，也不必动全局的计时器。
  */
 export interface FakeTimer {
-  /** 交给会话的计时器。 */
+  /** 交给宿主的计时器。 */
   readonly schedule: Schedule;
   /** 让时间往前走 `ms` 毫秒：这期间到点的回调按到点的先后依次叫。 */
   advance(ms: number): void;
@@ -296,6 +296,8 @@ export interface FakeBoardOptions {
   readonly log?: string[];
   /** 挂上的那一刻、拿到句柄之后再做点什么：用例借它看挂上那一刻的句柄。 */
   readonly onMount?: (roll: RollHandle) => void;
+  /** 复位里再做点什么：用例借它看收下之后那一刻的句柄。不给复位时不会被叫。 */
+  readonly onReset?: (roll: RollHandle) => void;
   /** 自己的拆卸里再做点什么：用例借它看拆卸那一刻的句柄。不给拆卸时不会被叫。 */
   readonly onTeardown?: (roll: RollHandle) => void;
 }
@@ -321,7 +323,7 @@ export interface FakeBoard extends Board {
 }
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
-  const { reset = true, teardown = true, returnFocusTo, log, onMount, onTeardown } = options;
+  const { reset = true, teardown = true, returnFocusTo, log, onMount, onReset, onTeardown } = options;
   let handle: RollHandle | undefined;
   let mountCount = 0;
   let revealed: Candidate | undefined;
@@ -365,6 +367,7 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
         ...(reset && {
           reset() {
             log?.push('board reset');
+            onReset?.(roll);
           },
         }),
         ...(teardown && {
