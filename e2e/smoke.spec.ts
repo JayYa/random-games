@@ -36,6 +36,8 @@ test.describe('转盘', () => {
     await page.goto(`#/${THEME}/wheel`);
     const spin = page.locator('#wheel-spin');
     await expect(spin).toHaveText('转');
+    // 一进页面就宣告按得动。
+    await expect(spin).toHaveAttribute('aria-disabled', 'false');
 
     await spin.click();
     await expect(spin).toHaveAttribute('aria-disabled', 'true');

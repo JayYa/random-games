@@ -8,7 +8,6 @@
 
 import type { RecentMemory } from './cooldown';
 import type { ResultCard } from './resultCard';
-import type { Schedule } from './rollSession';
 import type { RosterFailureSource } from './rosterFailure';
 import type { Candidate } from './rosterSession';
 import type { Theme } from './themes';
@@ -18,6 +17,7 @@ import type {
   MountedBoard,
   PageAdapter,
   RollHandle,
+  Schedule,
 } from './gamePageHost';
 
 /**
@@ -106,7 +106,7 @@ export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMem
 }
 
 /**
- * 一张记录调用的假结果卡片：开抽会话的用例用它当测试替身。
+ * 一张记录调用的假结果卡片：假页面写玩法页时交回的就是它，只在假页面里造。
  *
  * 与 `scriptedRandom` / `stagedRandom` 同一性质——把一个真实依赖换成可预测、
  * 可查问的替身，好让用例不必碰 DOM（真卡片要写节点、要撒花、要挪焦点）。
@@ -123,13 +123,19 @@ export interface FakeResultCard extends ResultCard {
   readonly showCount: number;
   /** 真的收起来过几次；本来就没开的那几次不计。 */
   readonly hideCount: number;
+  /**
+   * 每次真的收起来时收到的焦点去向，按先后；盘面不给焦点去向时那一项是 undefined。
+   * 本来就没开的那几次不计：真卡片那时也不挪焦点。
+   */
+  readonly focusReturns: readonly (HTMLElement | undefined)[];
 }
 
-export function fakeResultCard(): FakeResultCard {
+function fakeResultCard(): FakeResultCard {
   let isOpen = false;
   let shownWinner: Candidate | undefined;
   let showCount = 0;
   let hideCount = 0;
+  const focusReturns: (HTMLElement | undefined)[] = [];
 
   return {
     get isOpen() {
@@ -144,28 +150,32 @@ export function fakeResultCard(): FakeResultCard {
     get hideCount() {
       return hideCount;
     },
+    get focusReturns() {
+      return [...focusReturns];
+    },
     show(winner) {
       isOpen = true;
       shownWinner = winner;
       showCount += 1;
     },
-    hide() {
+    hide(focusTo: HTMLElement | undefined) {
       // 与真卡片一致：本来就没开就什么都不做。
       if (!isOpen) return;
       isOpen = false;
       hideCount += 1;
+      focusReturns.push(focusTo);
     },
   };
 }
 
 /**
- * 一个手动拨动的假计时器：开抽会话揭晓那一拍的测试替身。
+ * 一个手动拨动的假计时器：玩法页宿主揭晓那一拍的测试替身。
  *
  * 与 `fakeResultCard` 同一性质——把真的 `setTimeout` 换成用例说走才走的时钟，
  * 用例不必真等那 0.8 秒，也不必动全局的计时器。
  */
 export interface FakeTimer {
-  /** 交给会话的计时器。 */
+  /** 交给宿主的计时器。 */
   readonly schedule: Schedule;
   /** 让时间往前走 `ms` 毫秒：这期间到点的回调按到点的先后依次叫。 */
   advance(ms: number): void;
@@ -226,10 +236,8 @@ export interface FakeGamePage extends PageAdapter {
   readonly rosterFailures: readonly RecordedRosterFailure[];
   /** 写过的玩法页，按先后。 */
   readonly gamePages: readonly GamePageView[];
-  /** 接上行为的那张卡片；还没接过则为 undefined。 */
+  /** 写玩法页时交回的那张卡片；还没写过玩法页则为 undefined。 */
   readonly card: FakeResultCard | undefined;
-  /** 接卡片时交给它的焦点去向。 */
-  readonly returnFocusTo: HTMLElement | undefined;
   /**
    * 按一下卡片上的关掉按钮。卡片没挂着时按不到——真按钮藏着的时候点不着，
    * 所以这时什么都不发生。
@@ -241,7 +249,6 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
   const rosterFailures: RecordedRosterFailure[] = [];
   const gamePages: GamePageView[] = [];
   let card: FakeResultCard | undefined;
-  let returnFocusTo: HTMLElement | undefined;
   let onClose: (() => void) | undefined;
 
   return {
@@ -254,9 +261,6 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
     get card() {
       return card;
     },
-    get returnFocusTo() {
-      return returnFocusTo;
-    },
     showRosterFailure(_root, theme, roster) {
       log?.push(`page roster-failure ${roster.status}`);
       rosterFailures.push({
@@ -266,16 +270,12 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
         disabledCount: roster.disabledCount,
       });
     },
-    showGamePage(_root, view) {
+    showGamePage(_root, view, close) {
       log?.push('page game');
       gamePages.push(view);
-      return (options) => {
-        log?.push('page card');
-        card = fakeResultCard();
-        returnFocusTo = options.returnFocusTo;
-        onClose = options.onClose;
-        return card;
-      };
+      card = fakeResultCard();
+      onClose = close;
+      return card;
     },
     pressClose() {
       if (!card?.isOpen) return;
@@ -296,6 +296,8 @@ export interface FakeBoardOptions {
   readonly log?: string[];
   /** 挂上的那一刻、拿到句柄之后再做点什么：用例借它看挂上那一刻的句柄。 */
   readonly onMount?: (roll: RollHandle) => void;
+  /** 复位里再做点什么：用例借它看收下之后那一刻的句柄。不给复位时不会被叫。 */
+  readonly onReset?: (roll: RollHandle) => void;
   /** 自己的拆卸里再做点什么：用例借它看拆卸那一刻的句柄。不给拆卸时不会被叫。 */
   readonly onTeardown?: (roll: RollHandle) => void;
 }
@@ -321,7 +323,7 @@ export interface FakeBoard extends Board {
 }
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
-  const { reset = true, teardown = true, returnFocusTo, log, onMount, onTeardown } = options;
+  const { reset = true, teardown = true, returnFocusTo, log, onMount, onReset, onTeardown } = options;
   let handle: RollHandle | undefined;
   let mountCount = 0;
   let revealed: Candidate | undefined;
@@ -365,6 +367,7 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
         ...(reset && {
           reset() {
             log?.push('board reset');
+            onReset?.(roll);
           },
         }),
         ...(teardown && {
