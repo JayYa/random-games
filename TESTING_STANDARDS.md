@@ -54,7 +54,7 @@ it('drawWinner 调用 drawWithCooldown', () => {
 
 // BAD: Bypasses the interface to verify via the raw storage
 it('remember 往存储里写 JSON', () => {
-  const storage = mapStorage();
+  const storage = fakeStorage();
   recentWinnersMemory(storage, 'eat').remember('沙县小吃');
   expect(storage.getItem('recent-winners:eat')).toBe('["沙县小吃"]');
 });

@@ -8,8 +8,7 @@
  *   `hashchange`，用例把它接到「画当前地址」上，与入口文件的接法一样。
  * - 假点击：默认是普通的左键单击，记得自己有没有被拦下。
  * - 假取数：用例说什么时候回、回成功还是失败。
- * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面；它也看得到最近
- *   玩法、最近中选落在哪个键上。
+ * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面。
  * - 记录调用的假页面适配器：挂玩法页只做记录，玩法页宿主在它自己的接缝上测透了。
  * - 可预测的随机源：恒给 0，抽玩法在还能抽的里面总取第一个。
  */
@@ -284,13 +283,6 @@ describe('最近玩法', () => {
     open(gameHash(theme, firstGame), { storage });
     expect(open(themeHash(theme), { storage }).browser.location.hash).toBe(gameHash(theme, firstGame));
   });
-
-  // 键名是跨版本的约定：换了名，这台浏览器上已经记下的就读不回来了。只看键，不看里面的 JSON。
-  it('抽出的玩法记在全站共用的最近玩法键上', () => {
-    const storage = fakeStorage();
-    open(themeHash(theme), { storage });
-    expect(storage.keys).toEqual(['random-games:recent-games']);
-  });
 });
 
 describe('最近中选', () => {
@@ -310,15 +302,6 @@ describe('最近中选', () => {
 
   it('不同主题的最近中选互不相干', async () => {
     expect(await recentWinnersAfter(otherTheme, firstGame)).toEqual([]);
-  });
-
-  // 与最近玩法的键同理：只看键，不看里面的 JSON。
-  it('记下的中选落在这个主题自己的键上', async () => {
-    const storage = fakeStorage();
-    const { fetch, mounts } = open(gameHash(theme, firstGame), { storage });
-    await fetch.succeed(theme.rosterFile);
-    mounts[0]?.recentWinners.remember('甲');
-    expect(storage.keys).toEqual([`random-games:recent-winners:${theme.slug}`]);
   });
 });
 
