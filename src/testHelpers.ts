@@ -342,18 +342,12 @@ export interface FakeRollHandle extends RollHandle {
 }
 
 export function fakeRollHandle(): FakeRollHandle {
-  let accepts = true;
   let beginCount = 0;
   let boardStoppedCount = 0;
 
-  return {
+  const handle: FakeRollHandle = {
     locked: false,
-    get accepts() {
-      return accepts;
-    },
-    set accepts(value) {
-      accepts = value;
-    },
+    accepts: true,
     get beginCount() {
       return beginCount;
     },
@@ -362,7 +356,7 @@ export function fakeRollHandle(): FakeRollHandle {
     },
     begin() {
       beginCount += 1;
-      return accepts;
+      return handle.accepts;
     },
     boardStopped() {
       boardStoppedCount += 1;
@@ -372,6 +366,7 @@ export function fakeRollHandle(): FakeRollHandle {
       onChange();
     },
   };
+  return handle;
 }
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
