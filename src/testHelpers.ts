@@ -378,7 +378,7 @@ export interface MountOnHostOptions {
 
 /** 挂在真宿主上的一页：宿主交回的拆卸，宿主那道接缝上的几样替身，和宿主给盘面的句柄。 */
 export interface HostedBoard {
-  /** 宿主交回的拆卸，就是路由换页前调的那一个。 */
+  /** 宿主交回的拆卸，就是站内导航换页前调的那一个。 */
   readonly teardown: () => void;
   readonly page: FakeGamePage;
   /** 揭晓那一拍的假计时器；`realSchedule` 时宿主不用它。 */

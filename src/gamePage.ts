@@ -27,7 +27,7 @@ export interface GamePageOptions {
  * 也让一个坏掉的主题困不住人。
  *
  * 入口是真链接不是按钮：能中键新开、能长按看菜单、能看到目标地址。但普通的左键单击
- * 由路由层接走，改成后退（`data-to-picker`，见 `backToPicker.ts` 与 ADR-0007）——
+ * 由入口文件接走，改成后退（`data-to-picker`，见 `backToPicker.ts` 与 ADR-0007）——
  * 照链接走会在历史上再压一页首页，后退键又把人送回这一页。
  * 它和标题同占一行（见 style.css 的 .page__header）：盘面的高度是这一页最金贵的
  * 东西，多一个入口不该让盘面矮一截。

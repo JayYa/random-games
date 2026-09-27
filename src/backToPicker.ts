@@ -7,11 +7,9 @@
  * 把当前这页原地换成首页。
  *
  * 「上一页是不是首页」记在每条玩法页历史自己的 `history.state` 上：刷新不丢，
- * 前进后退回到这一条时也还是当初记下的那个答案。这里只放判断，读写 `history`
- * 的是路由层。
+ * 前进后退回到这一条时也还是当初记下的那个答案。这里只放判断，写记号的是站内导航
+ * （`navigation.ts`），读记号、接点击的暂时还是入口文件。
  */
-
-import { THEME_PICKER_HASH } from './themes';
 
 /** 一条玩法页历史上记的东西。 */
 export interface PageEntryState {
@@ -71,14 +69,4 @@ export function isPlainClick(event: ClickLike): boolean {
     !event.altKey &&
     !event.defaultPrevented
   );
-}
-
-/**
- * 认不出的地址落到选主题页时，要不要把地址栏也改成 `#/`。
- *
- * `#/foo`、`#/eat/xyz` 画的是首页，地址栏就该写首页——不然收藏下来、发出去的
- * 都是一个坏地址，后退也会退到它上面。根地址（空 hash）本来就是首页，不去动它。
- */
-export function shouldRewriteToPicker(hash: string): boolean {
-  return hash !== '' && hash !== THEME_PICKER_HASH;
 }

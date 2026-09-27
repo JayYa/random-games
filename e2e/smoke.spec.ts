@@ -127,7 +127,7 @@ test.describe('名单写坏时只画错误页、不挂盘面', () => {
     }
   }
 
-  test('名单文件取不到：路由画取不到文件的错误页', async ({ page }) => {
+  test('名单文件取不到：站内导航画取不到文件的错误页', async ({ page }) => {
     await page.route(ROSTER_URL, (route) => route.fulfill({ status: 404, body: '' }));
     await page.goto(`#/${THEME}/wheel`);
 
