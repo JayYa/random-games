@@ -10,7 +10,8 @@
  * 进来，它交回这一刻的画面状态，渲染层（`ui.ts`）照着画。机器内部不读时钟、不起
  * 计时器、也不读 `Math.random`——扇区、扇区内的落点、圈数都来自注入的同一个随机源。
  *
- * 开抽句柄由它直接持有：`spin()` 就是 `begin()`，不受理就不转、不定扇区；走到终点
+ * 开抽句柄由它直接持有：`spin()` 就是 `begin()`，并把受没受理交回——不受理就不转、
+ * 不定扇区，渲染层照这个答复决定要不要起 rAF，不必再反问画面是不是在转；走到终点
  * 那一次 `tick` 里 `boardStopped()`，同一次转只报一次。「开抽之后锁死」的判据仍只在
  * 宿主一处（ADR-0012），机器不另立。
  *
@@ -56,8 +57,11 @@ export interface WheelView {
 
 /** 转盘机器的接口。揭晓、抹掉与盘面挂载结果上的同名项同形，渲染层原样转交。 */
 export interface WheelMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
-  /** 转一次：内部调 `roll.begin()`，不受理就什么都不做。 */
-  spin(): void;
+  /**
+   * 按下「转」：内部调 `roll.begin()`。返回受没受理——受理了才定扇区、起转，渲染层
+   * 才起 rAF 循环；不受理（正在转、揭晓那一拍、结果卡片挂着）就什么都不做。
+   */
+  spin(): boolean;
   /**
    * 走到 `now` 这一刻（毫秒，与 rAF 的时间戳同一口径），交回这一刻的画面状态。
    * 不在转的时候什么都不推进，拿它补画一帧也无妨。
@@ -144,8 +148,8 @@ export function createWheelMachine(
 
   return {
     spin() {
-      // 受不受理由宿主说了算：转动期间、揭晓那一拍里、卡片挂着时都静静退回。
-      if (!roll.begin()) return;
+      // 受不受理由宿主说了算：转动期间、揭晓那一拍里、卡片挂着时都静静退回、交回 false。
+      if (!roll.begin()) return false;
       // 停在哪个扇区在动画开始前就已确定，旋转只是把它演出来；谁中选此刻还没抽。
       const sector = randomIndex(random, sectors.count);
       const targetAngle = sectors.angleInSector(sector, random());
@@ -158,6 +162,7 @@ export function createWheelMachine(
         startedAt: undefined,
         elapsed: 0,
       };
+      return true;
     },
 
     tick(now) {

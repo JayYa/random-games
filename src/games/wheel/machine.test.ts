@@ -7,8 +7,8 @@
  * 唯一的替身是宿主那道接缝上的假页面、假计时器与假最近中选，宿主是真的。机器的随机
  * 源给种子随机源：一次转因此是确定的，而用例不关心机器按什么顺序取几个随机数。
  *
- * 用例推的是 `spin()` 与 `tick`，收下中选就是按假页面上卡片的关掉按钮。看的只有三样：
- * 真句柄上的锁、`tick` 交回的画面状态、卡片弹了几次。
+ * 用例推的是 `spin()` 与 `tick`，收下中选就是按假页面上卡片的关掉按钮。看的只有四样：
+ * 真句柄上的锁、`spin()` 交回的受没受理、`tick` 交回的画面状态、卡片弹了几次。
  *
  * 两条时钟各推各的：机器的时间只经 `tick(now)` 进来，用例直接写「走到第几毫秒」；
  * 宿主揭晓那一拍只经假计时器走。
@@ -120,6 +120,39 @@ describe('一次开抽就是一次', () => {
   const LATER_MS = START_MS + 10 * SPIN_DURATION_MS;
 
   /**
+   * 开抽锁着的三种情形，都按宿主造得出的顺序走到：先转起来、走到转动中途，再各往前推
+   * 到那一刻。
+   */
+  const LOCKED: readonly (readonly [string, (harness: Harness) => void])[] = [
+    ['转动期间', (_harness) => {}],
+    [
+      '揭晓那一拍里',
+      ({ machine }) => {
+        machine.tick(START_MS + SPIN_DURATION_MS);
+      },
+    ],
+    [
+      '卡片挂着时',
+      ({ machine, timer }) => {
+        machine.tick(START_MS + SPIN_DURATION_MS);
+        timer.advance(REVEAL_PAUSE_MS);
+      },
+    ],
+  ];
+
+  /** 挂一页、按一次「转」、走到转动中途，再推到 `when` 那一刻。 */
+  function lockedBy(when: (harness: Harness) => void): Harness {
+    const harness = setup();
+    const { machine } = harness;
+    machine.tick(FIRST_TICK_MS);
+    machine.spin();
+    machine.tick(START_MS);
+    machine.tick(MID_SPIN_MS);
+    when(harness);
+    return harness;
+  }
+
+  /**
    * 两台同种子的机器走同一串 `tick`，只有一台在 `when` 那一步里多按了一次「转」。
    * 交回两台在最后那一刻的角度：多按的那一下不受理，两条角度轨迹就分不开。
    */
@@ -128,13 +161,7 @@ describe('一次开抽就是一次', () => {
     readonly untouched: number;
   } {
     const run = (pressAgain: boolean): number => {
-      const harness = setup();
-      const { machine } = harness;
-      machine.tick(FIRST_TICK_MS);
-      machine.spin();
-      machine.tick(START_MS);
-      machine.tick(MID_SPIN_MS);
-      when(harness);
+      const { machine } = lockedBy(when);
       if (pressAgain) machine.spin();
       machine.tick(LATER_MS - FRAME_MS);
       return machine.tick(LATER_MS).rotation;
@@ -142,25 +169,28 @@ describe('一次开抽就是一次', () => {
     return { pressed: run(true), untouched: run(false) };
   }
 
-  it.each([
-    ['转动期间', (_harness: Harness) => {}],
-    [
-      '揭晓那一拍里',
-      ({ machine }: Harness) => {
-        machine.tick(START_MS + SPIN_DURATION_MS);
-      },
-    ],
-    [
-      '卡片挂着时',
-      (harness: Harness) => {
-        harness.machine.tick(START_MS + SPIN_DURATION_MS);
-        harness.timer.advance(REVEAL_PAUSE_MS);
-      },
-    ],
-  ])('%s再按「转」不开第二次转', (_when, when) => {
+  it.each(LOCKED)('%s再按「转」不开第二次转', (_when, when) => {
     const { pressed, untouched } = pressedAgain(when);
 
     expect(pressed).toBe(untouched);
+  });
+
+  // 受没受理由 `spin()` 交回：渲染层照它决定起不起 rAF 循环，被退回的那一下不白跑一帧。
+  it('开抽受理时 spin() 交回 true', () => {
+    const { machine } = setup();
+    machine.tick(FIRST_TICK_MS);
+
+    const accepted = machine.spin();
+
+    expect(accepted).toBe(true);
+  });
+
+  it.each(LOCKED)('%s再按「转」，spin() 交回 false', (_when, when) => {
+    const { machine } = lockedBy(when);
+
+    const accepted = machine.spin();
+
+    expect(accepted).toBe(false);
   });
 });
 

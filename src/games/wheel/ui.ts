@@ -7,8 +7,8 @@
  * 一个盘面：交出自己的 HTML 和卡片按钮上的字。
  *
  * 盘面背后的状态也不在这里：定扇区、反算角度、按时间推进、走到终点报停、揭晓写在
- * 哪一格，全归转盘机器（`./machine.ts`），用例在那边。这里只把「转」的点击交给它，
- * 用 rAF 把时间喂给它，照它交回的画面状态画。
+ * 哪一格，全归转盘机器（`./machine.ts`），用例在那边。这里只把「转」的点击交给它、
+ * 照它交回的受没受理决定起不起 rAF 循环，用 rAF 把时间喂给它，照它交回的画面状态画。
  */
 
 import { createById } from '../../byId';
@@ -90,13 +90,9 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   });
 
   spinButton.addEventListener('click', () => {
-    // 受不受理由机器问宿主：锁着时连点「转」只会被静静退回，叠不出第二次转动。
-    machine.spin();
-    // 已经在跑就不再起一条：同一时刻只有一条 rAF 循环。没在跑时问机器一句：真转起来了
-    // 才要帧，被退回的那一下不白跑一帧。
-    if (rafId === undefined && machine.tick(performance.now()).spinning) {
-      rafId = requestAnimationFrame(frame);
-    }
+    // 受不受理由机器问宿主，并交回答复：锁着时连点「转」只会被静静退回，叠不出第二次
+    // 转动，也不白跑一帧。受理了、且当下没有正在跑的那一条，才起一条 rAF 循环。
+    if (machine.spin() && rafId === undefined) rafId = requestAnimationFrame(frame);
   });
 
   // 画布尺寸由 CSS 算，元素自己变大变小时重绘一次即可（转屏、地址栏收起都走这条）。
