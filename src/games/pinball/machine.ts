@@ -30,13 +30,16 @@ const WINDMILL_RADIANS_PER_MS = BOARD.windmillAngularVelocity / (1000 / 60);
 /** 掉帧（切走标签页再回来）时一次别把风车转出半圈去：单帧时间最多算这么长。 */
 export const MAX_FRAME_MS = 100;
 
+/** 球底与柱塞头上沿之间留的那一道缝：球坐在柱塞上，但不压进柱塞里。 */
+const BALL_SEAT_GAP_PX = 2;
+
 /**
  * 柱塞头（顶着球的那一截）静止时的上沿，与它被拉满时往下走的距离。
  *
  * 球坐在柱塞头上、跟着它往下压，所以机器要知道它；渲染层画柱塞用的也是这两个数，
  * 两边才对得上。
  */
-export const PLUNGER_REST_TOP = BOARD.launchY + BOARD.ballRadius + 2;
+export const PLUNGER_REST_TOP = BOARD.launchY + BOARD.ballRadius + BALL_SEAT_GAP_PX;
 export const PLUNGER_TRAVEL = 18;
 
 /**
@@ -57,14 +60,6 @@ const REST_PULL_PX = 8;
 
 /** 指针离盘面这么远就算移出有效区域，这一发作废。 */
 const CANCEL_MARGIN_PX = 64;
-
-/**
- * 落格数：盘面自己的常量，与名单里有几个候选无关（CONTEXT.md「落格」）。
- *
- * 名单只有三个人时盘面上照旧是 8 格，名单有四十个人也一样——格数若跟着名单走，
- * 数一数落格就知道池子有多大，盘面就不匿名了。落格不对应任何候选。
- */
-const SLOT_COUNT = BOARD.slotCount;
 
 /** 揭晓那一刻盘面上多出来的东西：一格高亮，外加浮在它上方的名字。 */
 export interface PinballReveal {
@@ -330,7 +325,8 @@ export function createPinballMachine(
       windmillPhase,
       // 种子只对开局做微扰：同样的力度不必每次都走出同一条轨迹。
       seed: Math.floor(random() * 0xffffffff),
-      slotCount: SLOT_COUNT,
+      // 落格数是盘面自己的常量，与名单里有几个候选无关（CONTEXT.md「落格」）。
+      slotCount: BOARD.slotCount,
     });
     // 整段模拟已经跑完了（几毫秒），剩下的只是把它放出来：下一次 tick 就是回放起点。
     // 卡住的球在这之前就被兜底处理掉了，用户看不到（ADR-0006）。
@@ -395,7 +391,7 @@ export function createPinballMachine(
       if (stage.kind === 'ready') {
         // 球坐在柱塞头上，柱塞压下去它跟着走。
         ballX = LANE_CENTER_X;
-        ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - 2;
+        ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - BALL_SEAT_GAP_PX;
       }
 
       return { ballX, ballY, windmillAngles: angles, power, revealed };
