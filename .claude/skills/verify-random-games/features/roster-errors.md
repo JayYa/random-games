@@ -7,7 +7,7 @@ When a theme's roster can't be used, the game page shows an error panel in the n
 - `err-load` fetch fails (e.g. 404): `[data-error-kind="load"]`, title `名单文件没取到`.
 - `err-parse` an unclosed quote: `[data-error-kind="parse-error"]`, title `名单里有一行读不懂`.
 - `err-empty` only comments/blank lines: `[data-error-kind="empty-file"]`, title `名单是空的`.
-- `err-disabled` every row disabled: `[data-error-kind="all-disabled"]`, title `名单里的候选全部停用`.
+- `err-disabled` every row disabled (`false`, `0` or `no`): `[data-error-kind="all-disabled"]`, title `名单里的候选全部停用`.
 - `err-shell` the header link `← 换个主题` works from an error page.
 
 ## How to get to it (user POV)
@@ -27,7 +27,7 @@ Preconditions:
 - **All disabled.** Route body `'肠粉,false\n面包,no\n'`. `[data-error-kind="all-disabled"]`, no canvas.
 - **Load failure.** `route.fulfill({status: 404, body: ''})`. `[data-error-kind="load"]`, no canvas.
 - **Both games.** Repeat each case with `#/breakfast/pinball`; same kinds.
-- **Escape.** On any error page click `getByRole('link', {name: '← 换个主题'})`. URL ends `#/` and the picker shows.
+- **Escape.** On any error page click `getByRole('link', {name: '← 换个主题'})`. The picker shows. On an error page opened directly the URL ends `#/`; on one reached from the picker the link goes Back, so the URL is the picker's own (bare `baseURL` if that is where the picker was opened).
 - **Evidence.** `aria('error', 'main')` and a screenshot per case; `browser.log` should show no page errors.
 - **Real-file variant (optional).** Break a row of `public/breakfast.csv` in the working tree but keep its `# entry:` line, `stop` + `start` (without `--rev`, which builds a commit, not the working tree), drive without a route, then `git checkout -- public/breakfast.csv` and restart. Use when the change under test is in CSV parsing of committed files.
 

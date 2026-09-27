@@ -1,6 +1,6 @@
 # Theme picker and routing
 
-The site opens on a theme picker (`#/`) titled `是但` with one link per theme CSV in `public/`. Choosing a theme goes to `#/<slug>`, where the site rolls a game and replaces the address with `#/<slug>/<game>` without adding a history entry. Unknown addresses fall back to the picker and rewrite the address to `#/`. Every game page has a `← 换个主题` link that goes back to the picker without leaving the site.
+The site opens on a theme picker (`#/`) titled `是但` with one link per theme CSV in `public/`. Choosing a theme goes to `#/<slug>`, where the site rolls a game and replaces the address with `#/<slug>/<game>` without adding a history entry. Unknown addresses fall back to the picker and rewrite the address to `#/`; the bare root (no hash) is the picker too and stays as it is. Every game page has a `← 换个主题` link that goes back to the picker without leaving the site.
 
 ## Sub-features
 
@@ -24,11 +24,12 @@ Preconditions:
 
 - Baseline from [README.md](./README.md).
 
-- **Picker.** `await page.goto(baseURL)`. `getByRole('heading', {level: 1, name: '是但'})` visible; `aria('picker')` lists three links with `/url: "#/breakfast"` etc.
+- **Picker.** `await page.goto(baseURL)`. `getByRole('heading', {level: 1, name: '是但'})` visible; `aria('picker')` lists three links with `/url: "#/breakfast"` etc. `page.goto('about:blank')` then `page.goto(baseURL + '#/')` shows the same picker and keeps the URL at `#/`.
 - **Roll.** `const before = await page.evaluate(() => history.length); await page.getByRole('link', {name: '做点什么呢'}).click()`. `expect(page).toHaveURL(/#\/free-time\/(wheel|pinball)$/)`; `getByRole('heading', {level: 1, name: '做点什么呢'})` visible; `history.length` is `before + 1` (the picker→theme push; the roll itself added none).
 - **Back after roll.** `await page.goBack()`. The picker is shown and the URL is the one the picker had before (bare `baseURL` or `#/`), not an intermediate `#/free-time`.
 - **Back via link.** From the picker click a theme, then `getByRole('link', {name: '← 换个主题'}).click()`. URL is back to the picker's own (bare `baseURL` or `#/`), picker visible, and `history.length` unchanged from before the click.
-- **Direct landing.** `page.goto(baseURL + '#/go-out/wheel')`, record `history.length`, click `← 换个主题`. URL ends `#/`, `history.length` unchanged, and `page.url()` still starts with `baseURL` (not `about:blank`).
+- **Direct landing.** `page.goto('about:blank')`, then `page.goto(baseURL + '#/go-out/wheel')`, record `history.length`, click `← 换个主题`. URL ends `#/`, `history.length` unchanged, and `page.url()` still starts with `baseURL` (not `about:blank`). Skip the `about:blank` after visiting the picker and the link goes Back instead, to the picker's own URL.
+- **Shared theme link.** `page.goto('about:blank')`, then `page.goto(baseURL + '#/go-out')`. URL becomes `#/go-out/(wheel|pinball)` and `random-games:recent-games` = `[<rolled game>]`; clicking `← 换个主题` then replaces the page with `#/`, `history.length` unchanged.
 - **Fallback.** For each of `#/nope`, `#/breakfast/xyz`: `page.goto(baseURL + hash)`. Picker visible and `expect(page).toHaveURL(/#\/$/)`.
 - **Evidence.** `recentMemory()` after each roll shows `random-games:recent-games` = `[<rolled game>]`; alternation is covered in [cooldown.md](./cooldown.md).
 

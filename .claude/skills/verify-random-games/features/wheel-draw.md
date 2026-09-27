@@ -7,7 +7,7 @@ On a wheel page (`#/<theme>/wheel`) the user presses `转`; the anonymous 12-sec
 - `wheel-ready` the page shows the theme title and an enabled `转` (`aria-disabled="false"`).
 - `wheel-lock` pressing `转` locks it (`aria-disabled="true"`) until the card is closed.
 - `wheel-reveal` the card shows a non-empty winner; the same name is drawn on the sector under the pointer.
-- `wheel-close` `再来一次` hides the card, focuses `转`, unlocks it, and nothing spins on its own.
+- `wheel-close` `再来一次` hides the card, erases the name from the sector, focuses `转`, unlocks it, and nothing spins on its own.
 - `wheel-memory` the winner is appended to `random-games:recent-winners:<slug>`.
 
 ## How to get to it (user POV)
@@ -37,4 +37,6 @@ Preconditions:
 - `转` is never `disabled`; `toBeDisabled()` passes or fails for the wrong reason. Assert `aria-disabled`.
 - The landing sector is random; never assert a sector or a specific winner name.
 - The ARIA snapshot shows `button "转" [disabled]` while locked — that is `aria-disabled`, not the attribute.
+- A long name is cut short with `…` on the sector while the card shows it in full; compare the two only by their start.
+- Escape does not close the card; only `再来一次` does (click, or Enter/Space while it has focus).
 - The card appears ≈4.3 s after `转` (3.5 s spin + 0.8 s reveal beat), close to Playwright's 5 s default; always pass `{timeout: 20_000}`.
