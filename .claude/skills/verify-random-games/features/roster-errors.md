@@ -29,11 +29,11 @@ Preconditions:
 - **Both games.** Repeat each case with `#/breakfast/pinball`; same kinds.
 - **Escape.** On any error page click `getByRole('link', {name: '← 换个主题'})`. URL ends `#/` and the picker shows.
 - **Evidence.** `aria('error', 'main')` and a screenshot per case; `browser.log` should show no page errors.
-- **Real-file variant (optional).** Break `public/breakfast.csv` in the working tree, `stop` + `start`, drive without a route, then `git checkout -- public/breakfast.csv` and restart. Use when the change under test is in CSV parsing of committed files.
+- **Real-file variant (optional).** Break a row of `public/breakfast.csv` in the working tree but keep its `# entry:` line, `stop` + `start` (without `--rev`, which builds a commit, not the working tree), drive without a route, then `git checkout -- public/breakfast.csv` and restart. Use when the change under test is in CSV parsing of committed files.
 
 ## Gotchas
 
 - The route glob must match the fetched URL (`/random-games/breakfast.csv`); `**/breakfast.csv` does.
-- A missing `# entry:` line is not a runtime error: theme discovery skips the file at build time (`start` prints `[themes] 跳过 …`) and the theme simply isn't on the picker.
-- The load-failure error text includes the browser's error detail; assert the kind and title, not the detail.
+- A missing or empty `# entry:` line, or a file name outside `[a-z0-9-]+.csv`, is not a runtime error: theme discovery skips the file at build time (`start` prints `[themes] 跳过 …`), the theme isn't on the picker, and `#/<slug>/wheel` falls back to the picker instead of an error page.
+- The load-failure detail depends on the failure: `读取 breakfast.csv 失败：HTTP 404` for an HTTP error, the browser's own message (`Failed to fetch` in Chromium) for `route.abort()`. Assert the kind and title, not the detail.
 - Always restore `public/` after the real-file variant; `git status` must be clean.

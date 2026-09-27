@@ -113,8 +113,8 @@ Kills only the recorded pid, and only if its port still serves this run's build 
 ## Helpers
 
 - [`verify.mjs`](verify.mjs) — `start | doctor | drive | stop | list`, invoked as `node .claude/skills/verify-random-games/verify.mjs <cmd> …`.
-- [`scenarios/wheel-draw.mjs`](scenarios/wheel-draw.mjs) — picker → roll → wheel draw → card → 再来一次 → storage.
-- [`scenarios/pinball-draw.mjs`](scenarios/pinball-draw.mjs) — picker → roll → plunger drag → card → 再打一发 → second shot → storage.
+- [`scenarios/wheel-draw.mjs`](scenarios/wheel-draw.mjs) — picker → roll → wheel draw → card → 再来一次 → storage → keyboard spin → direct link.
+- [`scenarios/pinball-draw.mjs`](scenarios/pinball-draw.mjs) — picker → roll → plunger drag → card → 再打一发 → second shot → storage → direct link.
 - [`scenarios/theme-picker.mjs`](scenarios/theme-picker.mjs) — picker links, roll, Back, `← 换个主题` (back and replace), unknown-route fallback.
 - [`scenarios/cooldown.mjs`](scenarios/cooldown.mjs) — winner cooling, oldest thaws, cap at 7, game alternation, direct link not recorded.
 - [`scenarios/roster-errors.mjs`](scenarios/roster-errors.mjs) — four error kinds × two games, escape via `← 换个主题`.
