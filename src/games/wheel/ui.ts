@@ -1,5 +1,6 @@
 /**
- * 渲染层：转盘的盘面——「转」按钮、按钮的锁、rAF 循环、画布尺寸与绘制。薄，不测。
+ * 渲染层：转盘的盘面——「转」按钮、按钮的锁、rAF 循环、尺寸观察与绘制。薄，不测。
+ * 像素缓冲对齐到设备像素比的那几条规则在对齐画布（`src/fitCanvas.ts`），用例在那边。
  *
  * 页头、错误页、结果卡片、撒花和开抽的接线都不在这里——它们与转盘无关，由玩法页
  * 宿主（`src/gamePageHost.ts`）接好（ADR-0012），下一个玩法照用同一份。转盘只交
@@ -12,7 +13,7 @@
 
 import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePageHost';
-import { canvasPixelRatio } from '../../pixelRatio';
+import { fitCanvas } from '../../fitCanvas';
 import { createSectors } from './sectors';
 import { createWheelMachine, SECTOR_COUNT, type WheelView } from './machine';
 import { drawWheel } from './wheelCanvas';
@@ -50,20 +51,11 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   let rafId: number | undefined;
 
   const draw = (view: WheelView) => {
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    // 边长完全由 CSS 决定（见 .wheel__canvas：视口短边取正方形），
-    // 这里只负责把像素缓冲对齐到设备像素比，高分屏上才不糊。
-    const size = canvas.clientWidth;
-    if (size === 0) return;
-    const ratio = canvasPixelRatio();
-    const pixels = Math.round(size * ratio);
-    // 改 width/height 会清空画布并重置上下文，尺寸没变就别动。
-    if (canvas.width !== pixels || canvas.height !== pixels) {
-      canvas.width = pixels;
-      canvas.height = pixels;
-    }
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    // 边长完全由 CSS 决定（见 .wheel__canvas：视口短边取正方形），像素缓冲对齐到设备
+    // 像素比交给对齐画布；还没排版好或拿不到上下文时它交回空，这一帧就不画。
+    const fitted = fitCanvas(canvas, 1);
+    if (!fitted) return;
+    const { context, width: size } = fitted;
     drawWheel(context, { sectors, rotation: view.rotation, size, reveal: view.reveal });
   };
 

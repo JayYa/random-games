@@ -1,5 +1,7 @@
 /**
  * 渲染层：弹球机的盘面——指针与动画帧的接线，外加 Canvas 绘制。薄，不测。
+ * 像素缓冲对齐到设备像素比的那几条规则在对齐画布（`src/fitCanvas.ts`），用例在那边；
+ * 帧循环为什么不与转盘共用见 ADR-0013。
  *
  * 页头、错误页、结果卡片、撒花和开抽的接线都不在这里——它们与弹球机无关，由玩法页
  * 宿主（`src/gamePageHost.ts`）接好（ADR-0012），转盘用的是同一份。弹球机只交一个
@@ -22,7 +24,7 @@
 
 import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePageHost';
-import { canvasPixelRatio } from '../../pixelRatio';
+import { fitCanvas } from '../../fitCanvas';
 import { PALETTE } from '../../palette';
 import {
   BOARD,
@@ -434,23 +436,17 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   let rafId = 0;
 
   function draw(view: PinballView): void {
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    // 宽度完全由 CSS 决定（见 .pinball__board），这里只把像素缓冲对齐到设备像素比，
-    // 再把坐标系缩放成盘面自己的像素——于是下面所有绘制都能直接用 board.ts 的数字。
-    const cssWidth = canvas.clientWidth;
-    if (cssWidth === 0) return;
-    const ratio = canvasPixelRatio();
-    const pixelWidth = Math.round(cssWidth * ratio);
-    const pixelHeight = Math.round(((cssWidth * VIEW_HEIGHT) / BOARD.width) * ratio);
-    // 改 width/height 会清空画布并重置上下文，尺寸没变就别动。
-    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight;
-    }
-    const scale = (cssWidth / BOARD.width) * ratio;
-    // 上移 VIEW_TOP：画的时候照旧用盘面自己的坐标，只是把看不到的那一截移出画布。
-    context.setTransform(scale, 0, 0, scale, 0, -VIEW_TOP * scale);
+    // 宽度完全由 CSS 决定（见 .pinball__board），像素缓冲对齐到设备像素比交给对齐画布；
+    // 还没排版好或拿不到上下文时它交回空，这一帧就不画。尺寸或像素比变了也不必观察：
+    // rAF 常转，下一帧就按新的画对。
+    const fitted = fitCanvas(canvas, VIEW_HEIGHT / BOARD.width);
+    if (!fitted) return;
+    const { context, width } = fitted;
+    // 在 CSS 像素的变换上再缩放成盘面自己的坐标，并上移 VIEW_TOP 把看不到的那一截
+    // 移出画布——于是下面所有绘制都能直接用 board.ts 的数字。
+    const scale = width / BOARD.width;
+    context.scale(scale, scale);
+    context.translate(0, -VIEW_TOP);
     drawBoard(context, view);
   }
 
