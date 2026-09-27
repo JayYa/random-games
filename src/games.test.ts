@@ -24,7 +24,7 @@ describe('resolveRoute', () => {
     }
   });
 
-  // 三态里的中间那一档：主题定了、玩法还没定，由路由层抽一次再改地址。
+  // 三态里的中间那一档：主题定了、玩法还没定，由站内导航抽一次再改地址。
   it('只有主题的地址解析成待抽签：有主题，没有玩法', () => {
     for (const theme of THEMES) {
       const route = resolveRoute(`#/${theme.slug}`);

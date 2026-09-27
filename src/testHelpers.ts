@@ -1,6 +1,6 @@
 /**
  * 测试用的公共零件：可预测的随机源、拼名单 CSV 的小工具，几样记录调用的替身
- * ——假记忆、假结果卡片、假计时器、假页面适配器、假盘面，以及把一个盘面挂到真的
+ * ——假记忆、假存储、假结果卡片、假计时器、假页面适配器、假盘面，以及把一个盘面挂到真的
  * 玩法页宿主上的 `mountOnHost`。
  *
  * 几批用例都要用同一批零件，放在这里免得各写一份、日后悄悄写岔。
@@ -8,6 +8,7 @@
  */
 
 import type { RecentMemory } from './cooldown';
+import type { RecentStorage } from './recentStorage';
 import type { ResultCard } from './resultCard';
 import type { RosterFailureSource } from './rosterFailure';
 import type { Candidate } from './rosterSession';
@@ -77,6 +78,30 @@ export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMem
     read: () => [...names],
     remember(name) {
       names.push(name);
+    },
+  };
+}
+
+/**
+ * 一份放在内存里的假浏览器存储：站内导航和存储适配的用例用它当 localStorage。
+ *
+ * 与 `fakeRecentMemory` 同一性质——把浏览器存储换成可预测、可查问的替身。它和
+ * localStorage 一样只存字符串；同一份交给第二个站内导航，就是刷新了页面。
+ */
+export interface FakeStorage extends RecentStorage {
+  /** 此刻存着东西的键，按第一次写进去的先后。 */
+  readonly keys: readonly string[];
+}
+
+export function fakeStorage(): FakeStorage {
+  const entries = new Map<string, string>();
+  return {
+    get keys() {
+      return [...entries.keys()];
+    },
+    getItem: (key) => entries.get(key) ?? null,
+    setItem(key, value) {
+      entries.set(key, String(value));
     },
   };
 }
@@ -378,7 +403,7 @@ export interface MountOnHostOptions {
 
 /** 挂在真宿主上的一页：宿主交回的拆卸，宿主那道接缝上的几样替身，和宿主给盘面的句柄。 */
 export interface HostedBoard {
-  /** 宿主交回的拆卸，就是路由换页前调的那一个。 */
+  /** 宿主交回的拆卸，就是站内导航换页前调的那一个。 */
   readonly teardown: () => void;
   readonly page: FakeGamePage;
   /** 揭晓那一拍的假计时器；`realSchedule` 时宿主不用它。 */
