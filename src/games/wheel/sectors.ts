@@ -22,7 +22,7 @@
 import { normalizeAngle, TAU } from '../../angles';
 
 export interface Sectors {
-  /** 扇区数。转盘上恒为 12（见 `./machine.ts` 的 `SECTOR_COUNT`），与名单大小无关。 */
+  /** 扇区数。转盘上恒为 12（见 `./machine.ts` 交出的 `sectors`），与名单大小无关。 */
   readonly count: number;
   /**
    * 扇区 i 内的落点角度（转盘自身坐标，`[0, 2π)`）。

@@ -7,25 +7,23 @@
  * 唯一的替身是宿主那道接缝上的假页面、假计时器与假最近中选，宿主是真的。机器的随机
  * 源给种子随机源：一次转因此是确定的，而用例不关心机器按什么顺序取几个随机数。
  *
- * 用例推的是 `spin()` 与 `tick`，收下中选就是按假页面上卡片的关掉按钮。看的只有三样：
- * 真句柄上的锁、`tick` 交回的画面状态、卡片弹了几次。
+ * 用例推的是 `spin()` 与 `tick`，收下中选就是按假页面上卡片的关掉按钮。看的只有四样：
+ * 真句柄上的锁、`spin()` 交回的受没受理、`tick` 与 `view()` 交回的画面状态、卡片弹了几次。
  *
- * 两条时钟各推各的：机器的时间只经 `tick(now)` 进来，用例直接写「走到第几毫秒」；
- * 宿主揭晓那一拍只经假计时器走。
+ * 两条时钟各推各的：机器的时间只经 `tick(now)` 进来（生产上只有 rAF 的时间戳这一个
+ * 来源，所以只往前走），用例直接写「走到第几毫秒」；宿主揭晓那一拍只经假计时器走。
  */
 
 import { describe, expect, it } from 'vitest';
 
 import { REVEAL_PAUSE_MS, type Board } from '../../gamePageHost';
-import { createSectors } from './sectors';
 import {
-  SECTOR_COUNT,
   SPIN_DURATION_MS,
   createWheelMachine,
   type WheelMachine,
   type WheelView,
 } from './machine';
-import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
+import { csv, mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
 /** 一帧的时长：60Hz 屏幕上 rAF 大致的间隔。 */
 const FRAME_MS = 16;
@@ -36,12 +34,16 @@ const FIRST_TICK_MS = 0;
 /** `spin()` 之后下一次 `tick` 的时刻，也就是动画起点。 */
 const START_MS = 1_000;
 
-/** 转盘上的扇区，与机器里的是同一套换算：用例拿它问指针底下是哪一格。 */
-const SECTORS = createSectors(SECTOR_COUNT);
-
 interface Harness extends HostedBoard {
   /** 宿主挂上的那一台机器。 */
   readonly machine: WheelMachine;
+}
+
+interface SetupOptions {
+  /** 机器的种子随机源用的种子，默认 7。 */
+  readonly seed?: number;
+  /** 名单 CSV 的原文，默认用 `mountOnHost` 的那一份。 */
+  readonly csvText?: string;
 }
 
 /**
@@ -49,7 +51,7 @@ interface Harness extends HostedBoard {
  * 把机器本身当挂载结果交回——它的揭晓、抹掉与挂载结果同形。HTML、块名、按钮文字
  * 宿主只转手给假页面，随便给。
  */
-function setup(seed = 7): Harness {
+function setup({ seed = 7, csvText }: SetupOptions = {}): Harness {
   const machines: WheelMachine[] = [];
   const board: Board = {
     html: '<canvas class="wheel__canvas"></canvas>',
@@ -61,7 +63,7 @@ function setup(seed = 7): Harness {
       return machine;
     },
   };
-  const hosted = mountOnHost(board);
+  const hosted = mountOnHost(board, { csvText });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
   return { ...hosted, machine };
@@ -74,6 +76,13 @@ function setup(seed = 7): Harness {
 function accept({ timer, page }: Harness): void {
   timer.advance(REVEAL_PAUSE_MS);
   page.pressClose();
+}
+
+/** 刚挂上的机器起转：第一次 `tick` 作基准，按「转」，在 `START_MS` 走出动画起点那一帧。 */
+function startSpin(machine: WheelMachine): void {
+  machine.tick(FIRST_TICK_MS);
+  machine.spin();
+  machine.tick(START_MS);
 }
 
 /** 从 `start` 那一刻起转一次，一步跨过终点，交回停下那一刻的画面。 */
@@ -99,11 +108,11 @@ describe('指针底下就是揭晓的那一格（ADR-0003）', () => {
     const pointed: number[] = [];
     const revealed: (number | undefined)[] = [];
     for (let seed = 1; seed <= 40; seed += 1) {
-      const harness = setup(seed);
+      const harness = setup({ seed });
       harness.machine.tick(FIRST_TICK_MS);
       for (let spin = 0; spin < 5; spin += 1) {
         const stopped = spinThrough(harness.machine, START_MS + spin * 2 * SPIN_DURATION_MS);
-        pointed.push(SECTORS.sectorAt(stopped.rotation));
+        pointed.push(harness.machine.sectors.sectorAt(stopped.rotation));
         revealed.push(stopped.reveal?.sector);
         accept(harness);
       }
@@ -120,6 +129,37 @@ describe('一次开抽就是一次', () => {
   const LATER_MS = START_MS + 10 * SPIN_DURATION_MS;
 
   /**
+   * 开抽锁着的三种情形，都按宿主造得出的顺序走到：先转起来、走到转动中途，再各往前推
+   * 到那一刻。
+   */
+  const LOCKED_MOMENTS: readonly (readonly [string, (harness: Harness) => void])[] = [
+    ['转动期间', (_harness) => {}],
+    [
+      '揭晓那一拍里',
+      ({ machine }) => {
+        machine.tick(START_MS + SPIN_DURATION_MS);
+      },
+    ],
+    [
+      '卡片挂着时',
+      ({ machine, timer }) => {
+        machine.tick(START_MS + SPIN_DURATION_MS);
+        timer.advance(REVEAL_PAUSE_MS);
+      },
+    ],
+  ];
+
+  /** 挂一页、按一次「转」、走到转动中途，再推到 `when` 那一刻。 */
+  function lockedBy(when: (harness: Harness) => void): Harness {
+    const harness = setup();
+    const { machine } = harness;
+    startSpin(machine);
+    machine.tick(MID_SPIN_MS);
+    when(harness);
+    return harness;
+  }
+
+  /**
    * 两台同种子的机器走同一串 `tick`，只有一台在 `when` 那一步里多按了一次「转」。
    * 交回两台在最后那一刻的角度：多按的那一下不受理，两条角度轨迹就分不开。
    */
@@ -128,13 +168,7 @@ describe('一次开抽就是一次', () => {
     readonly untouched: number;
   } {
     const run = (pressAgain: boolean): number => {
-      const harness = setup();
-      const { machine } = harness;
-      machine.tick(FIRST_TICK_MS);
-      machine.spin();
-      machine.tick(START_MS);
-      machine.tick(MID_SPIN_MS);
-      when(harness);
+      const { machine } = lockedBy(when);
       if (pressAgain) machine.spin();
       machine.tick(LATER_MS - FRAME_MS);
       return machine.tick(LATER_MS).rotation;
@@ -142,25 +176,28 @@ describe('一次开抽就是一次', () => {
     return { pressed: run(true), untouched: run(false) };
   }
 
-  it.each([
-    ['转动期间', (_harness: Harness) => {}],
-    [
-      '揭晓那一拍里',
-      ({ machine }: Harness) => {
-        machine.tick(START_MS + SPIN_DURATION_MS);
-      },
-    ],
-    [
-      '卡片挂着时',
-      (harness: Harness) => {
-        harness.machine.tick(START_MS + SPIN_DURATION_MS);
-        harness.timer.advance(REVEAL_PAUSE_MS);
-      },
-    ],
-  ])('%s再按「转」不开第二次转', (_when, when) => {
+  it.each(LOCKED_MOMENTS)('%s再按「转」不开第二次转', (_when, when) => {
     const { pressed, untouched } = pressedAgain(when);
 
     expect(pressed).toBe(untouched);
+  });
+
+  // 受没受理由 `spin()` 交回：渲染层照它决定起不起 rAF 循环，被退回的那一下不白跑一帧。
+  it('开抽受理时 spin() 交回 true', () => {
+    const { machine } = setup();
+    machine.tick(FIRST_TICK_MS);
+
+    const accepted = machine.spin();
+
+    expect(accepted).toBe(true);
+  });
+
+  it.each(LOCKED_MOMENTS)('%s再按「转」，spin() 交回 false', (_when, when) => {
+    const { machine } = lockedBy(when);
+
+    const accepted = machine.spin();
+
+    expect(accepted).toBe(false);
   });
 });
 
@@ -172,9 +209,7 @@ describe('走到终点才揭晓', () => {
 
   it('终点前一帧还没揭晓', () => {
     const { machine } = setup();
-    machine.tick(FIRST_TICK_MS);
-    machine.spin();
-    machine.tick(START_MS);
+    startSpin(machine);
 
     const beforeEnd = machine.tick(START_MS + SPIN_DURATION_MS - FRAME_MS);
 
@@ -278,11 +313,7 @@ describe('时间', () => {
   it('转速与刷新率无关：同种子、同一时刻，16ms 一帧与 7ms 一帧交回的角度相同', () => {
     const coarse = setup().machine;
     const fine = setup().machine;
-    for (const machine of [coarse, fine]) {
-      machine.tick(FIRST_TICK_MS);
-      machine.spin();
-      machine.tick(START_MS);
-    }
+    for (const machine of [coarse, fine]) startSpin(machine);
     // 两种步长都恰好走得到的一刻，离停下还远。
     const at = START_MS + 16 * 7 * 10;
 
@@ -291,44 +322,59 @@ describe('时间', () => {
 
     expect(every7.rotation).toBe(every16.rotation);
   });
+});
 
-  // 补画用的 `performance.now()` 与 rAF 的时间戳不保证谁先谁后：早到的时刻不能让转盘倒回去。
-  it('早于起转那一帧的时刻：角度还是起转那一帧的角度', () => {
+describe('补画不推进时间', () => {
+  it('转到一半补画，转盘停在上一帧的角度，不多走一步', () => {
     const { machine } = setup();
-    machine.tick(FIRST_TICK_MS);
-    machine.spin();
-    const started = machine.tick(START_MS);
+    startSpin(machine);
+    const lastFrame = machine.tick(START_MS + SPIN_DURATION_MS / 2);
 
-    const earlier = machine.tick(START_MS - FRAME_MS);
+    const redrawn = machine.view();
 
-    expect(earlier.rotation).toBe(started.rotation);
+    expect(redrawn.rotation).toBe(lastFrame.rotation);
   });
 
-  it('早于上一帧的时刻：角度还是上一帧的角度', () => {
-    const { machine } = setup();
+  it('揭晓后 view() 交回指针底下的那一格与中选的名字', () => {
+    // 名单只有一个候选：中选是谁不看宿主抽中选用的随机源。
+    const onlyCandidate = '甲';
+    const { machine } = setup({ csvText: csv(`${onlyCandidate},true`) });
     machine.tick(FIRST_TICK_MS);
-    machine.spin();
-    machine.tick(START_MS);
-    const latest = machine.tick(START_MS + SPIN_DURATION_MS / 2);
+    const stopped = spinThrough(machine, START_MS);
 
-    const earlier = machine.tick(START_MS + SPIN_DURATION_MS / 2 - FRAME_MS);
+    const viewed = machine.view();
 
-    expect(earlier.rotation).toBe(latest.rotation);
+    expect(viewed.reveal).toEqual({
+      sector: machine.sectors.sectorAt(stopped.rotation),
+      name: onlyCandidate,
+    });
+  });
+
+  it('收下之后 view() 交回的揭晓为空', () => {
+    const harness = setup();
+    harness.machine.tick(FIRST_TICK_MS);
+    spinThrough(harness.machine, START_MS);
+    accept(harness);
+
+    const viewed = harness.machine.view();
+
+    expect(viewed.reveal).toBeUndefined();
   });
 });
 
 describe('扇区', () => {
   // 格数是固定的，不跟着候选数走（ADR-0010）；定扇区要等概率，哪一格都不能永远轮不到。
-  it('扫一批种子，12 个扇区每一个都停得到', () => {
+  it('扫一批种子，机器交出的每一个扇区都停得到', () => {
+    const { count } = setup().machine.sectors;
     const stopped = new Set<number | undefined>();
     for (let seed = 1; seed <= 200; seed += 1) {
-      const { machine } = setup(seed);
+      const { machine } = setup({ seed });
       machine.tick(FIRST_TICK_MS);
       stopped.add(spinThrough(machine, START_MS).reveal?.sector);
     }
 
     expect([...stopped].sort((a, b) => (a ?? -1) - (b ?? -1))).toEqual(
-      Array.from({ length: SECTOR_COUNT }, (_, index) => index),
+      Array.from({ length: count }, (_, index) => index),
     );
   });
 });

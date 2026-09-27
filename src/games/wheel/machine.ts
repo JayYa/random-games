@@ -7,27 +7,31 @@
  * 这一个接口背后，用例经它问得到生产代码真正走的那条路。
  *
  * 它不画画、不起 rAF、不绑事件：「转」只以一次 `spin()` 进来，时间只经 `tick(now)`
- * 进来，它交回这一刻的画面状态，渲染层（`ui.ts`）照着画。机器内部不读时钟、不起
+ * 进来、且只有 rAF 的时间戳这一个来源，它交回这一刻的画面状态，渲染层（`ui.ts`）
+ * 照着画；只要当下的画面而不推进时间，就问 `view()`。机器内部不读时钟、不起
  * 计时器、也不读 `Math.random`——扇区、扇区内的落点、圈数都来自注入的同一个随机源。
  *
- * 开抽句柄由它直接持有：`spin()` 就是 `begin()`，不受理就不转、不定扇区；走到终点
+ * 开抽句柄由它直接持有：`spin()` 就是 `begin()`，并把受没受理交回——不受理就不转、
+ * 不定扇区，渲染层照这个答复决定要不要起 rAF，不必再反问画面是不是在转；走到终点
  * 那一次 `tick` 里 `boardStopped()`，同一次转只报一次。「开抽之后锁死」的判据仍只在
  * 宿主一处（ADR-0012），机器不另立。
  *
- * 扇区与角度的换算不在这里：它归扇区模块（`./sectors.ts`），机器只问它。
+ * 扇区与角度的换算不在这里：它归扇区模块（`./sectors.ts`），机器只问它，并把问的那一份
+ * 原样交出（`sectors`）。
  */
 
 import { normalizeAngle, TAU } from '../../angles';
 import type { MountedBoard, RollHandle } from '../../gamePageHost';
 import { randomIndex } from '../../randomIndex';
 import type { RandomSource } from '../../rosterSession';
-import { createSectors } from './sectors';
+import { createSectors, type Sectors } from './sectors';
 
 /**
  * 转盘的扇区数：固定 12 个，与名单里有几个候选无关（ADR-0010）。
  * 格数要是跟着候选数走，盘面的形状就把名单有多大泄露出去了。
+ * 不导出：别处要扇区换算就问机器的 `sectors`。
  */
-export const SECTOR_COUNT = 12;
+const SECTOR_COUNT = 12;
 
 /** 一次转从起转到停下的时长。 */
 export const SPIN_DURATION_MS = 3500;
@@ -56,13 +60,23 @@ export interface WheelView {
 
 /** 转盘机器的接口。揭晓、抹掉与盘面挂载结果上的同名项同形，渲染层原样转交。 */
 export interface WheelMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
-  /** 转一次：内部调 `roll.begin()`，不受理就什么都不做。 */
-  spin(): void;
   /**
-   * 走到 `now` 这一刻（毫秒，与 rAF 的时间戳同一口径），交回这一刻的画面状态。
-   * 不在转的时候什么都不推进，拿它补画一帧也无妨。
+   * 机器自己定扇区、反算角度用的那一份扇区换算，原样交出：画布照它画、用例照它算期望，
+   * 谁都不必按扇区数再造一份。
+   */
+  readonly sectors: Sectors;
+  /**
+   * 按下「转」：内部调 `roll.begin()`。返回受没受理——受理了才定扇区、起转，渲染层
+   * 才起 rAF 循环；不受理（正在转、揭晓那一拍、结果卡片挂着）就什么都不做。
+   */
+  spin(): boolean;
+  /**
+   * 走到 `now` 这一刻，交回推进之后的画面状态；走到终点的那一次报「盘面停下」。
+   * `now` 只接 rAF 的时间戳（毫秒）：时刻只有这一个来源，所以不会倒退，机器不为此设防。
    */
   tick(now: number): WheelView;
+  /** 交回这一刻的画面状态，什么都不推进：不走时间、不报「盘面停下」。 */
+  view(): WheelView;
 }
 
 /** 正在转的这一次。 */
@@ -75,8 +89,6 @@ interface Spin {
   readonly delta: number;
   /** 动画起点：`spin()` 之后下一次 `tick` 的时刻。还没 `tick` 过就是 undefined。 */
   startedAt: number | undefined;
-  /** 已经走过的毫秒数：只增不减，所以哪一次 `tick` 的时刻早于上一次，转盘也不往回倒。 */
-  elapsed: number;
 }
 
 function easeOutCubic(t: number): number {
@@ -121,15 +133,11 @@ export function createWheelMachine(
   /**
    * 按累计时间推进：进度封顶在终点，所以掉帧或切走标签页回来的那一帧直接转完，
    * 不需要单帧时长上限；刷新率只影响画得顺不顺，不影响转多久、停在哪。
-   *
-   * 时间只往前走：补画用的 `performance.now()` 可能晚于紧跟着的那一帧 rAF 时间戳，
-   * rAF 的时间戳也可能早于起转那一刻；早于已走到的那一刻的 `now` 不推进也不倒退。
    */
   function advance(now: number, spin: Spin): void {
     const startedAt = spin.startedAt ?? now;
     spin.startedAt = startedAt;
-    spin.elapsed = Math.max(spin.elapsed, now - startedAt);
-    const t = Math.min(1, spin.elapsed / SPIN_DURATION_MS);
+    const t = Math.min(1, (now - startedAt) / SPIN_DURATION_MS);
     if (t < 1) {
       rotation = spin.from + spin.delta * easeOutCubic(t);
       return;
@@ -142,10 +150,17 @@ export function createWheelMachine(
     roll.boardStopped();
   }
 
+  /** 当下的画面：只读，不推进任何东西。 */
+  function view(): WheelView {
+    return { rotation, reveal, spinning: current !== undefined };
+  }
+
   return {
+    sectors,
+
     spin() {
-      // 受不受理由宿主说了算：转动期间、揭晓那一拍里、卡片挂着时都静静退回。
-      if (!roll.begin()) return;
+      // 受不受理由宿主说了算：转动期间、揭晓那一拍里、卡片挂着时都静静退回、交回 false。
+      if (!roll.begin()) return false;
       // 停在哪个扇区在动画开始前就已确定，旋转只是把它演出来；谁中选此刻还没抽。
       const sector = randomIndex(random, sectors.count);
       const targetAngle = sectors.angleInSector(sector, random());
@@ -156,14 +171,16 @@ export function createWheelMachine(
         from: rotation,
         delta: spinDelta(rotation, targetAngle, turns),
         startedAt: undefined,
-        elapsed: 0,
       };
+      return true;
     },
 
     tick(now) {
       if (current) advance(now, current);
-      return { rotation, reveal, spinning: current !== undefined };
+      return view();
     },
+
+    view,
 
     // 揭晓：中选由宿主在盘面停下之后抽（ADR-0010），机器只把名字写进先定的那一格。
     reveal(winner) {
