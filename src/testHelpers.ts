@@ -1,6 +1,6 @@
 /**
  * 测试用的公共零件：可预测的随机源、拼名单 CSV 的小工具，和几样记录调用的替身
- * ——假记忆、假结果卡片、假计时器、假页面适配器与假盘面。
+ * ——假记忆、假结果卡片、假计时器、假页面适配器、假盘面与假开抽句柄。
  *
  * 几批用例都要用同一批零件，放在这里免得各写一份、日后悄悄写岔。
  * 只被 `*.test.ts` 引用，不进产物。
@@ -320,6 +320,53 @@ export interface FakeBoard extends Board {
   readonly reveals: readonly Candidate[];
   /** 自己的拆卸被调过几次。 */
   readonly teardownCount: number;
+}
+
+/**
+ * 一个最小的假开抽句柄：盘面自己的用例（比如弹球机机器）用它当测试替身。
+ *
+ * 与 `fakeBoard` 正好相对——那边替身的是盘面、真跑宿主，这边替身的是宿主、真跑
+ * 盘面。锁的真实规则已由玩法页宿主的用例钉住，这里不再演一遍：`locked` 用例想设
+ * 成什么就是什么，`begin()` 受不受理也由用例说了算，两者互不牵连。它只记下被叫过
+ * 几次，用例借此看盘面开没开抽、报没报停下、报了几次。
+ */
+export interface FakeRollHandle extends RollHandle {
+  /** 锁没锁，用例随手改。默认没锁。 */
+  locked: boolean;
+  /** 下一次 `begin()` 受不受理，用例随手改。默认受理。 */
+  accepts: boolean;
+  /** `begin()` 被叫过几次，受没受理都算。 */
+  readonly beginCount: number;
+  /** `boardStopped()` 被叫过几次。 */
+  readonly boardStoppedCount: number;
+}
+
+export function fakeRollHandle(): FakeRollHandle {
+  let beginCount = 0;
+  let boardStoppedCount = 0;
+
+  const handle: FakeRollHandle = {
+    locked: false,
+    accepts: true,
+    get beginCount() {
+      return beginCount;
+    },
+    get boardStoppedCount() {
+      return boardStoppedCount;
+    },
+    begin() {
+      beginCount += 1;
+      return handle.accepts;
+    },
+    boardStopped() {
+      boardStoppedCount += 1;
+    },
+    // 与真句柄一致：订阅的当下叫一遍。锁是用例手动改的，改了不通知谁。
+    subscribe(onChange) {
+      onChange();
+    },
+  };
+  return handle;
 }
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
