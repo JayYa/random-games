@@ -1,6 +1,7 @@
 /**
- * 测试用的公共零件：可预测的随机源、拼名单 CSV 的小工具，和几样记录调用的替身
- * ——假记忆、假结果卡片、假计时器、假页面适配器、假盘面与假开抽句柄。
+ * 测试用的公共零件：可预测的随机源、拼名单 CSV 的小工具，几样记录调用的替身
+ * ——假记忆、假结果卡片、假计时器、假页面适配器、假盘面与假开抽句柄，以及把一个
+ * 盘面挂到真的玩法页宿主上的 `mountOnHost`。
  *
  * 几批用例都要用同一批零件，放在这里免得各写一份、日后悄悄写岔。
  * 只被 `*.test.ts` 引用，不进产物。
@@ -11,13 +12,14 @@ import type { ResultCard } from './resultCard';
 import type { RosterFailureSource } from './rosterFailure';
 import type { Candidate } from './rosterSession';
 import type { Theme } from './themes';
-import type {
-  Board,
-  GamePageView,
-  MountedBoard,
-  PageAdapter,
-  RollHandle,
-  Schedule,
+import {
+  mountGamePage,
+  type Board,
+  type GamePageView,
+  type MountedBoard,
+  type PageAdapter,
+  type RollHandle,
+  type Schedule,
 } from './gamePageHost';
 
 /**
@@ -306,12 +308,10 @@ export interface FakeBoardOptions {
  * 一个记录调用的假盘面：玩法页宿主的用例用它当测试替身。
  *
  * 与 `fakeResultCard` 同一性质——不画画布、不跑动画，只记下被叫到了什么。
- * 盘面上此刻亮着哪个名字看 `revealed`；挂上之后拿到的开抽句柄在 `handle` 上，
- * 用例拿它开抽、报停，就像真盘面在按「转」、转完报一声。
+ * 盘面上此刻亮着哪个名字看 `revealed`。它自己不交出宿主给它的开抽句柄：用例经
+ * `mountOnHost` 把它挂上，从那里拿句柄开抽、报停，就像真盘面在按「转」、转完报一声。
  */
 export interface FakeBoard extends Board {
-  /** 挂上之后拿到的开抽句柄；还没挂上则为 undefined。 */
-  readonly handle: RollHandle | undefined;
   /** 被挂上过几次。 */
   readonly mountCount: number;
   /** 盘面上此刻亮着的中选；没在揭晓时为 undefined，盘面是匿名的。 */
@@ -371,7 +371,6 @@ export function fakeRollHandle(): FakeRollHandle {
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
   const { reset = true, teardown = true, returnFocusTo, log, onMount, onReset, onTeardown } = options;
-  let handle: RollHandle | undefined;
   let mountCount = 0;
   let revealed: Candidate | undefined;
   const reveals: Candidate[] = [];
@@ -381,9 +380,6 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
     html: '<canvas class="fake__board" id="fake-board"></canvas>',
     block: 'fake',
     closeLabel: '再抽一次',
-    get handle() {
-      return handle;
-    },
     get mountCount() {
       return mountCount;
     },
@@ -399,7 +395,6 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
     mount(_root, roll) {
       log?.push('board mount');
       mountCount += 1;
-      handle = roll;
       const mounted: MountedBoard = {
         reveal(winner) {
           log?.push(`board reveal ${winner.name}`);
@@ -429,4 +424,76 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
       return mounted;
     },
   };
+}
+
+/** `mountOnHost` 挂的那一页属于的主题：页头、错误页都带着它，用例拿它比对。 */
+export const hostTheme: Theme = {
+  slug: 'eat',
+  rosterFile: 'eat.csv',
+  title: '今天吃什么',
+  entryLabel: '吃什么',
+};
+
+/** `mountOnHost` 可以不给的那几项。 */
+export interface MountOnHostOptions {
+  /** 名单 CSV 的原文，默认 `roster(3)`。 */
+  readonly csvText?: string;
+  /** 挂上之前就记着的最近中选，最早的在前，默认没有。 */
+  readonly recent?: readonly string[];
+  /** 与 `fakeBoard` 共用的调用记录：给了，假页面也往里记（`page …`）。 */
+  readonly log?: string[];
+  /** 不注入假计时器，让宿主用它默认的真实计时器；用例自己装上测试框架的假时钟。 */
+  readonly defaultSchedule?: boolean;
+}
+
+/** 挂在真宿主上的一页：宿主交回的拆卸，宿主那道 seam 上的几样替身，和宿主给盘面的句柄。 */
+export interface HostedBoard {
+  /** 宿主交回的拆卸，就是路由换页前调的那一个。 */
+  readonly teardown: () => void;
+  readonly page: FakeGamePage;
+  /** 揭晓那一拍的假计时器；`defaultSchedule` 时宿主不用它。 */
+  readonly timer: FakeTimer;
+  readonly recentWinners: FakeRecentMemory;
+  /** 宿主交给盘面的真开抽句柄；名单开不了抽、盘面没挂上时为 undefined。 */
+  readonly roll: RollHandle | undefined;
+}
+
+/**
+ * 把一个已经造好的盘面挂到真的玩法页宿主上：宿主自己的用例配假盘面，盘面的用例
+ * 配真盘面，挂盘面的测试接缝只有这一道。
+ *
+ * 替身只有宿主那道 seam 上现成的几样：假页面、假计时器、假最近中选，宿主本身是
+ * 真的，锁、受理、揭晓、收下、拆卸都按它真实的规则走。开抽句柄由这里在盘面的挂载
+ * 外面包一层截下——宿主把句柄交给盘面之前就截好，盘面在挂载期间用它也拿得到同一个。
+ *
+ * 抽中选的随机源恒给 0：在还能抽的候选里总取第一个，于是 `roster(3)` 第一次抽出
+ * 的是「候选1」，冷却之后的第二次是「候选2」，揭晓的名字是确定的。
+ */
+export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {
+  const { csvText = roster(3), recent = [], log, defaultSchedule = false } = options;
+  const page = fakeGamePage(log);
+  const timer = fakeTimer();
+  const recentWinners = fakeRecentMemory(recent);
+  let roll: RollHandle | undefined;
+  const intercepted: Board = {
+    html: board.html,
+    block: board.block,
+    closeLabel: board.closeLabel,
+    mount(root, handle) {
+      roll = handle;
+      return board.mount(root, handle);
+    },
+  };
+  // 宿主不碰 DOM：挂载点只是原样转手给页面适配器和盘面，一个空对象就够。
+  const root = {} as HTMLElement;
+  const teardown = mountGamePage(root, {
+    theme: hostTheme,
+    csvText,
+    recentWinners,
+    board: intercepted,
+    page,
+    random: scriptedRandom([0]),
+    ...(!defaultSchedule && { schedule: timer.schedule }),
+  });
+  return { teardown, page, timer, recentWinners, roll };
 }
