@@ -8,102 +8,46 @@
  * 记下了什么、句柄上的锁此刻是什么。名单会话的冷却细节有它自己的用例，这里不再验一遍。
  *
  * 页面、盘面、卡片、计时器都是 `testHelpers.ts` 里记录调用的替身，所以这一批在
- * node 里跑，不需要 jsdom，也不必真等那一拍。
+ * node 里跑，不需要 jsdom，也不必真等那一拍。挂载走那里的 `mountOnHost`，开抽句柄
+ * 也从它交回的那一份拿——与盘面的用例站在同一道接缝上。
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { REVEAL_PAUSE_MS, mountGamePage, type RollHandle } from './gamePageHost';
-import type { Theme } from './themes';
+import { REVEAL_PAUSE_MS } from './gamePageHost';
 import {
   csv,
   fakeBoard,
-  fakeGamePage,
-  fakeRecentMemory,
-  fakeTimer,
+  hostTheme as theme,
+  mountOnHost,
+  rollOf,
   roster,
-  scriptedRandom,
   type FakeBoard,
   type FakeBoardOptions,
-  type FakeGamePage,
-  type FakeRecentMemory,
-  type FakeTimer,
+  type HostedBoard,
+  type MountOnHostOptions,
 } from './testHelpers';
-
-const theme: Theme = {
-  slug: 'eat',
-  rosterFile: 'eat.csv',
-  title: '今天吃什么',
-  entryLabel: '吃什么',
-};
-
-/** 宿主不碰 DOM：挂载点只是原样转手给页面适配器和盘面，一个空对象就够。 */
-const root = {} as HTMLElement;
 
 /** 一个假的焦点去向：只看它是不是被原样交给了卡片。 */
 const spinButton = {} as HTMLElement;
 
-interface Harness {
-  readonly teardown: () => void;
-  readonly page: FakeGamePage;
+interface Harness extends HostedBoard {
   readonly board: FakeBoard;
-  readonly timer: FakeTimer;
-  readonly recentWinners: FakeRecentMemory;
   /** 页面与盘面共用的调用记录，按先后。 */
   readonly log: string[];
-  /** 盘面挂上时拿到的开抽句柄。名单写坏时没有。 */
-  readonly roll: RollHandle | undefined;
 }
 
-interface HarnessOptions {
-  readonly csvText?: string;
-  readonly recent?: readonly string[];
+interface HarnessOptions extends Omit<MountOnHostOptions, 'log'> {
   readonly board?: Omit<FakeBoardOptions, 'log'>;
-  /** 不注入计时器，让宿主用它默认的真实计时器；用例自己装上测试框架的假时钟。 */
-  readonly defaultSchedule?: boolean;
 }
 
 /**
- * 挂一页。随机源恒给 0：在还能抽的候选里总取第一个，于是 `roster(3)` 第一次
- * 抽出的是「候选1」，冷却之后的第二次是「候选2」。
+ * 经 `mountOnHost` 把一个假盘面挂上一页，页面与盘面记进同一份调用记录。
+ * 随机源恒给 0：`roster(3)` 第一次抽出的是「候选1」，冷却之后的第二次是「候选2」。
  */
-function mountPage({
-  csvText = roster(3),
-  recent = [],
-  board: boardOptions,
-  defaultSchedule = false,
-}: HarnessOptions = {}): Harness {
+function mountPage({ board: boardOptions, ...hostOptions }: HarnessOptions = {}): Harness {
   const log: string[] = [];
-  const page = fakeGamePage(log);
   const board = fakeBoard({ ...boardOptions, log });
-  const timer = fakeTimer();
-  const recentWinners = fakeRecentMemory(recent);
-  const teardown = mountGamePage(root, {
-    theme,
-    csvText,
-    recentWinners,
-    board,
-    page,
-    random: scriptedRandom([0]),
-    ...(!defaultSchedule && { schedule: timer.schedule }),
-  });
-  return {
-    teardown,
-    page,
-    board,
-    timer,
-    recentWinners,
-    log,
-    get roll() {
-      return board.handle;
-    },
-  };
-}
-
-/** 句柄一定在：名单正常的用例里盘面必然挂上了。 */
-function rollOf(harness: Harness): RollHandle {
-  const { roll } = harness;
-  if (!roll) throw new Error('盘面应当已经挂上');
-  return roll;
+  return { ...mountOnHost(board, { ...hostOptions, log }), board, log };
 }
 
 /** 开抽、盘面停下、揭晓那一拍走完：卡片弹出来。 */
@@ -574,7 +518,7 @@ describe('默认计时器', () => {
   it('不注入计时器时用真实的 setTimeout 停那一拍', () => {
     vi.useFakeTimers();
     try {
-      const harness = mountPage({ defaultSchedule: true });
+      const harness = mountPage({ realSchedule: true });
       const roll = rollOf(harness);
       roll.begin();
       roll.boardStopped();
@@ -590,7 +534,7 @@ describe('默认计时器', () => {
   it('拆卸掐得掉真实的 setTimeout', () => {
     vi.useFakeTimers();
     try {
-      const harness = mountPage({ defaultSchedule: true });
+      const harness = mountPage({ realSchedule: true });
       const roll = rollOf(harness);
       roll.begin();
       roll.boardStopped();

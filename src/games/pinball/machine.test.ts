@@ -1,19 +1,23 @@
 /**
  * 弹球机机器的用例：柱塞怎么拖、什么时候作废，以及发射之后的那一整段——开抽受不
- * 受理、回放走到哪一帧报停下、球摆在哪、揭晓亮在哪一格、风车怎么接着转、复位回到哪。
+ * 受理、回放走到哪一帧揭晓、球摆在哪、揭晓亮在哪一格、风车怎么接着转、收下之后回到哪。
  *
- * 只经机器的接口进出：推的是指针的按下、拖动、抬手、取消，`tick`、揭晓、抹掉、复位，
- * 指针样本是手写的普通数据，看的是 `tick` 交回的
- * 画面状态和假开抽句柄记下的调用。物理模拟用真的，随机源给固定的，轨迹因此是确定的；
- * 唯一的替身是开抽句柄——锁的规则有宿主自己的用例。时间只经 `tick(now)` 进来，
- * 用例直接写「走到第几毫秒」，不需要假时钟。
+ * 机器挂在真的玩法页宿主上跑（经 `testHelpers.ts` 的 `mountOnHost`）：挂上时用宿主
+ * 给的真开抽句柄造一台真的机器，锁、受理、揭晓、收下、拆卸都由宿主按它真实的规则推。
+ * 唯一的替身是宿主那道接缝上的假页面与假计时器，宿主是真的；物理模拟也是真的，
+ * 随机源给固定的，轨迹因此是确定的。
  *
- * 假句柄的锁由用例自己拨，只拨成宿主真会给的样子：开抽受理即锁上，收下中选时先解锁
- * 再复位（见 `src/gamePageHost.ts`）。
+ * 用例推的是指针的按下、拖动、抬手、取消与 `tick`，收下中选就是按假页面上卡片的关掉
+ * 按钮，页面拆掉就是调宿主交回的拆卸；指针样本是手写的普通数据。看的只有三样：真句柄
+ * 上的锁、`tick` 交回的画面状态、卡片弹了几次。
+ *
+ * 两条时钟各推各的：机器的时间只经 `tick(now)` 进来，用例直接写「走到第几毫秒」；
+ * 宿主揭晓那一拍只经假计时器走。
  */
 
 import { describe, expect, it } from 'vitest';
 
+import { REVEAL_PAUSE_MS, type Board, type RollHandle } from '../../gamePageHost';
 import { BOARD, slotIndexAtX } from './board';
 import {
   FULL_PULL_PX,
@@ -23,7 +27,7 @@ import {
   type PinballView,
   type PointerSample,
 } from './machine';
-import { fakeRollHandle, seededRandom, type FakeRollHandle } from '../../testHelpers';
+import { csv, mountOnHost, rollOf, seededRandom, type HostedBoard } from '../../testHelpers';
 
 /** 这一批用例打的那一发：中等力度。 */
 const POWER = 0.6;
@@ -36,6 +40,12 @@ const START_MS = 1_000;
 
 /** 回放起点之后「足够远」的时长：远远超过任何一条轨迹能播多久（步数上限约 12 秒）。 */
 const FAR_MS = 60_000;
+
+/** 这一页的名单，按 CSV 里的书写顺序，全部启用。 */
+const NAMES = ['甲', '乙', '丙'] as const;
+
+/** 宿主抽中选总取还能抽的第一个（见 `mountOnHost`），所以第一次揭晓的是名单排头那个。 */
+const WINNER = NAMES[0];
 
 /**
  * 画布在屏幕上的矩形：随便挑一个，与盘面自己的坐标系无关——柱塞只看屏幕像素。
@@ -62,16 +72,34 @@ function pointerAt(clientX: number, clientY: number, pointerId: number = FINGER)
   return { pointerId, clientX, clientY, rect: RECT };
 }
 
-interface Harness {
-  readonly roll: FakeRollHandle;
+interface Harness extends HostedBoard {
+  /** 宿主交给机器的真开抽句柄：用例只读它上面的锁。 */
+  readonly roll: RollHandle;
+  /** 宿主挂上的那一台机器。 */
   readonly machine: PinballMachine;
 }
 
-/** 建一台机器：真的物理模拟，固定的种子来源，假的开抽句柄。 */
+/**
+ * 在真宿主上挂一页弹球机：盘面挂上时用宿主给的真句柄造一台真的机器（真物理模拟、
+ * 固定种子），把机器本身当挂载结果交回——它的揭晓、抹掉、复位与挂载结果同形。
+ * HTML、块名、按钮文字宿主只转手给假页面，随便给。
+ */
 function setup(): Harness {
-  const roll = fakeRollHandle();
-  const machine = createPinballMachine(roll, seededRandom(7));
-  return { roll, machine };
+  const machines: PinballMachine[] = [];
+  const board: Board = {
+    html: '<canvas class="pinball__board"></canvas>',
+    block: 'pinball',
+    closeLabel: '再打一发',
+    mount(_root, roll) {
+      const machine = createPinballMachine(roll, seededRandom(7));
+      machines.push(machine);
+      return machine;
+    },
+  };
+  const hosted = mountOnHost(board, { csvText: csv(...NAMES.map((name) => `${name},true`)) });
+  const [machine] = machines;
+  if (!machine) throw new Error('机器应当已经挂上');
+  return { ...hosted, roll: rollOf(hosted), machine };
 }
 
 /** 从盘面正中按下，把柱塞拉到 `POWER` 那么深。 */
@@ -80,36 +108,58 @@ function pull(machine: PinballMachine): void {
   machine.move(pointerAt(MID_X, PULLED_Y));
 }
 
+/** 某一刻，与机器在那一刻交回的画面。 */
+interface Frame {
+  readonly at: number;
+  readonly view: PinballView;
+}
+
 /**
  * 打出一发：第一次 `tick` 只作基准，拉柱塞、松手发射，下一次 `tick` 是回放起点。
- * 开抽受理了，宿主此刻就锁上。交回那一刻的画面。
+ * 交回回放起点那一帧。
  */
-function fire({ roll, machine }: Harness): PinballView {
+function fire({ machine }: Harness): Frame {
   machine.tick(0);
   pull(machine);
   machine.release(pointerAt(MID_X, PULLED_Y));
-  roll.locked = true;
-  return machine.tick(START_MS);
+  return { at: START_MS, view: machine.tick(START_MS) };
 }
 
-/** 宿主收下中选的那一串（`dismiss`）：抹掉名字，解锁，再复位。 */
-function accept({ roll, machine }: Harness): void {
-  machine.erase();
-  roll.locked = false;
-  machine.reset();
+/**
+ * 收下中选：让宿主揭晓那一拍走完、卡片弹出来，再按卡片上的关掉按钮。抹掉、解锁、
+ * 复位的先后由宿主定。只推宿主的时钟，机器的时间不动。
+ */
+function accept({ timer, page }: Harness): void {
+  timer.advance(REVEAL_PAUSE_MS);
+  page.pressClose();
 }
 
-/** 从 `from` 起一帧一帧往下走，直到 `done` 为真，交回那一刻与那一刻的画面。 */
+/** 卡片弹出过几次；玩法页还没写出来时算 0。 */
+function cardShows({ page }: Harness): number {
+  return page.card?.showCount ?? 0;
+}
+
+/**
+ * 从 `from` 那一帧起一帧一帧往下走，直到 `done` 为真：交回等到的那一帧，和紧挨在
+ * 它前面的那一帧（等到的就是下一帧时，前面那一帧就是 `from`）。
+ */
 function stepUntil(
   machine: PinballMachine,
-  from: number,
+  from: Frame,
   done: (view: PinballView) => boolean,
-): { readonly at: number; readonly view: PinballView } {
-  for (let at = from + FRAME_MS; at <= from + FAR_MS; at += FRAME_MS) {
+): { readonly before: Frame; readonly reached: Frame } {
+  let before = from;
+  for (let at = from.at + FRAME_MS; at <= from.at + FAR_MS; at += FRAME_MS) {
     const view = machine.tick(at);
-    if (done(view)) return { at, view };
+    if (done(view)) return { before, reached: { at, view } };
+    before = { at, view };
   }
   throw new Error('走了很远也没等到');
+}
+
+/** 这一帧的画面上亮着名字了没有：宿主在机器报停的当下揭晓，那一帧交回的画面里就带着。 */
+function isRevealed(view: PinballView): boolean {
+  return view.revealed !== undefined;
 }
 
 /** 从 `from` 起每 `stepMs` 走一步，走到 `until`（含）为止，交回最后一刻的画面。 */
@@ -151,18 +201,23 @@ function oneFrameTurn(): readonly number[] {
 
 describe('柱塞', () => {
   it('锁着时按下接不住，之后拖动、抬手都不改力度、不开抽', () => {
-    const { roll, machine } = setup();
-    machine.tick(0);
-    roll.locked = true;
+    // 打出一发、落了格：名字已经亮着，那一拍还没走完，宿主锁着。
+    const harness = setup();
+    const { machine } = harness;
+    fire(harness);
+    const landed = machine.tick(START_MS + FAR_MS);
 
     const caught = machine.press(pointerAt(MID_X, MID_Y));
     machine.move(pointerAt(MID_X, MID_Y + 100));
+    const dragged = machine.tick(START_MS + FAR_MS + FRAME_MS);
     machine.release(pointerAt(MID_X, MID_Y + 100));
+    const after = machine.tick(START_MS + FAR_MS + 2 * FRAME_MS);
 
-    expect({ caught, power: machine.tick(FRAME_MS).power, begun: roll.beginCount }).toEqual({
+    // 真接住了再抬手，发射不受理也会让柱塞弹回、球回到柱塞上：球还留在落格里才算没开抽。
+    expect({ caught, power: dragged.power, ball: ballOf(after) }).toEqual({
       caught: false,
       power: 0,
-      begun: 0,
+      ball: ballOf(landed),
     });
   });
 
@@ -175,9 +230,9 @@ describe('柱塞', () => {
     machine.move(pointerAt(MID_X, MID_Y + 2));
     machine.release(pointerAt(MID_X, MID_Y + 2));
 
-    expect({ power: machine.tick(FRAME_MS).power, begun: roll.beginCount }).toEqual({
+    expect({ power: machine.tick(FRAME_MS).power, locked: roll.locked }).toEqual({
       power: 0,
-      begun: 0,
+      locked: false,
     });
   });
 
@@ -195,7 +250,7 @@ describe('柱塞', () => {
     const voided = machine.tick(FRAME_MS).power;
     machine.release(pointerAt(MID_X, MID_Y + 100));
 
-    expect({ power: voided, begun: roll.beginCount }).toEqual({ power: 0, begun: 0 });
+    expect({ power: voided, locked: roll.locked }).toEqual({ power: 0, locked: false });
   });
 
   it('抬手那一刻已在有效区域之外（中间没来得及报拖动）：不发射', () => {
@@ -206,7 +261,7 @@ describe('柱塞', () => {
 
     machine.release(pointerAt(RECT.right + FAR_OUT_PX, MID_Y + 100));
 
-    expect(roll.beginCount).toBe(0);
+    expect(roll.locked).toBe(false);
   });
 
   it('从盘面下半截按下并拉满行程：力度到 1，抬手照常发射', () => {
@@ -221,7 +276,7 @@ describe('柱塞', () => {
     const pulled = machine.tick(FRAME_MS).power;
     machine.release(pointerAt(MID_X, endY));
 
-    expect({ power: pulled, begun: roll.beginCount }).toEqual({ power: 1, begun: 1 });
+    expect({ power: pulled, locked: roll.locked }).toEqual({ power: 1, locked: true });
   });
 
   it('另一根手指的移动与抬手不改变这一发', () => {
@@ -233,9 +288,9 @@ describe('柱塞', () => {
     machine.move(pointerAt(RECT.right + FAR_OUT_PX, MID_Y, OTHER_FINGER));
     machine.release(pointerAt(MID_X, MID_Y + 50, OTHER_FINGER));
 
-    expect({ power: machine.tick(FRAME_MS).power, begun: roll.beginCount }).toEqual({
+    expect({ power: machine.tick(FRAME_MS).power, locked: roll.locked }).toEqual({
       power: 100 / FULL_PULL_PX,
-      begun: 0,
+      locked: false,
     });
   });
 
@@ -248,7 +303,7 @@ describe('柱塞', () => {
     const caught = machine.press(pointerAt(MID_X, MID_Y + 100, OTHER_FINGER));
     machine.release(pointerAt(MID_X, MID_Y + 100));
 
-    expect({ caught, begun: roll.beginCount }).toEqual({ caught: false, begun: 1 });
+    expect({ caught, locked: roll.locked }).toEqual({ caught: false, locked: true });
   });
 
   it('系统抢走这根指针：这一发作废，力度归零，之后抬手不发射', () => {
@@ -261,7 +316,7 @@ describe('柱塞', () => {
     const voided = machine.tick(FRAME_MS).power;
     machine.release(pointerAt(MID_X, MID_Y + 100));
 
-    expect({ power: voided, begun: roll.beginCount }).toEqual({ power: 0, begun: 0 });
+    expect({ power: voided, locked: roll.locked }).toEqual({ power: 0, locked: false });
   });
 
   it('系统抢走的是别的手指：这一发照旧打出去', () => {
@@ -273,60 +328,24 @@ describe('柱塞', () => {
     machine.cancel(OTHER_FINGER);
     machine.release(pointerAt(MID_X, MID_Y + 100));
 
-    expect(roll.beginCount).toBe(1);
-  });
-
-  it('复位清掉拖了一半的这一发：之后的拖动与抬手都不算数', () => {
-    const { roll, machine } = setup();
-    machine.tick(0);
-    machine.press(pointerAt(MID_X, MID_Y));
-
-    machine.reset();
-    machine.move(pointerAt(MID_X, MID_Y + 100));
-    machine.release(pointerAt(MID_X, MID_Y + 100));
-
-    expect({ power: machine.tick(FRAME_MS).power, begun: roll.beginCount }).toEqual({
-      power: 0,
-      begun: 0,
-    });
+    expect(roll.locked).toBe(true);
   });
 });
 
 describe('发射', () => {
-  /**
-   * 拖着柱塞的时候页面被拆掉，然后才抬手：宿主拆掉之后一直锁着，`begin()` 也不再受理。
-   *
-   * 宿主那边这两件事是同一句判据，锁着就一定不受理；按下时又必须没锁，所以
-   * 「开抽不受理」只可能是按下之后才锁上的。假句柄把锁和受不受理分开记、互不牵连，
-   * 这里两个一起拨，才是宿主真会给的样子。
-   */
-  function releaseAfterTeardown({ roll, machine }: Harness): void {
-    pull(machine);
-    roll.locked = true;
-    roll.accepts = false;
-    machine.release(pointerAt(MID_X, PULLED_Y));
-  }
-
   it('开抽不受理就不发射：球仍坐在柱塞上', () => {
+    // 拖着柱塞的时候页面被拆掉，然后才抬手：宿主拆掉之后一直锁着，开抽不再受理。
     const harness = setup();
-    const atRest = harness.machine.tick(0);
+    const { machine } = harness;
+    const atRest = machine.tick(0);
+    pull(machine);
 
-    releaseAfterTeardown(harness);
-    harness.machine.tick(START_MS);
-    const later = harness.machine.tick(START_MS + FAR_MS);
+    harness.teardown();
+    machine.release(pointerAt(MID_X, PULLED_Y));
+    machine.tick(START_MS);
+    const later = machine.tick(START_MS + FAR_MS);
 
     expect(ballOf(later)).toEqual(ballOf(atRest));
-  });
-
-  it('开抽不受理就不发射：也不会报停下', () => {
-    const harness = setup();
-    harness.machine.tick(0);
-
-    releaseAfterTeardown(harness);
-    harness.machine.tick(START_MS);
-    harness.machine.tick(START_MS + FAR_MS);
-
-    expect(harness.roll.boardStoppedCount).toBe(0);
   });
 
   it('喂进物理的是松手那一刻的风车相位：同时按下、晚一帧松手，回放里的风车也差着那一帧', () => {
@@ -352,29 +371,56 @@ describe('发射', () => {
   });
 });
 
-describe('回放与报停', () => {
-  it('回放走到进格那一刻报一次「盘面停下」，余韵里不再报', () => {
+describe('回放与揭晓的时刻', () => {
+  it('进格那一帧揭晓：前一帧名字还没亮，这一帧球已落进隔板之间', () => {
     const harness = setup();
-    const { roll, machine } = harness;
-    fire(harness);
 
-    const stopped = stepUntil(machine, START_MS, () => roll.boardStoppedCount > 0);
-    expect(stopped.view.ballY).toBeGreaterThanOrEqual(BOARD.dividerTopY);
-    const end = stepFor(machine, stopped.at, FAR_MS);
+    const { before, reached } = stepUntil(harness.machine, fire(harness), isRevealed);
 
-    // 报的是进格，不是播完：报停之后余韵照播，球还在动。
-    expect(ballOf(end)).not.toEqual(ballOf(stopped.view));
-    expect(roll.boardStoppedCount).toBe(1);
+    expect({
+      revealedBefore: isRevealed(before.view),
+      inSlot: reached.view.ballY >= BOARD.dividerTopY,
+    }).toEqual({ revealedBefore: false, inSlot: true });
   });
 
-  it('一次 tick 直接跨到轨迹末尾，也报一次且只报一次', () => {
+  it('揭晓的是进格，不是播完：揭晓之后余韵照播，球还在动', () => {
+    const harness = setup();
+    const { machine } = harness;
+    const { reached } = stepUntil(machine, fire(harness), isRevealed);
+
+    const end = stepFor(machine, reached.at, FAR_MS);
+
+    expect(ballOf(end)).not.toEqual(ballOf(reached.view));
+  });
+
+  it('一帧一帧播完余韵、那一拍走完，卡片只弹一次', () => {
+    const harness = setup();
+    const { reached } = stepUntil(harness.machine, fire(harness), isRevealed);
+    stepFor(harness.machine, reached.at, FAR_MS);
+
+    harness.timer.advance(REVEAL_PAUSE_MS);
+
+    expect(cardShows(harness)).toBe(1);
+  });
+
+  it('一次跨到末尾也揭晓', () => {
     const harness = setup();
     fire(harness);
 
+    const end = harness.machine.tick(START_MS + FAR_MS);
+
+    expect(end.revealed?.name).toBe(WINNER);
+  });
+
+  it('一次跨到末尾、再走一帧，那一拍走完卡片只弹一次', () => {
+    const harness = setup();
+    fire(harness);
     harness.machine.tick(START_MS + FAR_MS);
     harness.machine.tick(START_MS + FAR_MS + FRAME_MS);
 
-    expect(harness.roll.boardStoppedCount).toBe(1);
+    harness.timer.advance(REVEAL_PAUSE_MS);
+
+    expect(cardShows(harness)).toBe(1);
   });
 
   it('球飞得多快与刷新率无关：每 8ms 走一步和每 33ms 走一步，同一时刻球在同一处', () => {
@@ -431,14 +477,12 @@ describe('揭晓', () => {
   it('名字亮在球最后停着的那一格上', () => {
     const harness = setup();
     fire(harness);
+
     const landed = harness.machine.tick(START_MS + FAR_MS);
 
-    harness.machine.reveal({ name: '候选1', enabled: true });
-    const view = harness.machine.tick(START_MS + FAR_MS + FRAME_MS);
-
-    expect(view.revealed).toEqual({
+    expect(landed.revealed).toEqual({
       slotIndex: slotIndexAtX(landed.ballX, BOARD.slotCount),
-      name: '候选1',
+      name: WINNER,
     });
   });
 
@@ -446,9 +490,8 @@ describe('揭晓', () => {
     const harness = setup();
     fire(harness);
     harness.machine.tick(START_MS + FAR_MS);
-    harness.machine.reveal({ name: '候选1', enabled: true });
 
-    harness.machine.erase();
+    accept(harness);
 
     expect(harness.machine.tick(START_MS + FAR_MS + FRAME_MS).revealed).toBeUndefined();
   });
@@ -478,19 +521,19 @@ describe('风车', () => {
 
   it('余韵还没播完就收下：回放被掐掉，球回柱塞，风车从当下的角度接着转、不跳', () => {
     const harness = setup();
-    const { roll, machine } = harness;
+    const { machine } = harness;
     const atRest = restView();
     const turn = oneFrameTurn();
-    fire(harness);
-    // 刚报停：判定之后轨迹还要再播一段余韵，这一刻球还在落格里弹。
-    const stopped = stepUntil(machine, START_MS, () => roll.boardStoppedCount > 0);
+    const launched = fire(harness);
+    // 刚揭晓：判定之后轨迹还要再播一段余韵，这一刻球还在落格里弹。
+    const { reached: revealed } = stepUntil(machine, launched, isRevealed);
 
     accept(harness);
-    const next = machine.tick(stopped.at + FRAME_MS);
+    const next = machine.tick(revealed.at + FRAME_MS);
 
     expect(ballOf(next)).toEqual(ballOf(atRest));
     next.windmillAngles.forEach((angle, i) => {
-      expect(angle - (stopped.view.windmillAngles[i] ?? 0)).toBeCloseTo(turn[i] ?? 0, 6);
+      expect(angle - (revealed.view.windmillAngles[i] ?? 0)).toBeCloseTo(turn[i] ?? 0, 6);
     });
   });
 
