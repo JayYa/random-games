@@ -1,15 +1,17 @@
 /**
- * 渲染层：弹球机的盘面——自己的盘面绘制与柱塞拖拽的接线。薄，不测。
+ * 渲染层：弹球机的盘面——指针与动画帧的接线，外加 Canvas 绘制。薄，不测。
  *
  * 页头、错误页、结果卡片、撒花和开抽的接线都不在这里——它们与弹球机无关，由玩法页
  * 宿主（`src/gamePageHost.ts`）接好（ADR-0012），转盘用的是同一份。弹球机只交一个
  * 盘面：交出自己的 HTML 和卡片按钮上的字，挂上之后只管画、演。
  *
- * 发射之后的那一整段——回放、报「盘面停下」、风车相位、球摆在哪、揭晓的那一格与
- * 复位——住在弹球机机器（`machine.ts`）里，有它自己的用例。这里只做三件事：
- * 1. 照着 `board.ts` 那张常量表把盘面画出来——几何只有一处，绝不在渲染层再抄一遍；
- * 2. 把柱塞的拖拽变成一个力度交给机器，松手时经机器发射；
- * 3. rAF 每帧叫机器走到这一刻，照它交回的画面状态画。
+ * 状态机也不在这里：柱塞怎么拖、什么时候作废、发射、回放、报「盘面停下」、风车
+ * 相位、球摆在哪、揭晓的那一格与复位，全住在弹球机机器（`machine.ts`）里，有它
+ * 自己的用例。这里只做四件事：
+ * 1. 把指针事件抄成普通数据的样本交给机器，机器说接住了才拦下默认行为、捕获指针；
+ * 2. rAF 每帧叫机器走到这一刻，照它交回的画面状态画；
+ * 3. 照着 `board.ts` 那张常量表把盘面画出来——几何只有一处，绝不在渲染层再抄一遍；
+ * 4. 拆卸时停掉 rAF、解绑监听。
  *
  * 盘面是匿名的：8 个落格只有颜色，没有序号，也没有图例。球落进哪一格由物理决定
  * （ADR-0006），但谁中选与此无关（ADR-0010）——球进格只报一声「盘面停下」，
@@ -36,29 +38,11 @@ import {
   createPinballMachine,
   type PinballReveal,
   type PinballView,
+  type PointerSample,
 } from './machine';
 
 /** 卡片上那个按钮写着「再打一发」，那按下去就得真的能再打一发。 */
 const CLOSE_LABEL = '再打一发';
-
-/**
- * 柱塞行程要拉多少屏幕像素才到满力度。
- *
- * 力度看的是「拉了多远」，不是手指落在盘面哪一点上：拖拽从按下的那一点算起，
- * 所以按在哪里都一样好使。这个距离不等于柱塞画出来的位移——通道底下只有二十几
- * 像素可动，拿它当行程会抖得没法控制力度。
- */
-const FULL_PULL_PX = 160;
-
-/**
- * 小于这个位移就当柱塞还在原位：抬手不发射。
- *
- * 「拖回原位取消」靠的就是它，顺带把误触（按一下没拖）挡在外面。
- */
-const REST_PULL_PX = 8;
-
-/** 指针离盘面这么远就算移出有效区域，这一发作废。 */
-const CANCEL_MARGIN_PX = 64;
 
 /** 盘面的固定配色。落格的颜色来自共用调色板，其余一律是中性的机身色。 */
 const INK = '#2b2b33';
@@ -448,23 +432,6 @@ export function createPinballBoard(): Board {
 function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   const canvas = createById(root)<HTMLCanvasElement>('pinball-board');
   const machine = createPinballMachine(roll);
-
-  /** 这一次拖出来的力度：每变一次交给机器画柱塞，松手时带着它发射。 */
-  let power = 0;
-
-  /**
-   * 拖拽状态：按下的点、指针 id，还有这一次拖到哪儿算满力度。
-   *
-   * `fullPullY` 在按下的那一刻就定死，之后 `pointermove` 一路照它算——同一次
-   * 拖拽里力度的手感不该中途变。
-   *
-   * 它只管画柱塞，是弹球机自己的事，不经开抽句柄：球还没出去，这一发随时可以
-   * 拖回原位作废，不满足「开抽之后盘面锁死」的语义（见 `src/gamePageHost.ts`）。
-   */
-  let drag:
-    | { readonly pointerId: number; readonly startY: number; readonly fullPullY: number }
-    | undefined;
-
   const controller = new AbortController();
   const listen = { signal: controller.signal } as const;
   let rafId = 0;
@@ -497,105 +464,33 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   }
 
   /**
-   * 指针是不是还在有效区域里。拉出去太远就算这一发不打了（story 13：发射之前
-   * 永远有退路）。
-   *
-   * 下边界特殊：它从**按下的那一点**往下量，而不是从盘面底边往下量。
-   *
-   * 抓柱塞的区域是整块盘面——柱塞通道只有盘面宽度的一成上下，在手机上那是个
-   * 按不准的靶子，所以按在哪里都算抓住柱塞，这是有意的。可下边界要是仍旧钉在
-   * 盘面底边加一点余量上，从盘面下半截按下去的人根本拉不到满行程就先出界作废了，
-   * 与 story 14「柱塞的整个行程都能打出一发有效球」正相反。
-   *
-   * 所以下边界跟着按下点走：满行程之外再留一段余量，往下拖到那儿才算作废。
-   * 左右和上方仍旧照盘面算，「拖出界外取消」这条路没有丢。
+   * 把指针事件抄成机器要的样本：哪根手指、屏幕上哪一点，外加画布此刻的矩形。
+   * 矩形每次现量——页面滚动或改了尺寸，有效区域跟着走。
    */
-  function withinValidArea(event: PointerEvent, fullPullY: number): boolean {
-    const rect = canvas.getBoundingClientRect();
-    const bottom = Math.max(rect.bottom + CANCEL_MARGIN_PX, fullPullY + CANCEL_MARGIN_PX);
-    return (
-      event.clientX >= rect.left - CANCEL_MARGIN_PX &&
-      event.clientX <= rect.right + CANCEL_MARGIN_PX &&
-      event.clientY >= rect.top - CANCEL_MARGIN_PX &&
-      event.clientY <= bottom
-    );
+  function sampleOf(event: PointerEvent): PointerSample {
+    const { left, top, right, bottom } = canvas.getBoundingClientRect();
+    return {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      rect: { left, top, right, bottom },
+    };
   }
 
-  /** 力度变了：自己记着，也交给机器画柱塞。 */
-  function setPower(next: number): void {
-    power = next;
-    machine.pull(next);
-  }
-
-  /**
-   * 作废这一发：柱塞弹回原位，球还坐在上面。
-   *
-   * 三条作废的路（拖回原位、拖出有效区域、系统抢走指针）都走这里，而这里不碰
-   * 开抽句柄——拖柱塞根本没进过开抽，自然也没什么可退的。
-   */
-  function cancelDrag(): void {
-    drag = undefined;
-    setPower(0);
-  }
-
-  // 柱塞是指针交互：按下抓住、移动改力度、抬起发射。鼠标和触屏走同一条路。
-  // 球在飞的时候整块盘面都不受理——一发就是一发。
+  // 柱塞是指针交互：按下抓住、移动改力度、抬起发射，鼠标和触屏走同一条路。
+  // 接不接、算不算数、作不作废都由机器定；这里只转交，再按它的答复捕获指针。
   canvas.addEventListener(
     'pointerdown',
     (event: PointerEvent) => {
-      // 开抽期间（球在飞、揭晓那一拍、卡片挂着）整块盘面都不受理；已经拖着一根指头时，
-      // 第二根指头按下去也不该抢走这一发。
-      if (drag || roll.locked) return;
+      if (!machine.press(sampleOf(event))) return;
       event.preventDefault();
-      drag = {
-        pointerId: event.pointerId,
-        startY: event.clientY,
-        fullPullY: event.clientY + FULL_PULL_PX,
-      };
-      setPower(0);
       canvas.setPointerCapture(event.pointerId);
     },
     listen,
   );
-
-  canvas.addEventListener(
-    'pointermove',
-    (event: PointerEvent) => {
-      const current = drag;
-      if (!current || event.pointerId !== current.pointerId) return;
-      if (!withinValidArea(event, current.fullPullY)) {
-        // 移出有效区域：这一发作废，柱塞弹回原位。发射之前永远有退路。
-        cancelDrag();
-        return;
-      }
-      const pulled = Math.max(0, event.clientY - current.startY);
-      setPower(Math.min(1, pulled / FULL_PULL_PX));
-    },
-    listen,
-  );
-
-  canvas.addEventListener(
-    'pointerup',
-    (event: PointerEvent) => {
-      const current = drag;
-      if (!current || event.pointerId !== current.pointerId) return;
-      const pulled = Math.max(0, event.clientY - current.startY);
-      // 拖回原位（或者根本没拖）等于取消：抬手不发射。
-      if (pulled < REST_PULL_PX || !withinValidArea(event, current.fullPullY)) {
-        cancelDrag();
-        return;
-      }
-      // 松手即发射：开不开抽、打不打得出去由机器问宿主。这一次拖拽到此为止。
-      const shotPower = power;
-      drag = undefined;
-      power = 0;
-      machine.launch(shotPower);
-    },
-    listen,
-  );
-
-  // 系统抢走指针（来电、手势返回）时按取消算，绝不糊里糊涂打出一发。
-  canvas.addEventListener('pointercancel', cancelDrag, listen);
+  canvas.addEventListener('pointermove', (event) => machine.move(sampleOf(event)), listen);
+  canvas.addEventListener('pointerup', (event) => machine.release(sampleOf(event)), listen);
+  canvas.addEventListener('pointercancel', (event) => machine.cancel(event.pointerId), listen);
 
   rafId = requestAnimationFrame(frame);
 

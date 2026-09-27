@@ -1,8 +1,9 @@
 /**
- * 弹球机机器的用例：发射之后的那一整段——开抽受不受理、回放走到哪一帧报停下、
- * 球摆在哪、揭晓亮在哪一格、风车怎么接着转、复位回到哪。
+ * 弹球机机器的用例：柱塞怎么拖、什么时候作废，以及发射之后的那一整段——开抽受不
+ * 受理、回放走到哪一帧报停下、球摆在哪、揭晓亮在哪一格、风车怎么接着转、复位回到哪。
  *
- * 只经机器的接口进出：推的是发射、`tick`、揭晓、抹掉、复位，看的是 `tick` 交回的
+ * 只经机器的接口进出：推的是指针的按下、拖动、抬手、取消，`tick`、揭晓、抹掉、复位，
+ * 指针样本是手写的普通数据，看的是 `tick` 交回的
  * 画面状态和假开抽句柄记下的调用。物理模拟用真的，随机源给固定的，轨迹因此是确定的；
  * 唯一的替身是开抽句柄——锁的规则有宿主自己的用例。时间只经 `tick(now)` 进来，
  * 用例直接写「走到第几毫秒」，不需要假时钟。
@@ -12,10 +13,12 @@ import { describe, expect, it } from 'vitest';
 
 import { BOARD, slotIndexAtX } from './board';
 import {
+  FULL_PULL_PX,
   MAX_FRAME_MS,
   createPinballMachine,
   type PinballMachine,
   type PinballView,
+  type PointerSample,
 } from './machine';
 import { fakeRollHandle, seededRandom, type FakeRollHandle } from '../../testHelpers';
 
@@ -31,6 +34,28 @@ const START_MS = 1_000;
 /** 回放起点之后「足够远」的时长：远远超过任何一条轨迹能播多久（步数上限约 12 秒）。 */
 const FAR_MS = 60_000;
 
+/**
+ * 画布在屏幕上的矩形：随便挑一个，与盘面自己的坐标系无关——柱塞只看屏幕像素。
+ * 高度故意比满行程高得多，好在盘面上半截与下半截分别起手。
+ */
+const RECT = { left: 100, top: 50, right: 460, bottom: 650 } as const;
+
+/** 盘面正中：按在这里起手，四周离边都远。 */
+const MID_X = (RECT.left + RECT.right) / 2;
+const MID_Y = (RECT.top + RECT.bottom) / 2;
+
+/** 远远出了有效区域：比任何作废余量都大。 */
+const FAR_OUT_PX = 1_000;
+
+/** 用例里的两根手指。 */
+const FINGER = 1;
+const OTHER_FINGER = 2;
+
+/** 一个指针样本：这根手指此刻在屏幕上的哪一点，画布矩形取当下这一个。 */
+function pointerAt(clientX: number, clientY: number, pointerId: number = FINGER): PointerSample {
+  return { pointerId, clientX, clientY, rect: RECT };
+}
+
 interface Harness {
   readonly roll: FakeRollHandle;
   readonly machine: PinballMachine;
@@ -43,14 +68,21 @@ function setup(): Harness {
   return { roll, machine };
 }
 
+/** 从盘面正中按下，把柱塞拉到 `power` 那么深，就在那儿松手。 */
+function pullAndRelease(machine: PinballMachine, power: number): void {
+  const releaseY = MID_Y + power * FULL_PULL_PX;
+  machine.press(pointerAt(MID_X, MID_Y));
+  machine.move(pointerAt(MID_X, releaseY));
+  machine.release(pointerAt(MID_X, releaseY));
+}
+
 /**
  * 打出一发：第一次 `tick` 只作基准，拉柱塞、松手发射，下一次 `tick` 是回放起点。
  * 交回那一刻的画面。
  */
 function fire(machine: PinballMachine): PinballView {
   machine.tick(0);
-  machine.pull(POWER);
-  machine.launch(POWER);
+  pullAndRelease(machine, POWER);
   return machine.tick(START_MS);
 }
 
@@ -94,14 +126,156 @@ function oneFrameTurn(): readonly number[] {
   return after.map((angle, i) => angle - (before[i] ?? 0));
 }
 
+describe('柱塞', () => {
+  it('锁着时按下接不住，之后拖动、抬手都不改力度、不开抽', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    roll.locked = true;
+
+    const caught = machine.press(pointerAt(MID_X, MID_Y));
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+    machine.release(pointerAt(MID_X, MID_Y + 100));
+
+    expect({ caught, power: machine.tick(FRAME_MS).power, begun: roll.beginCount }).toEqual({
+      caught: false,
+      power: 0,
+      begun: 0,
+    });
+  });
+
+  it('拖回原位（不到阈值）就抬手：不开抽，力度归零', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+
+    machine.press(pointerAt(MID_X, MID_Y));
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+    machine.move(pointerAt(MID_X, MID_Y + 2));
+    machine.release(pointerAt(MID_X, MID_Y + 2));
+
+    expect({ power: machine.tick(FRAME_MS).power, begun: roll.beginCount }).toEqual({
+      power: 0,
+      begun: 0,
+    });
+  });
+
+  it.each([
+    ['左', pointerAt(RECT.left - FAR_OUT_PX, MID_Y + 100)],
+    ['右', pointerAt(RECT.right + FAR_OUT_PX, MID_Y + 100)],
+    ['上', pointerAt(MID_X, RECT.top - FAR_OUT_PX)],
+  ])('拖出%s方有效区域：这一发作废，力度归零，之后抬手不发射', (_side, outside) => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    machine.press(pointerAt(MID_X, MID_Y));
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+
+    machine.move(outside);
+    const voided = machine.tick(FRAME_MS).power;
+    machine.release(pointerAt(MID_X, MID_Y + 100));
+
+    expect({ power: voided, begun: roll.beginCount }).toEqual({ power: 0, begun: 0 });
+  });
+
+  it('抬手那一刻已在有效区域之外（中间没来得及报拖动）：不发射', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    machine.press(pointerAt(MID_X, MID_Y));
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+
+    machine.release(pointerAt(RECT.right + FAR_OUT_PX, MID_Y + 100));
+
+    expect(roll.beginCount).toBe(0);
+  });
+
+  it('从盘面下半截按下并拉满行程：力度到 1，抬手照常发射', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    const startY = RECT.bottom - 20;
+    // 比满行程再多拉一截：早出了「画布底边加余量」，还没出「按下点加满行程加余量」。
+    const endY = startY + FULL_PULL_PX + 40;
+
+    machine.press(pointerAt(MID_X, startY));
+    machine.move(pointerAt(MID_X, endY));
+    const pulled = machine.tick(FRAME_MS).power;
+    machine.release(pointerAt(MID_X, endY));
+
+    expect({ power: pulled, begun: roll.beginCount }).toEqual({ power: 1, begun: 1 });
+  });
+
+  it('另一根手指的移动与抬手不改变这一发', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    machine.press(pointerAt(MID_X, MID_Y));
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+
+    machine.move(pointerAt(RECT.right + FAR_OUT_PX, MID_Y, OTHER_FINGER));
+    machine.release(pointerAt(MID_X, MID_Y + 50, OTHER_FINGER));
+
+    expect({ power: machine.tick(FRAME_MS).power, begun: roll.beginCount }).toEqual({
+      power: 100 / FULL_PULL_PX,
+      begun: 0,
+    });
+  });
+
+  it('已经拖着一根手指时，第二根按下接不住，这一发照旧打出去', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    machine.press(pointerAt(MID_X, MID_Y));
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+
+    const caught = machine.press(pointerAt(MID_X, MID_Y + 100, OTHER_FINGER));
+    machine.release(pointerAt(MID_X, MID_Y + 100));
+
+    expect({ caught, begun: roll.beginCount }).toEqual({ caught: false, begun: 1 });
+  });
+
+  it('系统抢走这根指针：这一发作废，力度归零，之后抬手不发射', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    machine.press(pointerAt(MID_X, MID_Y));
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+
+    machine.cancel(FINGER);
+    const voided = machine.tick(FRAME_MS).power;
+    machine.release(pointerAt(MID_X, MID_Y + 100));
+
+    expect({ power: voided, begun: roll.beginCount }).toEqual({ power: 0, begun: 0 });
+  });
+
+  it('系统抢走的是别的手指：这一发照旧打出去', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    machine.press(pointerAt(MID_X, MID_Y));
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+
+    machine.cancel(OTHER_FINGER);
+    machine.release(pointerAt(MID_X, MID_Y + 100));
+
+    expect(roll.beginCount).toBe(1);
+  });
+
+  it('复位清掉拖了一半的这一发：之后的拖动与抬手都不算数', () => {
+    const { roll, machine } = setup();
+    machine.tick(0);
+    machine.press(pointerAt(MID_X, MID_Y));
+
+    machine.reset();
+    machine.move(pointerAt(MID_X, MID_Y + 100));
+    machine.release(pointerAt(MID_X, MID_Y + 100));
+
+    expect({ power: machine.tick(FRAME_MS).power, begun: roll.beginCount }).toEqual({
+      power: 0,
+      begun: 0,
+    });
+  });
+});
+
 describe('发射', () => {
   it('开抽不受理就不发射：球仍坐在柱塞上，也不会报停下', () => {
     const { roll, machine } = setup();
     const atRest = machine.tick(0);
     roll.accepts = false;
 
-    machine.pull(POWER);
-    machine.launch(POWER);
+    pullAndRelease(machine, POWER);
     machine.tick(START_MS);
     const later = machine.tick(START_MS + FAR_MS);
 
