@@ -1,11 +1,12 @@
 /**
- * 站内导航的用例：按地址画哪一页、地址被换成什么、历史上记了什么、挂了哪个主题
- * 哪个玩法、拿到了什么名单原文、上一页有没有被拆。
+ * 站内导航的用例：按地址画哪一页、地址被换成什么、挂了哪个主题哪个玩法、拿到了
+ * 什么名单原文、上一页有没有被拆，以及点「换个主题」之后历史怎么走。
  *
  * 只有一道接缝：站内导航的接口。背后全是替身——
  * - 假浏览器：一串历史，每条带着地址和记号。照实模拟两条最容易写错的规矩：
- *   `replaceState` 不触发 `hashchange`；改地址（点链接、后退）触发 `hashchange`，
- *   用例把它接到「画当前地址」上，与入口文件的接法一样。
+ *   `replaceState` 不触发 `hashchange`；改地址（点链接、后退、原地换）触发
+ *   `hashchange`，用例把它接到「画当前地址」上，与入口文件的接法一样。
+ * - 假点击：默认是普通的左键单击，记得自己有没有被拦下。
  * - 假取数：用例说什么时候回、回成功还是失败。
  * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面。
  * - 记录调用的假页面适配器：挂玩法页只做记录，玩法页宿主在它自己的接缝上测透了。
@@ -15,8 +16,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RecentMemory } from './cooldown';
 import { GAMES, gameHash, type Game } from './games';
-import { pickerReturn } from './backToPicker';
-import { createNavigation, type NavigationPage } from './navigation';
+import { createNavigation, type NavigationPage, type PickerLinkClick } from './navigation';
 import type { RecentStorage } from './recentStorage';
 import { scriptedRandom } from './testHelpers';
 import { THEMES, THEME_PICKER_HASH, themeHash, type Theme } from './themes';
@@ -27,11 +27,17 @@ interface FakeEntry {
   readonly state: unknown;
 }
 
+/** 这个标签页的历史走到了哪儿：每条历史的地址，和当前停在第几条（`-1` 是退出了站点）。 */
+interface Trail {
+  readonly hashes: readonly string[];
+  readonly at: number;
+}
+
 /**
  * 一个假浏览器：历史与地址共用一串历史记录。
  *
- * `history` 与 `location` 交给站内导航；`visit` / `back` 是使用者的动作——
- * 点链接、在地址栏里敲、按后退——它们改了地址就触发 `hashchange`。
+ * `history` 与 `location` 交给站内导航，使用者按后退也是 `history.back`；`visit` 是
+ * 使用者点链接、在地址栏里敲。改了地址就触发 `hashchange`，`replaceState` 不触发。
  */
 function fakeBrowser(initialHash: string) {
   const entries: FakeEntry[] = [{ hash: initialHash, state: null }];
@@ -55,10 +61,24 @@ function fakeBrowser(initialHash: string) {
       replaceState(data: unknown, _unused: string, url?: string | URL | null): void {
         entries[index] = { hash: url == null ? current().hash : String(url), state: structuredClone(data) };
       },
+      /** 退回上一条历史；已经是这个标签页的第一条，就退出了站点。 */
+      back(): void {
+        if (index === 0) {
+          index = -1;
+          return;
+        }
+        moveTo(index - 1);
+      },
     },
     location: {
       get hash(): string {
         return current().hash;
+      },
+      /** 把当前这条历史换成新地址，记号清空；地址变了就触发 `hashchange`。 */
+      replace(url: string | URL): void {
+        const before = current().hash;
+        entries[index] = { hash: String(url), state: null };
+        if (current().hash !== before) onHashChange();
       },
     },
     listen(listener: () => void): void {
@@ -69,10 +89,27 @@ function fakeBrowser(initialHash: string) {
       entries.splice(index + 1, entries.length, { hash, state: null });
       moveTo(index + 1);
     },
-    back(): void {
-      moveTo(index - 1);
+    trail(): Trail {
+      return { hashes: entries.map((entry) => entry.hash), at: index };
     },
   };
+}
+
+/** 点一下「换个主题」：默认是普通的左键单击，`init` 改其中几样。 */
+function pickerLinkClick(init: Partial<Omit<PickerLinkClick, 'preventDefault'>> = {}) {
+  const click = {
+    button: 0,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    altKey: false,
+    defaultPrevented: false,
+    ...init,
+    preventDefault(): void {
+      click.defaultPrevented = true;
+    },
+  };
+  return click;
 }
 
 /** 一个用例说什么时候回、回成功还是失败的假取数。 */
@@ -179,7 +216,7 @@ function open(hash: string, { storage = mapStorage() }: StartOptions = {}) {
   });
   browser.listen(() => navigation.render());
   navigation.render();
-  return { browser, fetch, log, mounts };
+  return { browser, navigation, fetch, log, mounts };
 }
 
 const [theme, otherTheme] = THEMES as readonly [Theme, Theme, ...Theme[]];
@@ -304,33 +341,63 @@ describe('换页', () => {
 });
 
 /**
- * 玩法页历史上记的「上一页是不是选主题页」，经「换个主题」会怎么走来读：
- * `back` 是后退一步，`replace` 是原地换成选主题页。
+ * 页头的「换个主题」（ADR-0007）：从选主题页点进来的后退一步，直接落进来的原地换成
+ * 选主题页。看的是点完之后这个标签页的历史——后退是停到了上一条，原地换是当前这条
+ * 变成了 `#/`。
  */
-describe('历史上的记号', () => {
-  it('从选主题页点进来的玩法页，「换个主题」后退', () => {
-    const { browser } = open('');
+describe('换个主题', () => {
+  it('从选主题页点进来的玩法页，后退一步', () => {
+    const { browser, navigation } = open('');
     browser.visit(gameHash(theme, firstGame));
-    expect(pickerReturn(browser.history.state)).toBe('back');
+    navigation.handlePickerLinkClick(pickerLinkClick());
+    expect(browser.trail()).toEqual({ hashes: ['', gameHash(theme, firstGame)], at: 0 });
   });
 
-  it('直接落进来的玩法页，「换个主题」原地换', () => {
-    const { browser } = open(gameHash(theme, firstGame));
-    expect(pickerReturn(browser.history.state)).toBe('replace');
+  // 从别人的链接、书签直接落进来的：后退会出站，只能原地换成首页。
+  it('直接落进来的玩法页，原地换成选主题页', () => {
+    const { browser, navigation } = open(gameHash(theme, firstGame));
+    navigation.handlePickerLinkClick(pickerLinkClick());
+    expect(browser.trail()).toEqual({ hashes: [THEME_PICKER_HASH], at: 0 });
   });
 
-  it('替人抽玩法换地址时，保留「上一页是选主题页」', () => {
-    const { browser } = open('');
+  it('替人抽玩法换了地址，从选主题页点进来的照样后退一步', () => {
+    const { browser, navigation } = open('');
     browser.visit(themeHash(theme));
-    expect(pickerReturn(browser.history.state)).toBe('back');
+    navigation.handlePickerLinkClick(pickerLinkClick());
+    expect(browser.trail()).toEqual({ hashes: ['', gameHash(theme, firstGame)], at: 0 });
   });
 
   // 直接落进玩法页，去选主题页，再后退回来：上一次画的是选主题页，
   // 但这条历史当初记的是「直接落进来」，不改。
-  it('后退回到一条老历史时，不改写它的记号', () => {
-    const { browser } = open(gameHash(theme, firstGame));
+  it('后退回到一条直接落进来的老历史，照样原地换', () => {
+    const { browser, navigation } = open(gameHash(theme, firstGame));
     browser.visit(THEME_PICKER_HASH);
-    browser.back();
-    expect(pickerReturn(browser.history.state)).toBe('replace');
+    browser.history.back();
+    navigation.handlePickerLinkClick(pickerLinkClick());
+    expect(browser.trail()).toEqual({ hashes: [THEME_PICKER_HASH, THEME_PICKER_HASH], at: 0 });
+  });
+
+  // 接走了就不能再让浏览器照链接走，否则历史上又多压一页首页。
+  it('接走的点击不再照链接走', () => {
+    const { navigation } = open(gameHash(theme, firstGame));
+    const click = pickerLinkClick();
+    navigation.handlePickerLinkClick(click);
+    expect(click.defaultPrevented).toBe(true);
+  });
+
+  // 新开标签页、新开窗口、下载，或者别人已经接手了：这个标签页的历史一动不动。
+  it.each([
+    ['按着 Ctrl', { ctrlKey: true }],
+    ['按着 Meta', { metaKey: true }],
+    ['按着 Shift', { shiftKey: true }],
+    ['按着 Alt', { altKey: true }],
+    ['中键', { button: 1 }],
+    ['右键', { button: 2 }],
+    ['已经被拦下', { defaultPrevented: true }],
+  ])('%s的点击不接走', (_case, init) => {
+    const { browser, navigation } = open('');
+    browser.visit(gameHash(theme, firstGame));
+    navigation.handlePickerLinkClick(pickerLinkClick(init));
+    expect(browser.trail()).toEqual({ hashes: ['', gameHash(theme, firstGame)], at: 1 });
   });
 });

@@ -2,9 +2,7 @@ import './style.css';
 import { browserNavigationPage } from './browserPage';
 import { fetchRosterCsv } from './loadRoster';
 import { createNavigation } from './navigation';
-import { THEME_PICKER_HASH } from './themes';
 import type { RecentStorage } from './recentStorage';
-import { isPlainClick, pickerReturn } from './backToPicker';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('缺少 #app 挂载点');
@@ -37,16 +35,11 @@ const navigation = createNavigation({
 // 切换 hash 时整页重建：盘面、动画、监听都随着 DOM 一起换掉，不留上一页的残余。
 window.addEventListener('hashchange', () => navigation.render());
 
-// 页头的「换个主题」：普通左键单击改成后退，或者在直接落进来的页上原地换成首页
+// 页头的「换个主题」：这里只认点的是不是那个链接，接不接走、怎么走由站内导航定
 //（ADR-0007）。挂在 `#app` 上而不是链接上：整页重建时链接换了，`#app` 不换。
 root.addEventListener('click', (event) => {
-  if (!(event.target instanceof Element)) return;
-  if (!event.target.closest('[data-to-picker]') || !isPlainClick(event)) return;
-  event.preventDefault();
-  if (pickerReturn(history.state) === 'back') {
-    history.back();
-  } else {
-    location.replace(THEME_PICKER_HASH);
+  if (event.target instanceof Element && event.target.closest('[data-to-picker]')) {
+    navigation.handlePickerLinkClick(event);
   }
 });
 

@@ -13,11 +13,15 @@
  * 「上一页是不是选主题页」、只定了主题的地址先抽玩法再换地址重画、取名单、晚回来的
  * 名单或失败一律作废。这串先后只住在这里，经这一个接口测。
  *
+ * 页头的「换个主题」是后退，不是前往（ADR-0007）：从选主题页点进来的玩法页后退一步，
+ * 不在历史上再压一页首页；从别人的链接、书签直接落进来的玩法页，上一页不是本站，
+ * 后退会把人送出站点，改成把当前这页原地换成首页。靠的就是上面记下的那个记号——
+ * 它记在每条玩法页历史自己的 `history.state` 上，刷新不丢。
+ *
  * 它不碰 DOM、不碰全局：浏览器的历史与地址、取名单、存储、随机源和写页面的办法都
  * 从接口注入，生产由入口文件交真的，用例交替身。
  */
 
-import { entryState, readEntryState } from './backToPicker';
 import type { RecentMemory } from './cooldown';
 import { gameHash, resolveRoute, rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
@@ -54,11 +58,27 @@ export interface NavigationPage {
   mountGamePage(mount: GamePageMount): () => void;
 }
 
+/**
+ * 一次点在「换个主题」上的点击，处理它要用到的那几样。生产直接交浏览器的
+ * `MouseEvent`；认出点的是不是那个链接是入口文件的事。
+ */
+export interface PickerLinkClick {
+  readonly button: number;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly shiftKey: boolean;
+  readonly altKey: boolean;
+  /** 别人已经接手了这次点击。 */
+  readonly defaultPrevented: boolean;
+  /** 不让浏览器再照链接走。 */
+  preventDefault(): void;
+}
+
 export interface NavigationOptions {
   /** 浏览器的历史，生产传 `window.history`。 */
-  readonly history: Pick<History, 'state' | 'replaceState'>;
+  readonly history: Pick<History, 'state' | 'replaceState' | 'back'>;
   /** 浏览器的地址，生产传 `window.location`。 */
-  readonly location: Pick<Location, 'hash'>;
+  readonly location: Pick<Location, 'hash' | 'replace'>;
   /** 取回 `public/` 下某份名单文件的原文，失败时抛错。 */
   readonly fetchRoster: (rosterFile: string) => Promise<string>;
   /**
@@ -77,6 +97,44 @@ export interface Navigation {
    * 调用方不传 hash，免得有两个来源。入口文件把 `hashchange` 接到这里，起步调一次。
    */
   render(): void;
+
+  /**
+   * 处理一次点在「换个主题」上的点击：要不要接走、接走了是后退还是原地换成首页，
+   * 都在这里定。入口文件认出点的是那个链接就转交过来。
+   */
+  handlePickerLinkClick(click: PickerLinkClick): void;
+}
+
+/** 一条玩法页历史上记的东西。 */
+interface PageEntryState {
+  /** 历史里紧挨着的上一页就是选主题页，后退一步正好回去。 */
+  readonly fromPicker: boolean;
+}
+
+/**
+ * 从 `history.state` 里认出这条历史记过的东西。
+ *
+ * 认不出就是 `undefined`：这条历史是刚压进来的新页，还没记过。
+ */
+function readEntryState(state: unknown): PageEntryState | undefined {
+  if (typeof state !== 'object' || state === null) return undefined;
+  const { fromPicker } = state as { fromPicker?: unknown };
+  return typeof fromPicker === 'boolean' ? { fromPicker } : undefined;
+}
+
+/**
+ * 普通的左键单击。只有它才接走；带修饰键或者非左键的点击本来就是要新开标签页、
+ * 新开窗口、下载，别人已经接手的也不抢，都交给浏览器照链接办。
+ */
+function isPlainClick(click: PickerLinkClick): boolean {
+  return (
+    click.button === 0 &&
+    !click.ctrlKey &&
+    !click.metaKey &&
+    !click.shiftKey &&
+    !click.altKey &&
+    !click.defaultPrevented
+  );
 }
 
 export function createNavigation(options: NavigationOptions): Navigation {
@@ -129,7 +187,8 @@ export function createNavigation(options: NavigationOptions): Navigation {
     // 新压进来的这条历史还没记过上一页是谁，现在记下。记过的不改：前进后退回到
     // 一条老历史时，上一次画的是哪一页和它在历史里挨着谁无关。
     if (!readEntryState(history.state)) {
-      history.replaceState(entryState(cameFromPicker), '');
+      const entry: PageEntryState = { fromPicker: cameFromPicker };
+      history.replaceState(entry, '');
     }
 
     const { theme, game } = route;
@@ -171,5 +230,16 @@ export function createNavigation(options: NavigationOptions): Navigation {
     );
   }
 
-  return { render };
+  function handlePickerLinkClick(click: PickerLinkClick): void {
+    if (!isPlainClick(click)) return;
+    click.preventDefault();
+    // 拿不准上一页是谁时都原地换：宁可历史里少一页玩法页，也不把人送出站点。
+    if (readEntryState(history.state)?.fromPicker) {
+      history.back();
+    } else {
+      location.replace(THEME_PICKER_HASH);
+    }
+  }
+
+  return { render, handlePickerLinkClick };
 }
