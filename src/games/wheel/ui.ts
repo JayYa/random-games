@@ -9,6 +9,7 @@
  * 盘面背后的状态也不在这里：定扇区、反算角度、按时间推进、走到终点报停、揭晓写在
  * 哪一格，全归转盘机器（`./machine.ts`），用例在那边。这里只把「转」的点击交给它、
  * 照它交回的受没受理决定起不起 rAF 循环，用 rAF 把时间喂给它，照它交回的画面状态画。
+ * 进 `tick` 的时刻只有 rAF 的时间戳一个来源；补画不推进时间，只向它要当下的画面。
  */
 
 import { createById } from '../../byId';
@@ -63,10 +64,10 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   };
 
   /**
-   * 补画一帧：揭晓、抹掉之后，以及尺寸或像素比变了的时候。`performance.now()` 与
-   * rAF 的时间戳同一口径；不在转时 `tick` 不推进任何东西，只交回当下的画面。
+   * 补画一帧：首次画、揭晓与抹掉之后，以及尺寸或像素比变了的时候。只取当下的画面，
+   * 不推进时间，所以补画的那一刻转盘不会多走一步。
    */
-  const redraw = () => draw(machine.tick(performance.now()));
+  const redraw = () => draw(machine.view());
 
   /** rAF 的每一帧：走到这一刻、照它交回的画面画，停下了就不再要下一帧。 */
   const frame = (now: number) => {
@@ -105,7 +106,7 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   // 缩放或换屏时 devicePixelRatio 会变而 CSS 尺寸不变，ResizeObserver 收不到。
   const controller = new AbortController();
   window.addEventListener('resize', redraw, { signal: controller.signal });
-  // 第一次 `tick` 只作基准，顺带画出静止的转盘。
+  // 首次画：一进页面就是一个静止的转盘。
   redraw();
 
   return {
