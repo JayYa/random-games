@@ -1,7 +1,7 @@
 /**
  * 站内导航 (Navigation)：按地址决定这一次画选主题页还是玩法页。
  *
- * hash 地址，不用 history 路由：history 路由在 GitHub Pages 的项目子路径下刷新会
+ * 用 hash 地址，不用 history API 的地址：后者在 GitHub Pages 的项目子路径下刷新会
  * 404，而地址必须能收藏、能发给别人、刷新后还留在原地。
  *
  * 地址分三档（解析在 `games.ts` 的 `resolveRoute`）：`#/<主题>/<玩法>` 直接进那一页；
@@ -22,24 +22,21 @@
  * 从接口注入，生产由入口文件交真的，用例交替身。
  */
 
-import type { RecentMemory } from './cooldown';
+// 只取类型，编译后不留痕迹；玩法页宿主本身也不碰 DOM。
+import type { GamePageHostOptions } from './gamePageHost';
 import { gameHash, resolveRoute, rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
 import type { RandomSource } from './rosterSession';
 import { THEME_PICKER_HASH, type Theme } from './themes';
 
-/** 挂一页玩法页要交给页面适配器的东西。 */
-export interface GamePageMount {
-  readonly theme: Theme;
+/**
+ * 挂一页玩法页要交给页面适配器的东西：站内导航替玩法页宿主备好的那几样（主题、
+ * 名单原文、最近中选，各自的说明在 `GamePageHostOptions`），加上这一次的玩法——
+ * 页面适配器凭它挑盘面。
+ */
+export type GamePageMount = Pick<GamePageHostOptions, 'theme' | 'csvText' | 'recentWinners'> & {
   readonly game: Game;
-  /** 名单 CSV 的原文。取文件的是站内导航，玩法页宿主只拿到文本（ADR-0001）。 */
-  readonly csvText: string;
-  /**
-   * 这个主题的最近中选（ADR-0011）：不论用哪种玩法摇，同一个主题拿到的是同一份，
-   * 不同主题互不相干。
-   */
-  readonly recentWinners: RecentMemory;
-}
+};
 
 /**
  * 站内导航的页面适配器：它碰 DOM 的唯一出口。生产用 `browserPage.ts` 里的

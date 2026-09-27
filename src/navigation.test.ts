@@ -8,7 +8,8 @@
  *   `hashchange`，用例把它接到「画当前地址」上，与入口文件的接法一样。
  * - 假点击：默认是普通的左键单击，记得自己有没有被拦下。
  * - 假取数：用例说什么时候回、回成功还是失败。
- * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面。
+ * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面；它也看得到最近
+ *   玩法、最近中选落在哪个键上。
  * - 记录调用的假页面适配器：挂玩法页只做记录，玩法页宿主在它自己的接缝上测透了。
  * - 可预测的随机源：恒给 0，抽玩法在还能抽的里面总取第一个。
  */
@@ -17,8 +18,7 @@ import { describe, expect, it } from 'vitest';
 import type { RecentMemory } from './cooldown';
 import { GAMES, gameHash, type Game } from './games';
 import { createNavigation, type NavigationPage, type PickerLinkClick } from './navigation';
-import type { RecentStorage } from './recentStorage';
-import { scriptedRandom } from './testHelpers';
+import { fakeStorage, scriptedRandom, type FakeStorage } from './testHelpers';
 import { THEMES, THEME_PICKER_HASH, themeHash, type Theme } from './themes';
 
 /** 一条历史：它的地址，和它身上记着的东西（新压进来的是 `null`）。 */
@@ -150,17 +150,6 @@ function settle(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-/** 一个基于 Map 的假 Storage，和 localStorage 一样只存字符串。 */
-function mapStorage(): RecentStorage {
-  const entries = new Map<string, string>();
-  return {
-    getItem: (key) => entries.get(key) ?? null,
-    setItem: (key, value) => {
-      entries.set(key, String(value));
-    },
-  };
-}
-
 /** 假页面记下的一次挂玩法页。 */
 interface RecordedMount {
   readonly game: string;
@@ -198,11 +187,11 @@ function fakeNavigationPage() {
 
 interface StartOptions {
   /** 这台浏览器的存储，默认一份新的；刷新页面就是把同一份再交一次。 */
-  readonly storage?: RecentStorage;
+  readonly storage?: FakeStorage;
 }
 
 /** 在一个新开的标签页里打开 `hash`：造好站内导航、接上 `hashchange`、起步画一次。 */
-function open(hash: string, { storage = mapStorage() }: StartOptions = {}) {
+function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
   const browser = fakeBrowser(hash);
   const fetch = fakeFetch();
   const { page, log, mounts } = fakeNavigationPage();
@@ -285,15 +274,22 @@ describe('只定了主题的地址', () => {
 describe('最近玩法', () => {
   // 同一份存储交给第二个站内导航：刷新之后还记得，说明最近玩法落进了存储。
   it('两次进同一个主题，玩法轮流', () => {
-    const storage = mapStorage();
+    const storage = fakeStorage();
     open(themeHash(theme), { storage });
     expect(open(themeHash(theme), { storage }).browser.location.hash).toBe(gameHash(theme, secondGame));
   });
 
   it('直接打开带玩法的地址不记进最近玩法', () => {
-    const storage = mapStorage();
+    const storage = fakeStorage();
     open(gameHash(theme, firstGame), { storage });
     expect(open(themeHash(theme), { storage }).browser.location.hash).toBe(gameHash(theme, firstGame));
+  });
+
+  // 键名是跨版本的约定：换了名，这台浏览器上已经记下的就读不回来了。只看键，不看里面的 JSON。
+  it('抽出的玩法记在全站共用的最近玩法键上', () => {
+    const storage = fakeStorage();
+    open(themeHash(theme), { storage });
+    expect(storage.keys).toEqual(['random-games:recent-games']);
   });
 });
 
@@ -314,6 +310,15 @@ describe('最近中选', () => {
 
   it('不同主题的最近中选互不相干', async () => {
     expect(await recentWinnersAfter(otherTheme, firstGame)).toEqual([]);
+  });
+
+  // 与最近玩法的键同理：只看键，不看里面的 JSON。
+  it('记下的中选落在这个主题自己的键上', async () => {
+    const storage = fakeStorage();
+    const { fetch, mounts } = open(gameHash(theme, firstGame), { storage });
+    await fetch.succeed(theme.rosterFile);
+    mounts[0]?.recentWinners.remember('甲');
+    expect(storage.keys).toEqual([`random-games:recent-winners:${theme.slug}`]);
   });
 });
 

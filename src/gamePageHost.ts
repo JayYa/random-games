@@ -166,7 +166,7 @@ export interface GamePageHostOptions {
   readonly csvText: string;
   /**
    * 当前主题的最近中选（ADR-0011），建名单会话时交给它。不论用哪种玩法摇，
-   * 同一个主题拿到的是同一份；盘面碰不到它。
+   * 同一个主题拿到的是同一份，不同主题互不相干；盘面碰不到它。
    */
   readonly recentWinners: RecentMemory;
   /** 这一次的盘面。 */
