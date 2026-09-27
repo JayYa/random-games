@@ -38,7 +38,9 @@ it('把每个主题的地址解析成它自己的记录', () => {
 - Can go red: name the line of production code whose removal fails it. A
   scenario the interface can't reach (a fake page drops a press on a hidden
   card's button before the host ever sees it) pins nothing — reach the guard
-  through a scenario the interface allows, or delete the test
+  through a scenario the interface allows, or delete the test. Prove it with
+  `pnpm can-go-red <file> <find> <replace> [test files…]`: it breaks the line,
+  lists the tests that went red, and restores the file
 
 ## Bad tests
 
