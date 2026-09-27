@@ -42,32 +42,6 @@ export function scriptedRandom(values: number[]): () => number {
   };
 }
 
-/**
- * 一个「平时随便给，转一次时给我排好的数」的随机源。
- *
- * 建会话时会话自己取不取随机数、取几个，用例既不知道也不该知道。`stage()` 排的
- * 两个数只会落到接下来那一次转上，排之前取走的一律是 `idle`。
- *
- * 这样转一次的用例才只钉「转一次」这件事本身，会话别处怎么用随机源都动不了它们。
- */
-export interface StagedRandom {
-  /** 交给会话的随机源。 */
-  readonly random: () => number;
-  /** 排下一次转要用的两个数，按被取用的先后。 */
-  stage(firstSeed: number, secondSeed: number): void;
-}
-
-export function stagedRandom(idle = 0.5): StagedRandom {
-  const queue: number[] = [];
-  return {
-    random: () => (queue.length > 0 ? queue.shift()! : idle),
-    stage(firstSeed, secondSeed) {
-      queue.length = 0;
-      queue.push(firstSeed, secondSeed);
-    },
-  };
-}
-
 export function csv(...lines: string[]): string {
   return lines.join('\n');
 }
@@ -110,7 +84,7 @@ export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMem
 /**
  * 一张记录调用的假结果卡片：假页面写玩法页时交回的就是它，只在假页面里造。
  *
- * 与 `scriptedRandom` / `stagedRandom` 同一性质——把一个真实依赖换成可预测、
+ * 与 `scriptedRandom` 同一性质——把一个真实依赖换成可预测、
  * 可查问的替身，好让用例不必碰 DOM（真卡片要写节点、要撒花、要挪焦点）。
  *
  * 它照搬真卡片那一条口径：本来就没开时 `hide()` 什么都不做，所以 `hideCount`

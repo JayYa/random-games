@@ -2,7 +2,7 @@
  * 名单会话的用例：解析、四种状态、抽一个中选、最近中选冷却。
  *
  * 这些都是玩法无关的性质——转盘和弹球机看到的是同一份名单逻辑。
- * 转盘的角度用例在 `games/wheel/session.test.ts`。
+ * 转盘的角度用例在 `games/wheel/machine.test.ts`。
  */
 
 import { describe, expect, it } from 'vitest';

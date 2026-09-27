@@ -4,11 +4,13 @@
  * 平时只画有颜色的扇区，不画任何名字——盘面是匿名的（ADR-0010）。唯一一次
  * 画名字是揭晓：把中选的名字写进停下的那个扇区，收下中选时再画回匿名。
  *
- * 每一格画在哪一段弧，向扇区模块要——角度约定只在那里说一次。
+ * 每一格画在哪一段弧，向扇区模块要——角度约定只在那里说一次。揭晓写在哪一格、
+ * 转到哪个角度都由转盘机器（`./machine.ts`）定，这里只照着画。
  */
 
 import { TAU } from '../../angles';
 import { PALETTE } from '../../palette';
+import type { Reveal } from './machine';
 import type { Sectors } from './sectors';
 
 /**
@@ -41,14 +43,6 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
     kept -= 1;
   }
   return kept > 0 ? `${chars.slice(0, kept).join('')}…` : '…';
-}
-
-/** 揭晓：中选的名字写在哪个扇区上。 */
-export interface Reveal {
-  /** 停下时指针底下的那个扇区的下标。 */
-  readonly sector: number;
-  /** 中选的名字。 */
-  readonly name: string;
 }
 
 export interface DrawOptions {
