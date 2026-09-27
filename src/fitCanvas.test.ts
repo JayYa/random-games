@@ -4,10 +4,11 @@
  *
  * 浏览器画布是系统边界，替身只有它：假画布带 CSS 宽度与可读写的缓冲宽高，像真画布
  * 一样写一次宽或高就被清空一次，并记下清空了几次；假上下文只记最后一次设的变换。
- * 设备像素比经可选的第三个参数注入，不碰 `window`，用例在 node 下直接跑。
+ * 设备像素比经可选的第三个参数注入，用例在 node 下直接跑；只有测缺省的那一条临时
+ * 塞一个没有设备像素比的假 `window`，用完就撤。
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { fitCanvas, type FittableCanvas } from './fitCanvas';
 
@@ -25,8 +26,8 @@ interface FakeCanvas extends FittableCanvas {
   readonly context: FakeContext;
 }
 
-/** 造一块假画布；`noContext` 为真时 `getContext('2d')` 交回空，像拿不到 2D 上下文的环境。 */
-function fakeCanvas(clientWidth: number, { noContext = false } = {}): FakeCanvas {
+/** 造一块假画布，`getContext('2d')` 交回它的假上下文。 */
+function fakeCanvas(clientWidth: number): FakeCanvas {
   let width = 0;
   let height = 0;
   let clearCount = 0;
@@ -60,8 +61,13 @@ function fakeCanvas(clientWidth: number, { noContext = false } = {}): FakeCanvas
     },
     context,
     // 只有 `setTransform` 是真的：对齐画布不画画，别的方法它碰不到。
-    getContext: () => (noContext ? null : (context as unknown as CanvasRenderingContext2D)),
+    getContext: () => context as unknown as CanvasRenderingContext2D,
   };
+}
+
+/** 造一块拿不到 2D 上下文的假画布，像不支持画布的环境。 */
+function contextlessCanvas(clientWidth: number): FittableCanvas {
+  return { clientWidth, width: 0, height: 0, getContext: () => null };
 }
 
 describe('fitCanvas', () => {
@@ -70,7 +76,7 @@ describe('fitCanvas', () => {
   });
 
   it('拿不到 2D 上下文时交回空', () => {
-    expect(fitCanvas(fakeCanvas(300, { noContext: true }), 1, 2)).toBeUndefined();
+    expect(fitCanvas(contextlessCanvas(300), 1, 2)).toBeUndefined();
   });
 
   it('缓冲宽是 CSS 宽乘像素比、取整', () => {
@@ -95,6 +101,17 @@ describe('fitCanvas', () => {
     const canvas = fakeCanvas(100);
     fitCanvas(canvas, 1, 0);
     expect(canvas.width).toBe(100);
+  });
+
+  it('不传设备像素比、浏览器也给不出时缓冲按 1 倍开', () => {
+    vi.stubGlobal('window', {});
+    try {
+      const canvas = fakeCanvas(100);
+      fitCanvas(canvas, 1);
+      expect(canvas.width).toBe(100);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('尺寸没变时再对齐一次，画布不被清空', () => {

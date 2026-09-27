@@ -46,13 +46,16 @@ const MAX_PIXEL_RATIO = 3;
  * 高度只由宽度推出（CSS 宽 × 高宽比），与盘面的 CSS 只定宽度一致。CSS 宽度为 0
  * 或拿不到 2D 上下文时交回空、不动缓冲，盘面这一帧就不画。
  *
- * @param aspectRatio 盘面的高宽比，高 ÷ 宽：转盘是正方形，传 1。
+ * 每次调用都把变换重设成只按像素比缩放，所以调用方可以每帧在上面再叠自己的缩放、
+ * 平移（弹球机就这样），不会越叠越多。
+ *
+ * @param heightPerWidth 盘面的高宽比，高 ÷ 宽：转盘是正方形，传 1。
  * @param devicePixelRatio 设备像素比，默认读浏览器当下的值，用例注入。缺省或为 0
  *   当 1，超过 `MAX_PIXEL_RATIO` 按它封顶。
  */
 export function fitCanvas(
   canvas: FittableCanvas,
-  aspectRatio: number,
+  heightPerWidth: number,
   devicePixelRatio: number = window.devicePixelRatio,
 ): FittedCanvas | undefined {
   const width = canvas.clientWidth;
@@ -60,7 +63,7 @@ export function fitCanvas(
   const context = canvas.getContext('2d');
   if (!context) return undefined;
 
-  const height = width * aspectRatio;
+  const height = width * heightPerWidth;
   const ratio = Math.min(devicePixelRatio || 1, MAX_PIXEL_RATIO);
   const pixelWidth = Math.round(width * ratio);
   const pixelHeight = Math.round(height * ratio);
