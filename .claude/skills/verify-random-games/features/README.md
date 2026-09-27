@@ -49,6 +49,8 @@ Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run all 
 - [Cooldown](./cooldown.md) covers recent winners (7 per theme) and the recent game (1, site-wide), including thawing. Scenario: `scenarios/cooldown.mjs` (uses a roster route for the first two cases).
 - [Roster error pages](./roster-errors.md) covers the four error kinds on both games. Scenario: `scenarios/roster-errors.mjs` (roster route throughout).
 
+To compare two revisions, `scenarios/navigation-compare.mjs` records every navigation path on each build so the two runs can be diffed. It isn't a feature of its own. The recipe is in SKILL.md under "Compare two revisions".
+
 Scenarios don't cover the wheel's keyboard entry, pinball's direct-link entry, or the real-file variant of roster errors; those recipes are in the feature files but unproven.
 
 Not yet mapped: adding a theme by dropping a CSV into `public/` (needs a restart of the run; build prints `[themes] 跳过 …` for a bad file), confetti timing, and the reveal-then-navigate race (covered by `e2e/smoke.spec.ts`).

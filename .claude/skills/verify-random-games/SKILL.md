@@ -1,6 +1,6 @@
 ---
 name: verify-random-games
-description: Drive the real 是但 (random-games) web app in a headless Chromium against a freshly built, isolated `vite preview` instance, and capture screenshots, ARIA snapshots, a trace, a video and localStorage state as evidence. Use when you need to prove user-facing behavior of the site — the theme picker, the game roll, a wheel or pinball draw, cooldown of recent winners, the roster error pages — rather than just running `pnpm test`.
+description: Drive the real 是但 (random-games) web app in a headless Chromium against a freshly built, isolated `vite preview` instance, and capture screenshots, ARIA snapshots, a trace, a video and localStorage state as evidence. Use when you need to prove user-facing behavior of the site — the theme picker, the game roll, a wheel or pinball draw, cooldown of recent winners, the roster error pages — rather than just running `pnpm test`, or to compare two revisions when a refactor claims no user-visible change.
 ---
 
 # Verify 是但 (random-games)
@@ -16,8 +16,10 @@ V=.claude/skills/verify-random-games/verify.mjs      # Git Bash; in PowerShell w
 ## Launch
 
 ```
-node $V start [--run <id>] [--port <n>]
+node $V start [--run <id>] [--port <n>] [--rev <ref>]
 ```
+
+- `--rev <ref>` builds that commit instead of the working tree. It checks the commit out as a detached git worktree under `scratch/src`, reusing the repo's `node_modules` when the lockfiles match and running `pnpm install` otherwise. `stop` removes the worktree.
 
 - Runs `vite build` (no `tsc`) into `<tmp>/random-games-verify/<run>/scratch/dist`, never touching the repo's `dist/`, then spawns `vite preview` on `127.0.0.1` at a free port (or `--port`, strict), detached, and records the pid.
 - **Ready** when it prints `READY run=<id> url=http://127.0.0.1:<port>/random-games/ pid=<pid>`. It also echoes any `[themes] 跳过 public/...` build warning (a CSV skipped by theme discovery).
@@ -86,6 +88,20 @@ Standards:
 - Seeding `localStorage` before navigation is fine (it's the browser's own state, the same thing a returning user has). Intercepting the roster fetch with `page.route('**/<slug>.csv', …)` is fine too — that fetch is the app's only I/O boundary — but say so in the report. Anything else mocked is not verification.
 - Report the feature ID and entry point for each claim. An entry point you didn't drive is unverified, even if a neighbour passed.
 
+## Compare two revisions
+
+When a change claims 使用者看不到任何变化 (a refactor), prove it against the base rather than only on the new build:
+
+```
+node $V start --run base --rev master
+node $V start --run head
+node $V drive --run base --feature navigation-compare .claude/skills/verify-random-games/scenarios/navigation-compare.mjs > base.log
+node $V drive --run head --feature navigation-compare .claude/skills/verify-random-games/scenarios/navigation-compare.mjs > head.log
+diff <(grep -E '✓|✗' base.log) <(grep -E '✓|✗' head.log)
+```
+
+The comparison passes when the step lines are identical. The committed feature scenarios pass on both builds when behaviour is unchanged, but they only catch what they assert. `navigation-compare.mjs` records the address, `history.length` and title at each step, so it also catches changes nobody asserted. Write a recording scenario like it for other surfaces the change touches. Record only deterministic values: for a random game roll or a drawn winner, record relations such as "alternates" or "stored equals shown". The raw values differ from run to run even on one build. Before you trust a recording scenario, run it twice on one build and check the two logs match. Report which scenarios ran on both builds and which ran only on the head build.
+
 ## Cleanup
 
 ```
@@ -102,6 +118,7 @@ Kills only the recorded pid, and only if its port still serves this run's build 
 - [`scenarios/theme-picker.mjs`](scenarios/theme-picker.mjs) — picker links, roll, Back, `← 换个主题` (back and replace), unknown-route fallback.
 - [`scenarios/cooldown.mjs`](scenarios/cooldown.mjs) — winner cooling, oldest thaws, cap at 7, game alternation, direct link not recorded.
 - [`scenarios/roster-errors.mjs`](scenarios/roster-errors.mjs) — four error kinds × two games, escape via `← 换个主题`.
+- [`scenarios/navigation-compare.mjs`](scenarios/navigation-compare.mjs) — records URL, `history.length` and title across every navigation path, for diffing two revisions (see Compare two revisions).
 - Feature map: [`features/README.md`](features/README.md). Read it before driving; it's the maintained list of what to cover.
 
 Related, not a substitute: `pnpm test` (vitest, node only), `pnpm test:e2e` (Playwright smoke suite on port 4173 in `e2e/smoke.spec.ts`), `pnpm can-go-red`.
