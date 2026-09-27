@@ -5,7 +5,7 @@ This browser remembers the last 7 winners per theme and the last rolled game sit
 ## Sub-features
 
 - `cool-winner` a candidate among the last 7 winners of this theme is not drawn.
-- `cool-thaw` with N enabled candidates, only the newest N−1 remembered winners stay cooling; the oldest thaws.
+- `cool-thaw` with N ≤ 7 enabled candidates, only the newest N−1 remembered winners stay cooling; the oldest thaws.
 - `cool-cap` the stored list keeps at most 7 names, newest last.
 - `cool-game` the game rolled last time is not rolled again from `#/<slug>` (games alternate).
 - `cool-direct` opening `#/<slug>/<game>` directly neither checks nor records the recent game.

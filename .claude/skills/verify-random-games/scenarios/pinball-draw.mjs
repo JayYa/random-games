@@ -1,5 +1,6 @@
 // Feature: pinball-draw (features/pinball-draw.md). From the theme picker, through the
 // game roll, pull the plunger, reveal, 再打一发, and a second shot; checks stored winners.
+// Ends with a direct-link shot.
 //
 //   node .claude/skills/verify-random-games/verify.mjs drive --run <RUN> --feature pinball-draw \
 //     .claude/skills/verify-random-games/scenarios/pinball-draw.mjs
@@ -83,6 +84,22 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
   await step('both winners stored, newest last', async () => {
     const mem = await recentMemory();
     expect(mem['random-games:recent-winners:breakfast']).toEqual([first, second]);
+    return mem;
+  });
+
+  // Direct link entry: clearing storage stands in for a fresh browser; about:blank
+  // forces a new document.
+  await step('direct link #/go-out/pinball: draws, records no recent game', async () => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('about:blank');
+    await page.goto(baseURL + '#/go-out/pinball');
+    await expect(page.getByRole('heading', { level: 1, name: '今天去哪玩' })).toBeVisible();
+    await pullPlunger();
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    const name = (await page.locator('#card-name').textContent())?.trim();
+    const mem = await recentMemory();
+    expect(mem).toEqual({ 'random-games:recent-winners:go-out': [name] });
+    await shot('direct-link-card');
     return mem;
   });
 }

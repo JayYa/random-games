@@ -1,16 +1,17 @@
 ---
 name: verify-random-games
-description: Drive the real 是但 (random-games) web app in a headless Chromium against a freshly built, isolated `vite preview` instance, and capture screenshots, ARIA snapshots, a trace, a video and localStorage state as evidence. Use when you need to prove user-facing behavior of the site — the theme picker, the game roll, a wheel or pinball draw, cooldown of recent winners, the roster error pages — rather than just running `pnpm test`, or to compare two revisions when a refactor claims no user-visible change.
+description: Prove user-facing behavior of 是但 (random-games) in a real browser, with evidence. Use when a change touches the theme picker, game roll, wheel or pinball draw, cooldown, or roster error pages and `pnpm test` isn't enough, or to compare two revisions for a refactor claiming no visible change.
 ---
 
 # Verify 是但 (random-games)
 
-The app is a static single-page site (TypeScript + Vite, no backend). The only surface is the browser: a theme picker at `#/`, then a game page at `#/<theme>/<game>` where the game is `wheel` (转盘) or `pinball` (弹球机). Rosters are CSV files in `public/`, fetched on entering a game page. The only persistent state is `localStorage` keys prefixed `random-games:` (recent winners per theme, recent game). Read [CONTEXT.md](../../../CONTEXT.md) for the vocabulary (主题, 名单, 候选, 开抽, 中选, 揭晓, 冷却…).
+The app is a hash-routed single-page site: a theme picker at `#/`, then a game page at `#/<theme>/<game>` where the game is `wheel` (转盘) or `pinball` (弹球机). Entering a game page fetches the theme's roster CSV from `public/`, the app's only I/O. The only persistent state is `localStorage` keys prefixed `random-games:` (recent winners per theme, recent game). Read [CONTEXT.md](../../../CONTEXT.md) for the vocabulary (主题, 名单, 候选, 开抽, 中选, 揭晓, 冷却…).
 
-Everything goes through one helper, `verify.mjs`, run with plain `node` from the repo root (works in PowerShell and Git Bash). Prerequisites: `pnpm install` done, and Playwright's Chromium present (`pnpm exec playwright install chromium` if `drive` says the browser is missing).
+Everything goes through one helper, `verify.mjs`, which drives headless Chromium against an isolated `vite preview` build. Run it with plain `node` from the repo root. Prerequisites: `pnpm install` done, and Playwright's Chromium present (`pnpm exec playwright install chromium` if `drive` says the browser is missing).
 
 ```
-V=.claude/skills/verify-random-games/verify.mjs      # Git Bash; in PowerShell write the path out
+V=.claude/skills/verify-random-games/verify.mjs        # Git Bash
+$V = '.claude/skills/verify-random-games/verify.mjs'   # PowerShell
 ```
 
 ## Launch
@@ -19,15 +20,14 @@ V=.claude/skills/verify-random-games/verify.mjs      # Git Bash; in PowerShell w
 node $V start [--run <id>] [--port <n>] [--rev <ref>]
 ```
 
-- `--rev <ref>` builds that commit instead of the working tree. It checks the commit out as a detached git worktree under `scratch/src`, reusing the repo's `node_modules` when the lockfiles match and running `pnpm install` otherwise. `stop` removes the worktree.
-
 - Runs `vite build` (no `tsc`) into `<tmp>/random-games-verify/<run>/scratch/dist`, never touching the repo's `dist/`, then spawns `vite preview` on `127.0.0.1` at a free port (or `--port`, strict), detached, and records the pid.
 - **Ready** when it prints `READY run=<id> url=http://127.0.0.1:<port>/random-games/ pid=<pid>`. It also echoes any `[themes] 跳过 public/...` build warning (a CSV skipped by theme discovery).
 - The site lives under `/random-games/` (Vite `base`); the bare port root is not the app.
 - The build is a snapshot. After changing `src/`, `public/` or `vite.config.ts`, `stop` and `start` again — doctor flags a stale build.
+- `--rev <ref>` builds that commit instead of the working tree. It checks the commit out as a detached git worktree under `scratch/src`, reusing the repo's `node_modules` when the lockfiles match and running `pnpm install` otherwise. `stop` removes the worktree.
 - `<tmp>` is `os.tmpdir()`: `C:\Users\<you>\AppData\Local\Temp` on Windows, `/tmp` elsewhere.
 
-Isolation: every run has its own port, build dir and state; any number can run side by side, and none of them collide with the e2e suite's fixed port 4173. Every `drive` gets a fresh browser context, so `localStorage` starts empty. Never drive a server you did not start (e.g. the user's `pnpm dev` on 5173) — it shares their browser storage and HMR state.
+Isolation: every run has its own port, build dir and state; any number can run side by side, and none of them collide with the e2e suite's fixed port 4173. Every `drive` gets a fresh browser context, so `localStorage` starts empty. Drive only servers you started with `start` — the user's `pnpm dev` on 5173 shares their browser storage and HMR state.
 
 ## Doctor
 
@@ -39,7 +39,9 @@ Read-only. Checks: pid alive; URL answers 200; the served `index.html` is byte-i
 
 ## Drive
 
-Write a scenario module and hand it to `drive`:
+First read [`features/README.md`](features/README.md) and the feature file for each surface the change touches. They list every entry point to cover and the proven recipe for each.
+
+Then write a scenario module, or reuse a committed one under `scenarios/`, and hand it to `drive`:
 
 ```
 node $V drive --run <id> --feature <feature-id> path/to/scenario.mjs [--headed]
@@ -63,13 +65,21 @@ Stable handles (details per feature in [`features/`](features/README.md)):
 
 - Picker: `getByRole('heading', {level: 1, name: '是但'})`, entries `getByRole('link', {name: '早餐吃什么' | '做点什么呢' | '今天去哪玩'})` → `#/breakfast`, `#/free-time`, `#/go-out`.
 - Game page header: `getByRole('link', {name: '← 换个主题'})`, `getByRole('heading', {level: 1})` = theme title.
-- Wheel: `getByRole('button', {name: '转'})` (`#wheel-spin`), locked state is `aria-disabled="true"` (never `disabled`); canvas `#wheel-canvas`.
-- Pinball: canvas `#pinball-board`; no button and no keyboard — fire by mouse drag down on the board (see pinball feature).
+- Wheel: `getByRole('button', {name: '转'})` (`#wheel-spin`), locked state is `aria-disabled="true"`; canvas `#wheel-canvas`.
+- Pinball: canvas `#pinball-board`; fire by mouse drag down on the board (see pinball feature).
 - Result card: `#card` (`role=dialog`), winner `#card-name`, close button `#card-close` = `再来一次` (wheel) / `再打一发` (pinball).
 - Error page: `[data-error-kind="load" | "parse-error" | "empty-file" | "all-disabled"]` (`role=alert`).
 - Storage: `random-games:recent-winners:<theme-slug>` (JSON array, newest last, max 7), `random-games:recent-games` (max 1).
 
 The canvas shows no names before a draw; the winner is only drawn after the board stops (ADR-0010). Which sector/slot a draw lands on is not deterministic; assert on the card, `#card-name`, and storage, not on pixels.
+
+Standards:
+
+- Drive the real user path: click the picker link, press `转`, drag the plunger, click `再来一次`. Cause behavior only through the page, never by calling app functions via `page.evaluate`.
+- Locate by role and accessible name; fall back to the ids above. Quote UI text as the literal Chinese.
+- Capture the action and the resulting state: `shot` before and after, `aria` of the result, plus the step's returned value.
+- Verify the side effect alongside the screen. A draw is evidenced by `#card-name`, a screenshot, and `recentMemory()` holding the same name under `random-games:recent-winners:<slug>`; a game roll by `random-games:recent-games` holding the rolled game; a route change by the returned `page.url()` and, for history behavior, `history.length`.
+- Seeding `localStorage` with `page.evaluate(() => localStorage.setItem(...))` before the navigation that reads it is fine (it's the same state a returning user has). Intercepting the roster fetch with `page.route('**/<slug>.csv', …)` is fine too, since that fetch is the app's only I/O boundary; name it in the report. Anything else mocked is not verification.
 
 ## Evidence
 
@@ -80,27 +90,23 @@ Each `drive` writes `<tmp>/random-games-verify/<run>/evidence/<feature>/<timesta
 - `trace.zip` (open with `pnpm exec playwright show-trace <path>`), `video.webm` of the whole session, `browser.log` (console, page errors, failed requests), `scenario.mjs` as run.
 - After `stop`: `server.log` from the preview server at the evidence root.
 
-Standards:
-
-- Drive the real user path: click the picker link, press `转`, drag the plunger, click `再来一次`. Don't call app functions via `page.evaluate` to cause behavior.
-- Capture the action and the resulting state: a screenshot before and after, plus the step's returned value.
-- Verify the side effect alongside the screen: after a reveal, `recentMemory()` must hold the winner under the theme key; after a game roll, `recent-games` must hold the rolled game.
-- Seeding `localStorage` before navigation is fine (it's the browser's own state, the same thing a returning user has). Intercepting the roster fetch with `page.route('**/<slug>.csv', …)` is fine too — that fetch is the app's only I/O boundary — but say so in the report. Anything else mocked is not verification.
-- Report the feature ID and entry point for each claim. An entry point you didn't drive is unverified, even if a neighbour passed.
-
 ## Compare two revisions
 
-When a change claims 使用者看不到任何变化 (a refactor), prove it against the base rather than only on the new build:
+When a change claims 使用者看不到任何变化 (a refactor), prove it against the base rather than only on the new build.
 
-```
-node $V start --run base --rev master
-node $V start --run head
-node $V drive --run base --feature navigation-compare .claude/skills/verify-random-games/scenarios/navigation-compare.mjs > base.log
-node $V drive --run head --feature navigation-compare .claude/skills/verify-random-games/scenarios/navigation-compare.mjs > head.log
-diff <(grep -E '✓|✗' base.log) <(grep -E '✓|✗' head.log)
-```
+1. **Pick recording scenarios.** The committed feature scenarios only catch what they assert. [`scenarios/navigation-compare.mjs`](scenarios/navigation-compare.mjs) records the address, `history.length` and title at each step of every navigation path, so it also catches changes nobody asserted. For other surfaces the change touches, write a recording scenario like it. Record only deterministic values: for a random game roll or a drawn winner, record relations such as "alternates" or "stored equals shown", since raw values differ from run to run even on one build.
+2. **Start both builds.** `node $V start --run base --rev master` and `node $V start --run head`.
+3. **Prove each recording scenario stable.** Drive it twice on `base` and diff the two logs as in step 4; they must match before you trust it.
+4. **Drive both and diff** (Git Bash):
 
-The comparison passes when the step lines are identical. The committed feature scenarios pass on both builds when behaviour is unchanged, but they only catch what they assert. `navigation-compare.mjs` records the address, `history.length` and title at each step, so it also catches changes nobody asserted. Write a recording scenario like it for other surfaces the change touches. Record only deterministic values: for a random game roll or a drawn winner, record relations such as "alternates" or "stored equals shown". The raw values differ from run to run even on one build. Before you trust a recording scenario, run it twice on one build and check the two logs match. Report which scenarios ran on both builds and which ran only on the head build.
+   ```
+   node $V drive --run base --feature navigation-compare .claude/skills/verify-random-games/scenarios/navigation-compare.mjs > base.log
+   node $V drive --run head --feature navigation-compare .claude/skills/verify-random-games/scenarios/navigation-compare.mjs > head.log
+   diff <(grep -E '✓|✗' base.log) <(grep -E '✓|✗' head.log)
+   ```
+
+   The comparison passes when the step lines are identical.
+5. **Report** which scenarios ran on both builds and which ran only on the head build.
 
 ## Cleanup
 
@@ -108,17 +114,19 @@ The comparison passes when the step lines are identical. The committed feature s
 node $V stop --run <id> [--force]
 ```
 
-Kills only the recorded pid, and only if its port still serves this run's build (otherwise it refuses; `--force` after you've checked it's ours). Copies `server.log` into the evidence dir, then deletes `scratch/` (build, state). **Evidence is kept** at `<tmp>/random-games-verify/<run>/evidence/`. Never kill `node`/`vite` by name — the user may have `pnpm dev` or an e2e run going. Run `stop` after failed attempts too. If a scenario created or edited a file in `public/` (only the add-a-theme flows do), restore it with `git checkout -- public/` / delete the scratch CSV before you finish, and check `git status` is clean apart from your intended work.
+Kills only the recorded pid, and only if its port still serves this run's build (otherwise it refuses; `--force` after you've checked it's ours). Copies `server.log` into the evidence dir, then deletes `scratch/` (build, state). **Evidence is kept** at `<tmp>/random-games-verify/<run>/evidence/`. Stop servers only through `stop` — the user may have `pnpm dev` or an e2e run going, so killing `node`/`vite` by name hits theirs too. Run `stop` after failed attempts too. If you ran the real-file variant of [roster errors](features/roster-errors.md) (the only recipe that edits `public/`), restore it with `git checkout -- public/`.
+
+## Report
+
+Report each claim with its feature ID, entry point, and evidence dir, and name any roster route you used. The verification is done when:
+
+- every entry point under "How to get to it" in each touched feature file has a ✓ step in a `summary.json`, or is reported as unverified with the command you tried and the precondition that was unmet. An entry point you didn't drive is unverified, even if a neighbour passed;
+- `node $V list` shows every run you started as `stopped`;
+- `git status` shows only your intended work.
 
 ## Helpers
 
-- [`verify.mjs`](verify.mjs) — `start | doctor | drive | stop | list`, invoked as `node .claude/skills/verify-random-games/verify.mjs <cmd> …`.
-- [`scenarios/wheel-draw.mjs`](scenarios/wheel-draw.mjs) — picker → roll → wheel draw → card → 再来一次 → storage.
-- [`scenarios/pinball-draw.mjs`](scenarios/pinball-draw.mjs) — picker → roll → plunger drag → card → 再打一发 → second shot → storage.
-- [`scenarios/theme-picker.mjs`](scenarios/theme-picker.mjs) — picker links, roll, Back, `← 换个主题` (back and replace), unknown-route fallback.
-- [`scenarios/cooldown.mjs`](scenarios/cooldown.mjs) — winner cooling, oldest thaws, cap at 7, game alternation, direct link not recorded.
-- [`scenarios/roster-errors.mjs`](scenarios/roster-errors.mjs) — four error kinds × two games, escape via `← 换个主题`.
-- [`scenarios/navigation-compare.mjs`](scenarios/navigation-compare.mjs) — records URL, `history.length` and title across every navigation path, for diffing two revisions (see Compare two revisions).
-- Feature map: [`features/README.md`](features/README.md). Read it before driving; it's the maintained list of what to cover.
+- [`verify.mjs`](verify.mjs) — `start | doctor | drive | stop | list`; usage in its header.
+- Scenarios and what each covers: [`features/README.md`](features/README.md).
 
 Related, not a substitute: `pnpm test` (vitest, node only), `pnpm test:e2e` (Playwright smoke suite on port 4173 in `e2e/smoke.spec.ts`), `pnpm can-go-red`.

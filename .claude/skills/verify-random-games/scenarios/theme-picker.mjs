@@ -1,5 +1,6 @@
 // Feature: theme-picker (features/theme-picker.md). Picker list, game roll from #/<slug>,
-// Back after a roll, ← 换个主题 (back vs replace), and unknown-route fallback.
+// Back after a roll, ← 换个主题 (back vs replace), #/ and a shared #/<slug> opened
+// directly, and unknown-route fallback.
 //
 //   node .claude/skills/verify-random-games/verify.mjs drive --run <RUN> --feature theme-picker \
 //     .claude/skills/verify-random-games/scenarios/theme-picker.mjs
@@ -73,6 +74,29 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     await page.goBack();
     expect(page.url()).toBe('about:blank');
     return { historyLength: before };
+  });
+
+  await step('open #/ directly → picker, address stays #/', async () => {
+    await page.goto('about:blank');
+    await page.goto(baseURL + '#/');
+    await expect(pickerHeading).toBeVisible();
+    await expect(page).toHaveURL(/#\/$/);
+    return page.url();
+  });
+
+  await step('open shared #/go-out → rolled; ← 换个主题 replaces it with #/', async () => {
+    await page.goto('about:blank');
+    await page.goto(baseURL + '#/go-out');
+    await expect(page).toHaveURL(/#\/go-out\/(wheel|pinball)$/);
+    await expect(page.getByRole('heading', { level: 1, name: '今天去哪玩' })).toBeVisible();
+    const game = page.url().split('/').pop();
+    expect((await recentMemory())['random-games:recent-games']).toEqual([game]);
+    const before = await historyLength();
+    await toPicker.click();
+    await expect(page).toHaveURL(/#\/$/);
+    await expect(pickerHeading).toBeVisible();
+    expect(await historyLength()).toBe(before);
+    return { game, historyLength: before };
   });
 
   for (const hash of ['#/nope', '#/breakfast/xyz', '#/breakfast/wheel/extra']) {
