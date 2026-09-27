@@ -7,7 +7,8 @@
  * 这一个接口背后，用例经它问得到生产代码真正走的那条路。
  *
  * 它不画画、不起 rAF、不绑事件：「转」只以一次 `spin()` 进来，时间只经 `tick(now)`
- * 进来，它交回这一刻的画面状态，渲染层（`ui.ts`）照着画。机器内部不读时钟、不起
+ * 进来、且只有 rAF 的时间戳这一个来源，它交回这一刻的画面状态，渲染层（`ui.ts`）
+ * 照着画；补画不推进时间，只经 `view()` 取当下的画面。机器内部不读时钟、不起
  * 计时器、也不读 `Math.random`——扇区、扇区内的落点、圈数都来自注入的同一个随机源。
  *
  * 开抽句柄由它直接持有：`spin()` 就是 `begin()`，并把受没受理交回——不受理就不转、
@@ -63,10 +64,15 @@ export interface WheelMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
    */
   spin(): boolean;
   /**
-   * 走到 `now` 这一刻（毫秒，与 rAF 的时间戳同一口径），交回这一刻的画面状态。
-   * 不在转的时候什么都不推进，拿它补画一帧也无妨。
+   * 走到 `now` 这一刻，交回推进之后的画面状态；走到终点的那一次报「盘面停下」。
+   * `now` 只接 rAF 的时间戳（毫秒）：时刻只有这一个来源，所以不会倒退，机器不为此设防。
    */
   tick(now: number): WheelView;
+  /**
+   * 交回这一刻的画面状态，什么都不推进：不走时间、不报「盘面停下」。补画（首次画、
+   * 揭晓与抹掉之后、尺寸或像素比变了）都用它。
+   */
+  view(): WheelView;
 }
 
 /** 正在转的这一次。 */
@@ -79,8 +85,6 @@ interface Spin {
   readonly delta: number;
   /** 动画起点：`spin()` 之后下一次 `tick` 的时刻。还没 `tick` 过就是 undefined。 */
   startedAt: number | undefined;
-  /** 已经走过的毫秒数：只增不减，所以哪一次 `tick` 的时刻早于上一次，转盘也不往回倒。 */
-  elapsed: number;
 }
 
 function easeOutCubic(t: number): number {
@@ -125,15 +129,11 @@ export function createWheelMachine(
   /**
    * 按累计时间推进：进度封顶在终点，所以掉帧或切走标签页回来的那一帧直接转完，
    * 不需要单帧时长上限；刷新率只影响画得顺不顺，不影响转多久、停在哪。
-   *
-   * 时间只往前走：补画用的 `performance.now()` 可能晚于紧跟着的那一帧 rAF 时间戳，
-   * rAF 的时间戳也可能早于起转那一刻；早于已走到的那一刻的 `now` 不推进也不倒退。
    */
   function advance(now: number, spin: Spin): void {
     const startedAt = spin.startedAt ?? now;
     spin.startedAt = startedAt;
-    spin.elapsed = Math.max(spin.elapsed, now - startedAt);
-    const t = Math.min(1, spin.elapsed / SPIN_DURATION_MS);
+    const t = Math.min(1, (now - startedAt) / SPIN_DURATION_MS);
     if (t < 1) {
       rotation = spin.from + spin.delta * easeOutCubic(t);
       return;
@@ -144,6 +144,11 @@ export function createWheelMachine(
     stoppedSector = spin.sector;
     // 报一声「盘面停下」：抽中选、揭晓、停一拍、弹卡片都归宿主。同一次转只到这里一次。
     roll.boardStopped();
+  }
+
+  /** 当下的画面：只读，不推进任何东西。 */
+  function view(): WheelView {
+    return { rotation, reveal, spinning: current !== undefined };
   }
 
   return {
@@ -160,15 +165,16 @@ export function createWheelMachine(
         from: rotation,
         delta: spinDelta(rotation, targetAngle, turns),
         startedAt: undefined,
-        elapsed: 0,
       };
       return true;
     },
 
     tick(now) {
       if (current) advance(now, current);
-      return { rotation, reveal, spinning: current !== undefined };
+      return view();
     },
+
+    view,
 
     // 揭晓：中选由宿主在盘面停下之后抽（ADR-0010），机器只把名字写进先定的那一格。
     reveal(winner) {

@@ -8,10 +8,10 @@
  * 源给种子随机源：一次转因此是确定的，而用例不关心机器按什么顺序取几个随机数。
  *
  * 用例推的是 `spin()` 与 `tick`，收下中选就是按假页面上卡片的关掉按钮。看的只有四样：
- * 真句柄上的锁、`spin()` 交回的受没受理、`tick` 交回的画面状态、卡片弹了几次。
+ * 真句柄上的锁、`spin()` 交回的受没受理、`tick` 与 `view()` 交回的画面状态、卡片弹了几次。
  *
- * 两条时钟各推各的：机器的时间只经 `tick(now)` 进来，用例直接写「走到第几毫秒」；
- * 宿主揭晓那一拍只经假计时器走。
+ * 两条时钟各推各的：机器的时间只经 `tick(now)` 进来（生产上只有 rAF 的时间戳这一个
+ * 来源，所以只往前走），用例直接写「走到第几毫秒」；宿主揭晓那一拍只经假计时器走。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -25,7 +25,7 @@ import {
   type WheelMachine,
   type WheelView,
 } from './machine';
-import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, rosterNames, seededRandom, type HostedBoard } from '../../testHelpers';
 
 /** 一帧的时长：60Hz 屏幕上 rAF 大致的间隔。 */
 const FRAME_MS = 16;
@@ -38,6 +38,9 @@ const START_MS = 1_000;
 
 /** 转盘上的扇区，与机器里的是同一套换算：用例拿它问指针底下是哪一格。 */
 const SECTORS = createSectors(SECTOR_COUNT);
+
+/** 挂上之后第一次抽出的中选：`mountOnHost` 抽中选总取第一个，名单是 `roster(3)`。 */
+const [FIRST_WINNER] = rosterNames(3);
 
 interface Harness extends HostedBoard {
   /** 宿主挂上的那一台机器。 */
@@ -322,28 +325,42 @@ describe('时间', () => {
     expect(every7.rotation).toBe(every16.rotation);
   });
 
-  // 补画用的 `performance.now()` 与 rAF 的时间戳不保证谁先谁后：早到的时刻不能让转盘倒回去。
-  it('早于起转那一帧的时刻：角度还是起转那一帧的角度', () => {
-    const { machine } = setup();
-    machine.tick(FIRST_TICK_MS);
-    machine.spin();
-    const started = machine.tick(START_MS);
+});
 
-    const earlier = machine.tick(START_MS - FRAME_MS);
-
-    expect(earlier.rotation).toBe(started.rotation);
-  });
-
-  it('早于上一帧的时刻：角度还是上一帧的角度', () => {
+describe('补画不推进时间', () => {
+  // 补画（首次画、揭晓与抹掉之后、尺寸或像素比变了）用 `view()`：它只交回当下的画面，
+  // 补画的那一刻转盘不会多走一步。
+  it('转到一半先 tick 到某一刻，再 view()：旋转量与那次 tick 相同', () => {
     const { machine } = setup();
     machine.tick(FIRST_TICK_MS);
     machine.spin();
     machine.tick(START_MS);
-    const latest = machine.tick(START_MS + SPIN_DURATION_MS / 2);
+    const ticked = machine.tick(START_MS + SPIN_DURATION_MS / 2);
 
-    const earlier = machine.tick(START_MS + SPIN_DURATION_MS / 2 - FRAME_MS);
+    const viewed = machine.view();
 
-    expect(earlier.rotation).toBe(latest.rotation);
+    expect(viewed.rotation).toBe(ticked.rotation);
+  });
+
+  it('揭晓后 view() 交回指针底下的那一格与中选的名字', () => {
+    const { machine } = setup();
+    machine.tick(FIRST_TICK_MS);
+    const stopped = spinThrough(machine, START_MS);
+
+    const viewed = machine.view();
+
+    expect(viewed.reveal).toEqual({ sector: SECTORS.sectorAt(stopped.rotation), name: FIRST_WINNER });
+  });
+
+  it('收下之后 view() 交回的揭晓为空', () => {
+    const harness = setup();
+    harness.machine.tick(FIRST_TICK_MS);
+    spinThrough(harness.machine, START_MS);
+    accept(harness);
+
+    const viewed = harness.machine.view();
+
+    expect(viewed.reveal).toBeUndefined();
   });
 });
 
