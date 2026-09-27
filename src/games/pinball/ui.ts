@@ -485,9 +485,31 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     },
     listen,
   );
-  canvas.addEventListener('pointermove', (event) => machine.move(sampleOf(event)), listen);
-  canvas.addEventListener('pointerup', (event) => machine.release(sampleOf(event)), listen);
+  // 拖动与抬手只转交这块画布捕获了的指针：机器接住的每一根都捕获过，没捕获的
+  // （鼠标在盘面上空晃）机器本来也不认，不必每次都现量一遍画布矩形。抬手时捕获
+  // 还在，要等 pointerup 派发完才自动释放。
+  canvas.addEventListener(
+    'pointermove',
+    (event) => {
+      if (canvas.hasPointerCapture(event.pointerId)) machine.move(sampleOf(event));
+    },
+    listen,
+  );
+  canvas.addEventListener(
+    'pointerup',
+    (event) => {
+      if (canvas.hasPointerCapture(event.pointerId)) machine.release(sampleOf(event));
+    },
+    listen,
+  );
   canvas.addEventListener('pointercancel', (event) => machine.cancel(event.pointerId), listen);
+  // 捕获要是没等到抬手就丢了，之后的拖动与抬手就不再转交，这一发会卡在拖着：
+  // 当作系统抢走了这根指针作废掉。正常抬手之后捕获也会丢，那时机器已经不认这根手指。
+  canvas.addEventListener(
+    'lostpointercapture',
+    (event) => machine.cancel(event.pointerId),
+    listen,
+  );
 
   rafId = requestAnimationFrame(frame);
 
