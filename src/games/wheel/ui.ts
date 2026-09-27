@@ -14,8 +14,7 @@
 import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePageHost';
 import { fitCanvas } from '../../fitCanvas';
-import { createSectors } from './sectors';
-import { createWheelMachine, SECTOR_COUNT, type WheelView } from './machine';
+import { createWheelMachine, type WheelView } from './machine';
 import { drawWheel } from './wheelCanvas';
 
 /** 卡片上那个按钮写着「再来一次」：只收卡片、回到能再转的状态，转不转由用户再按「转」决定。 */
@@ -40,8 +39,6 @@ export function createWheelBoard(): Board {
 
 function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   const machine = createWheelMachine(roll);
-  // 画布问的是同一套扇区换算（见 ./sectors.ts）：扇区数是转盘自己的常量，与名单大小无关。
-  const sectors = createSectors(SECTOR_COUNT);
 
   const byId = createById(root);
   const canvas = byId<HTMLCanvasElement>('wheel-canvas');
@@ -56,7 +53,13 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     const fitted = fitCanvas(canvas, 1);
     if (!fitted) return;
     const { context, width: size } = fitted;
-    drawWheel(context, { sectors, rotation: view.rotation, size, reveal: view.reveal });
+    // 画布照机器交出的那一份扇区换算画，与它定扇区、反算角度问的是同一份。
+    drawWheel(context, {
+      sectors: machine.sectors,
+      rotation: view.rotation,
+      size,
+      reveal: view.reveal,
+    });
   };
 
   /**

@@ -15,20 +15,22 @@
  * 那一次 `tick` 里 `boardStopped()`，同一次转只报一次。「开抽之后锁死」的判据仍只在
  * 宿主一处（ADR-0012），机器不另立。
  *
- * 扇区与角度的换算不在这里：它归扇区模块（`./sectors.ts`），机器只问它。
+ * 扇区与角度的换算不在这里：它归扇区模块（`./sectors.ts`），机器只问它。机器把自己问的
+ * 那一份原样交出（`sectors`），画布照它画、用例照它算期望，所以扇区数只有这里一处读。
  */
 
 import { normalizeAngle, TAU } from '../../angles';
 import type { MountedBoard, RollHandle } from '../../gamePageHost';
 import { randomIndex } from '../../randomIndex';
 import type { RandomSource } from '../../rosterSession';
-import { createSectors } from './sectors';
+import { createSectors, type Sectors } from './sectors';
 
 /**
  * 转盘的扇区数：固定 12 个，与名单里有几个候选无关（ADR-0010）。
  * 格数要是跟着候选数走，盘面的形状就把名单有多大泄露出去了。
+ * 不导出：别处要扇区换算就问机器的 `sectors`。
  */
-export const SECTOR_COUNT = 12;
+const SECTOR_COUNT = 12;
 
 /** 一次转从起转到停下的时长。 */
 export const SPIN_DURATION_MS = 3500;
@@ -57,6 +59,11 @@ export interface WheelView {
 
 /** 转盘机器的接口。揭晓、抹掉与盘面挂载结果上的同名项同形，渲染层原样转交。 */
 export interface WheelMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
+  /**
+   * 机器自己定扇区、反算角度用的那一份扇区换算，原样交出：画布照它画、用例照它算期望，
+   * 谁都不必按扇区数再造一份。
+   */
+  readonly sectors: Sectors;
   /**
    * 按下「转」：内部调 `roll.begin()`。返回受没受理——受理了才定扇区、起转，渲染层
    * 才起 rAF 循环；不受理（正在转、揭晓那一拍、结果卡片挂着）就什么都不做。
@@ -147,6 +154,8 @@ export function createWheelMachine(
   }
 
   return {
+    sectors,
+
     spin() {
       // 受不受理由宿主说了算：转动期间、揭晓那一拍里、卡片挂着时都静静退回、交回 false。
       if (!roll.begin()) return false;
