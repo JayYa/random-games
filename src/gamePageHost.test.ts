@@ -13,12 +13,13 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { REVEAL_PAUSE_MS, type RollHandle } from './gamePageHost';
+import { REVEAL_PAUSE_MS } from './gamePageHost';
 import {
   csv,
   fakeBoard,
   hostTheme as theme,
   mountOnHost,
+  rollOf,
   roster,
   type FakeBoard,
   type FakeBoardOptions,
@@ -47,13 +48,6 @@ function mountPage({ board: boardOptions, ...hostOptions }: HarnessOptions = {})
   const log: string[] = [];
   const board = fakeBoard({ ...boardOptions, log });
   return { ...mountOnHost(board, { ...hostOptions, log }), board, log };
-}
-
-/** 句柄一定在：名单正常的用例里盘面必然挂上了。 */
-function rollOf(harness: Harness): RollHandle {
-  const { roll } = harness;
-  if (!roll) throw new Error('盘面应当已经挂上');
-  return roll;
 }
 
 /** 开抽、盘面停下、揭晓那一拍走完：卡片弹出来。 */
