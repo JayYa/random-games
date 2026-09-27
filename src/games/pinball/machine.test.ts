@@ -4,7 +4,7 @@
  *
  * 机器挂在真的玩法页宿主上跑（经 `testHelpers.ts` 的 `mountOnHost`）：挂上时用宿主
  * 给的真开抽句柄造一台真的机器，锁、受理、揭晓、收下、拆卸都由宿主按它真实的规则推。
- * 唯一的替身是宿主那道 seam 上的假页面与假计时器，宿主是真的；物理模拟也是真的，
+ * 唯一的替身是宿主那道接缝上的假页面与假计时器，宿主是真的；物理模拟也是真的，
  * 随机源给固定的，轨迹因此是确定的。
  *
  * 用例推的是指针的按下、拖动、抬手、取消与 `tick`，收下中选就是按假页面上卡片的关掉
@@ -27,7 +27,7 @@ import {
   type PinballView,
   type PointerSample,
 } from './machine';
-import { mountOnHost, rollOf, seededRandom, type HostedBoard } from '../../testHelpers';
+import { csv, mountOnHost, rollOf, seededRandom, type HostedBoard } from '../../testHelpers';
 
 /** 这一批用例打的那一发：中等力度。 */
 const POWER = 0.6;
@@ -41,8 +41,11 @@ const START_MS = 1_000;
 /** 回放起点之后「足够远」的时长：远远超过任何一条轨迹能播多久（步数上限约 12 秒）。 */
 const FAR_MS = 60_000;
 
-/** 宿主抽中选总取第一个（见 `mountOnHost`），默认名单 `roster(3)` 第一次揭晓的就是它。 */
-const WINNER = '候选1';
+/** 这一页的名单，按 CSV 里的书写顺序，全部启用。 */
+const NAMES = ['甲', '乙', '丙'] as const;
+
+/** 宿主抽中选总取还能抽的第一个（见 `mountOnHost`），所以第一次揭晓的是名单排头那个。 */
+const WINNER = NAMES[0];
 
 /**
  * 画布在屏幕上的矩形：随便挑一个，与盘面自己的坐标系无关——柱塞只看屏幕像素。
@@ -93,7 +96,7 @@ function setup(): Harness {
       return machine;
     },
   };
-  const hosted = mountOnHost(board);
+  const hosted = mountOnHost(board, { csvText: csv(...NAMES.map((name) => `${name},true`)) });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
   return { ...hosted, roll: rollOf(hosted), machine };
@@ -105,15 +108,21 @@ function pull(machine: PinballMachine): void {
   machine.move(pointerAt(MID_X, PULLED_Y));
 }
 
+/** 某一刻，与机器在那一刻交回的画面。 */
+interface Frame {
+  readonly at: number;
+  readonly view: PinballView;
+}
+
 /**
  * 打出一发：第一次 `tick` 只作基准，拉柱塞、松手发射，下一次 `tick` 是回放起点。
- * 交回那一刻的画面。
+ * 交回回放起点那一帧。
  */
-function fire({ machine }: Harness): PinballView {
+function fire({ machine }: Harness): Frame {
   machine.tick(0);
   pull(machine);
   machine.release(pointerAt(MID_X, PULLED_Y));
-  return machine.tick(START_MS);
+  return { at: START_MS, view: machine.tick(START_MS) };
 }
 
 /**
@@ -130,15 +139,20 @@ function cardShows({ page }: Harness): number {
   return page.card?.showCount ?? 0;
 }
 
-/** 从 `from` 起一帧一帧往下走，直到 `done` 为真，交回那一刻与那一刻的画面。 */
+/**
+ * 从 `from` 那一帧起一帧一帧往下走，直到 `done` 为真：交回等到的那一帧，和紧挨在
+ * 它前面的那一帧（等到的就是下一帧时，前面那一帧就是 `from`）。
+ */
 function stepUntil(
   machine: PinballMachine,
-  from: number,
+  from: Frame,
   done: (view: PinballView) => boolean,
-): { readonly at: number; readonly view: PinballView } {
-  for (let at = from + FRAME_MS; at <= from + FAR_MS; at += FRAME_MS) {
+): { readonly before: Frame; readonly reached: Frame } {
+  let before = from;
+  for (let at = from.at + FRAME_MS; at <= from.at + FAR_MS; at += FRAME_MS) {
     const view = machine.tick(at);
-    if (done(view)) return { at, view };
+    if (done(view)) return { before, reached: { at, view } };
+    before = { at, view };
   }
   throw new Error('走了很远也没等到');
 }
@@ -358,33 +372,55 @@ describe('发射', () => {
 });
 
 describe('回放与揭晓的时刻', () => {
-  it('进格那一帧揭晓；余韵播完、那一拍走完，卡片只弹一次', () => {
+  it('进格那一帧揭晓：前一帧名字还没亮，这一帧球已落进隔板之间', () => {
+    const harness = setup();
+
+    const { before, reached } = stepUntil(harness.machine, fire(harness), isRevealed);
+
+    expect({
+      revealedBefore: isRevealed(before.view),
+      inSlot: reached.view.ballY >= BOARD.dividerTopY,
+    }).toEqual({ revealedBefore: false, inSlot: true });
+  });
+
+  it('揭晓的是进格，不是播完：揭晓之后余韵照播，球还在动', () => {
     const harness = setup();
     const { machine } = harness;
-    fire(harness);
+    const { reached } = stepUntil(machine, fire(harness), isRevealed);
 
-    const revealed = stepUntil(machine, START_MS, isRevealed);
-    expect(revealed.view.ballY).toBeGreaterThanOrEqual(BOARD.dividerTopY);
-    const end = stepFor(machine, revealed.at, FAR_MS);
+    const end = stepFor(machine, reached.at, FAR_MS);
+
+    expect(ballOf(end)).not.toEqual(ballOf(reached.view));
+  });
+
+  it('一帧一帧播完余韵、那一拍走完，卡片只弹一次', () => {
+    const harness = setup();
+    const { reached } = stepUntil(harness.machine, fire(harness), isRevealed);
+    stepFor(harness.machine, reached.at, FAR_MS);
+
     harness.timer.advance(REVEAL_PAUSE_MS);
 
-    // 揭晓的是进格，不是播完：揭晓之后余韵照播，球还在动。
-    expect(ballOf(end)).not.toEqual(ballOf(revealed.view));
     expect(cardShows(harness)).toBe(1);
   });
 
-  it('一次跨到末尾也揭晓，卡片只弹一次', () => {
+  it('一次跨到末尾也揭晓', () => {
     const harness = setup();
     fire(harness);
 
     const end = harness.machine.tick(START_MS + FAR_MS);
+
+    expect(end.revealed?.name).toBe(WINNER);
+  });
+
+  it('一次跨到末尾、再走一帧，那一拍走完卡片只弹一次', () => {
+    const harness = setup();
+    fire(harness);
+    harness.machine.tick(START_MS + FAR_MS);
     harness.machine.tick(START_MS + FAR_MS + FRAME_MS);
+
     harness.timer.advance(REVEAL_PAUSE_MS);
 
-    expect({ name: end.revealed?.name, shown: cardShows(harness) }).toEqual({
-      name: WINNER,
-      shown: 1,
-    });
+    expect(cardShows(harness)).toBe(1);
   });
 
   it('球飞得多快与刷新率无关：每 8ms 走一步和每 33ms 走一步，同一时刻球在同一处', () => {
@@ -488,9 +524,9 @@ describe('风车', () => {
     const { machine } = harness;
     const atRest = restView();
     const turn = oneFrameTurn();
-    fire(harness);
+    const launched = fire(harness);
     // 刚揭晓：判定之后轨迹还要再播一段余韵，这一刻球还在落格里弹。
-    const revealed = stepUntil(machine, START_MS, isRevealed);
+    const { reached: revealed } = stepUntil(machine, launched, isRevealed);
 
     accept(harness);
     const next = machine.tick(revealed.at + FRAME_MS);

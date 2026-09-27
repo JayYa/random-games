@@ -395,16 +395,19 @@ export interface MountOnHostOptions {
   readonly recent?: readonly string[];
   /** 与 `fakeBoard` 共用的调用记录：给了，假页面也往里记（`page …`）。 */
   readonly log?: string[];
-  /** 不注入假计时器，让宿主用它默认的真实计时器；用例自己装上测试框架的假时钟。 */
-  readonly defaultSchedule?: boolean;
+  /**
+   * 为真时不注入假计时器，宿主用它默认的真实计时器（`setTimeout`），用例自己装上
+   * 测试框架的假时钟；默认为假，注入交回的 `timer`。
+   */
+  readonly realSchedule?: boolean;
 }
 
-/** 挂在真宿主上的一页：宿主交回的拆卸，宿主那道 seam 上的几样替身，和宿主给盘面的句柄。 */
+/** 挂在真宿主上的一页：宿主交回的拆卸，宿主那道接缝上的几样替身，和宿主给盘面的句柄。 */
 export interface HostedBoard {
   /** 宿主交回的拆卸，就是路由换页前调的那一个。 */
   readonly teardown: () => void;
   readonly page: FakeGamePage;
-  /** 揭晓那一拍的假计时器；`defaultSchedule` 时宿主不用它。 */
+  /** 揭晓那一拍的假计时器；`realSchedule` 时宿主不用它。 */
   readonly timer: FakeTimer;
   readonly recentWinners: FakeRecentMemory;
   /** 宿主交给盘面的真开抽句柄；名单开不了抽、盘面没挂上时为 undefined。 */
@@ -415,7 +418,7 @@ export interface HostedBoard {
  * 把一个已经造好的盘面挂到真的玩法页宿主上：宿主自己的用例配假盘面，盘面的用例
  * 配真盘面，挂盘面的测试接缝只有这一道。
  *
- * 替身只有宿主那道 seam 上现成的几样：假页面、假计时器、假最近中选，宿主本身是
+ * 替身只有宿主那道接缝上现成的几样：假页面、假计时器、假最近中选，宿主本身是
  * 真的，锁、受理、揭晓、收下、拆卸都按它真实的规则走。开抽句柄由这里在盘面的挂载
  * 外面包一层截下——宿主把句柄交给盘面之前就截好，盘面在挂载期间用它也拿得到同一个。
  *
@@ -423,15 +426,13 @@ export interface HostedBoard {
  * 的是「候选1」，冷却之后的第二次是「候选2」，揭晓的名字是确定的。
  */
 export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {
-  const { csvText = roster(3), recent = [], log, defaultSchedule = false } = options;
+  const { csvText = roster(3), recent = [], log, realSchedule = false } = options;
   const page = fakeGamePage(log);
   const timer = fakeTimer();
   const recentWinners = fakeRecentMemory(recent);
   let roll: RollHandle | undefined;
   const intercepted: Board = {
-    html: board.html,
-    block: board.block,
-    closeLabel: board.closeLabel,
+    ...board,
     mount(root, handle) {
       roll = handle;
       return board.mount(root, handle);
@@ -446,7 +447,7 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
     board: intercepted,
     page,
     random: scriptedRandom([0]),
-    ...(!defaultSchedule && { schedule: timer.schedule }),
+    ...(!realSchedule && { schedule: timer.schedule }),
   });
   return { teardown, page, timer, recentWinners, roll };
 }

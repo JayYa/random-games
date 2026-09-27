@@ -518,7 +518,7 @@ describe('默认计时器', () => {
   it('不注入计时器时用真实的 setTimeout 停那一拍', () => {
     vi.useFakeTimers();
     try {
-      const harness = mountPage({ defaultSchedule: true });
+      const harness = mountPage({ realSchedule: true });
       const roll = rollOf(harness);
       roll.begin();
       roll.boardStopped();
@@ -534,7 +534,7 @@ describe('默认计时器', () => {
   it('拆卸掐得掉真实的 setTimeout', () => {
     vi.useFakeTimers();
     try {
-      const harness = mountPage({ defaultSchedule: true });
+      const harness = mountPage({ realSchedule: true });
       const roll = rollOf(harness);
       roll.begin();
       roll.boardStopped();
