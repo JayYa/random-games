@@ -75,6 +75,8 @@ interface Spin {
   readonly delta: number;
   /** 动画起点：`spin()` 之后下一次 `tick` 的时刻。还没 `tick` 过就是 undefined。 */
   startedAt: number | undefined;
+  /** 已经走过的毫秒数：只增不减，所以哪一次 `tick` 的时刻早于上一次，转盘也不往回倒。 */
+  elapsed: number;
 }
 
 function easeOutCubic(t: number): number {
@@ -119,11 +121,15 @@ export function createWheelMachine(
   /**
    * 按累计时间推进：进度封顶在终点，所以掉帧或切走标签页回来的那一帧直接转完，
    * 不需要单帧时长上限；刷新率只影响画得顺不顺，不影响转多久、停在哪。
+   *
+   * 时间只往前走：补画用的 `performance.now()` 可能晚于紧跟着的那一帧 rAF 时间戳，
+   * rAF 的时间戳也可能早于起转那一刻；早于已走到的那一刻的 `now` 不推进也不倒退。
    */
   function advance(now: number, spin: Spin): void {
     const startedAt = spin.startedAt ?? now;
     spin.startedAt = startedAt;
-    const t = Math.min(1, (now - startedAt) / SPIN_DURATION_MS);
+    spin.elapsed = Math.max(spin.elapsed, now - startedAt);
+    const t = Math.min(1, spin.elapsed / SPIN_DURATION_MS);
     if (t < 1) {
       rotation = spin.from + spin.delta * easeOutCubic(t);
       return;
@@ -143,13 +149,14 @@ export function createWheelMachine(
       // 停在哪个扇区在动画开始前就已确定，旋转只是把它演出来；谁中选此刻还没抽。
       const sector = randomIndex(random, sectors.count);
       const targetAngle = sectors.angleInSector(sector, random());
-      const turns = MIN_TURNS + Math.floor(random() * (MAX_TURNS - MIN_TURNS + 1));
+      const turns = MIN_TURNS + randomIndex(random, MAX_TURNS - MIN_TURNS + 1);
       // 从当下真实的旋转量起算，所以画面不跳。
       current = {
         sector,
         from: rotation,
         delta: spinDelta(rotation, targetAngle, turns),
         startedAt: undefined,
+        elapsed: 0,
       };
     },
 

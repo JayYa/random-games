@@ -203,21 +203,40 @@ describe('走到终点才揭晓', () => {
     expect(cardShows(harness)).toBe(1);
   });
 
-  it('走到终点那一帧起不再转，之前一直在转', () => {
+  it('起转那一帧就在转', () => {
     const { machine } = setup();
     machine.tick(FIRST_TICK_MS);
     machine.spin();
+
     const started = machine.tick(START_MS);
-    const beforeEnd = machine.tick(START_MS + SPIN_DURATION_MS - FRAME_MS);
 
-    const atEnd = machine.tick(START_MS + SPIN_DURATION_MS);
+    expect(started.spinning).toBe(true);
+  });
 
-    expect([started.spinning, beforeEnd.spinning, atEnd.spinning]).toEqual([true, true, false]);
+  // 终点前一帧还在转，由「时间」里那条「第一次 tick 只作基准」守着。
+  it('走到终点那一帧起不再转', () => {
+    const { machine } = setup();
+    machine.tick(FIRST_TICK_MS);
+
+    const atEnd = spinThrough(machine, START_MS);
+
+    expect(atEnd.spinning).toBe(false);
   });
 });
 
 describe('收下之后', () => {
-  it('名字抹掉，转盘停在原角度不动', () => {
+  it('名字抹掉', () => {
+    const harness = setup();
+    harness.machine.tick(FIRST_TICK_MS);
+    spinThrough(harness.machine, START_MS);
+
+    accept(harness);
+    const after = harness.machine.tick(START_MS + 2 * SPIN_DURATION_MS);
+
+    expect(after.reveal).toBeUndefined();
+  });
+
+  it('转盘停在原角度不动', () => {
     const harness = setup();
     harness.machine.tick(FIRST_TICK_MS);
     const stopped = spinThrough(harness.machine, START_MS);
@@ -225,10 +244,7 @@ describe('收下之后', () => {
     accept(harness);
     const after = harness.machine.tick(START_MS + 2 * SPIN_DURATION_MS);
 
-    expect({ rotation: after.rotation, reveal: after.reveal }).toEqual({
-      rotation: stopped.rotation,
-      reveal: undefined,
-    });
+    expect(after.rotation).toBe(stopped.rotation);
   });
 
   it('第二次转从当下的角度起转：起转那一帧的角度就是转之前停着的角度，画面不跳', () => {
@@ -274,6 +290,30 @@ describe('时间', () => {
     const every7 = stepEvery(fine, START_MS, 7, at);
 
     expect(every7.rotation).toBe(every16.rotation);
+  });
+
+  // 补画用的 `performance.now()` 与 rAF 的时间戳不保证谁先谁后：早到的时刻不能让转盘倒回去。
+  it('早于起转那一帧的时刻：角度还是起转那一帧的角度', () => {
+    const { machine } = setup();
+    machine.tick(FIRST_TICK_MS);
+    machine.spin();
+    const started = machine.tick(START_MS);
+
+    const earlier = machine.tick(START_MS - FRAME_MS);
+
+    expect(earlier.rotation).toBe(started.rotation);
+  });
+
+  it('早于上一帧的时刻：角度还是上一帧的角度', () => {
+    const { machine } = setup();
+    machine.tick(FIRST_TICK_MS);
+    machine.spin();
+    machine.tick(START_MS);
+    const latest = machine.tick(START_MS + SPIN_DURATION_MS / 2);
+
+    const earlier = machine.tick(START_MS + SPIN_DURATION_MS / 2 - FRAME_MS);
+
+    expect(earlier.rotation).toBe(latest.rotation);
   });
 });
 

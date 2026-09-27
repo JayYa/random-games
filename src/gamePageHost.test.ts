@@ -438,7 +438,8 @@ describe('换页拆卸', () => {
   });
 
   it('拆卸之后盘面再报停：不抽、不揭晓、不记、不弹卡片', () => {
-    // 转盘的动画不随页面拆卸而停，转完仍会报一声「盘面停下」。
+    // 停动画是盘面自己拆卸时的事（转盘会掐掉 rAF），宿主不指望它：哪个盘面漏停了，
+    // 拆卸之后仍可能报一声「盘面停下」，宿主这边照样不能再抽、再揭晓。
     const harness = mountPage();
     const { teardown, timer, board, page, recentWinners } = harness;
     const roll = rollOf(harness);

@@ -73,7 +73,7 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
    */
   const redraw = () => draw(machine.tick(performance.now()));
 
-  /** 时间只从这里进机器：走到这一刻、照它交回的画面画，停下了就不再要下一帧。 */
+  /** rAF 的每一帧：走到这一刻、照它交回的画面画，停下了就不再要下一帧。 */
   const frame = (now: number) => {
     const view = machine.tick(now);
     draw(view);
@@ -100,8 +100,11 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   spinButton.addEventListener('click', () => {
     // 受不受理由机器问宿主：锁着时连点「转」只会被静静退回，叠不出第二次转动。
     machine.spin();
-    // 已经在跑就不再起一条：同一时刻只有一条 rAF 循环。
-    rafId ??= requestAnimationFrame(frame);
+    // 已经在跑就不再起一条：同一时刻只有一条 rAF 循环。没在跑时问机器一句：真转起来了
+    // 才要帧，被退回的那一下不白跑一帧。
+    if (rafId === undefined && machine.tick(performance.now()).spinning) {
+      rafId = requestAnimationFrame(frame);
+    }
   });
 
   // 画布尺寸由 CSS 算，元素自己变大变小时重绘一次即可（转屏、地址栏收起都走这条）。
