@@ -70,9 +70,6 @@ const PLUNGER_COILS = 5;
 const LANE_INNER_LEFT = BOARD.laneWallX + BOARD.laneWallWidth;
 const LANE_INNER_RIGHT = BOARD.laneRight;
 
-/** 落格数：盘面自己的常量，与名单无关（见 `machine.ts` 与 CONTEXT.md「落格」）。 */
-const SLOT_COUNT = BOARD.slotCount;
-
 /** 揭晓标签：字号从大往小试，最小不低于这个，再放不下就折行——名字必须完整可读。 */
 const LABEL_FONT_MAX = 20;
 const LABEL_FONT_MIN = 13;
@@ -192,7 +189,7 @@ function layoutLabel(
  * 一个长名字，气泡往里挪，尖角仍旧指着原来那一格。
  */
 function drawRevealLabel(ctx: CanvasRenderingContext2D, reveal: PinballReveal): void {
-  const centerX = slotCenterX(reveal.slotIndex, SLOT_COUNT);
+  const centerX = slotCenterX(reveal.slotIndex, BOARD.slotCount);
   const tipY = BOARD.dividerTopY - 2;
   const bubbleBottom = tipY - LABEL_POINTER;
   const maxTextWidth = BOARD.width - 2 * LABEL_EDGE_MARGIN - 2 * LABEL_PADDING_X;
@@ -281,10 +278,10 @@ function drawBoard(ctx: CanvasRenderingContext2D, view: PinballView): void {
 
   // 落格：只有颜色，没有序号也没有名字——盘面是匿名的。揭晓时其余几格褪淡，
   // 球停下的那一格照旧鲜亮，下面再描一圈边。
-  const width = slotWidth(SLOT_COUNT);
+  const width = slotWidth(BOARD.slotCount);
   const slotTop = BOARD.dividerTopY;
   const slotHeight = SLOT_FLOOR_Y - slotTop;
-  for (let i = 0; i < SLOT_COUNT; i += 1) {
+  for (let i = 0; i < BOARD.slotCount; i += 1) {
     const left = BOARD.playLeft + i * width;
     fillRect(ctx, left, slotTop, width, slotHeight, slotColor(i));
     if (view.revealed && view.revealed.slotIndex !== i) {
@@ -293,7 +290,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, view: PinballView): void {
   }
 
   // 隔板：球心越过它们的顶线那一刻就定了落格（ADR-0006 的「进格即定」）。
-  for (const x of dividerPositions(SLOT_COUNT)) {
+  for (const x of dividerPositions(BOARD.slotCount)) {
     fillRect(ctx, x - BOARD.dividerWidth / 2, slotTop, BOARD.dividerWidth, slotHeight, WALL);
     ctx.strokeStyle = WALL_EDGE;
     ctx.lineWidth = 1;
@@ -488,9 +485,31 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     },
     listen,
   );
-  canvas.addEventListener('pointermove', (event) => machine.move(sampleOf(event)), listen);
-  canvas.addEventListener('pointerup', (event) => machine.release(sampleOf(event)), listen);
+  // 拖动与抬手只转交这块画布捕获了的指针：机器接住的每一根都捕获过，没捕获的
+  // （鼠标在盘面上空晃）机器本来也不认，不必每次都现量一遍画布矩形。抬手时捕获
+  // 还在，要等 pointerup 派发完才自动释放。
+  canvas.addEventListener(
+    'pointermove',
+    (event) => {
+      if (canvas.hasPointerCapture(event.pointerId)) machine.move(sampleOf(event));
+    },
+    listen,
+  );
+  canvas.addEventListener(
+    'pointerup',
+    (event) => {
+      if (canvas.hasPointerCapture(event.pointerId)) machine.release(sampleOf(event));
+    },
+    listen,
+  );
   canvas.addEventListener('pointercancel', (event) => machine.cancel(event.pointerId), listen);
+  // 捕获要是没等到抬手就丢了，之后的拖动与抬手就不再转交，这一发会卡在拖着：
+  // 当作系统抢走了这根指针作废掉。正常抬手之后捕获也会丢，那时机器已经不认这根手指。
+  canvas.addEventListener(
+    'lostpointercapture',
+    (event) => machine.cancel(event.pointerId),
+    listen,
+  );
 
   rafId = requestAnimationFrame(frame);
 

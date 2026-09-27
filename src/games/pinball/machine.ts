@@ -30,13 +30,16 @@ const WINDMILL_RADIANS_PER_MS = BOARD.windmillAngularVelocity / (1000 / 60);
 /** 掉帧（切走标签页再回来）时一次别把风车转出半圈去：单帧时间最多算这么长。 */
 export const MAX_FRAME_MS = 100;
 
+/** 球底与柱塞头上沿之间留的那一道缝：球坐在柱塞上，但不压进柱塞里。 */
+const BALL_SEAT_GAP_PX = 2;
+
 /**
  * 柱塞头（顶着球的那一截）静止时的上沿，与它被拉满时往下走的距离。
  *
  * 球坐在柱塞头上、跟着它往下压，所以机器要知道它；渲染层画柱塞用的也是这两个数，
  * 两边才对得上。
  */
-export const PLUNGER_REST_TOP = BOARD.launchY + BOARD.ballRadius + 2;
+export const PLUNGER_REST_TOP = BOARD.launchY + BOARD.ballRadius + BALL_SEAT_GAP_PX;
 export const PLUNGER_TRAVEL = 18;
 
 /**
@@ -57,14 +60,6 @@ const REST_PULL_PX = 8;
 
 /** 指针离盘面这么远就算移出有效区域，这一发作废。 */
 const CANCEL_MARGIN_PX = 64;
-
-/**
- * 落格数：盘面自己的常量，与名单里有几个候选无关（CONTEXT.md「落格」）。
- *
- * 名单只有三个人时盘面上照旧是 8 格，名单有四十个人也一样——格数若跟着名单走，
- * 数一数落格就知道池子有多大，盘面就不匿名了。落格不对应任何候选。
- */
-const SLOT_COUNT = BOARD.slotCount;
 
 /** 揭晓那一刻盘面上多出来的东西：一格高亮，外加浮在它上方的名字。 */
 export interface PinballReveal {
@@ -143,19 +138,7 @@ interface Flight {
 }
 
 /**
- * 机器这一发走到哪一步。球摆在哪只看这一格：
- *
- * - 待发：球坐在柱塞头上，随力度下压。
- * - 飞着：球按回放走，余韵也算飞着。
- * - 落定：轨迹播完，球留在最后一帧的位置，一直到复位。
- */
-type Stage =
-  | { readonly kind: 'ready' }
-  | { readonly kind: 'flying'; readonly flight: Flight }
-  | { readonly kind: 'settled' };
-
-/**
- * 一次拖拽：哪根手指、按下的那一点，还有这一次拖到哪儿算满力度。
+ * 一次拖拽：哪根手指、按下的那一点、这一次拖到哪儿算满力度，还有此刻拉到了哪儿。
  *
  * `fullPullY` 在按下的那一刻就定死，之后一路照它算——同一次拖拽里力度的手感
  * 不该中途变。
@@ -167,7 +150,24 @@ interface Drag {
   readonly pointerId: number;
   readonly startY: number;
   readonly fullPullY: number;
+  /** 柱塞被拉出来的程度，也就是这一发的力度：0 是原位，1 是满行程。 */
+  power: number;
 }
+
+/**
+ * 机器这一发走到哪一步。球摆在哪、柱塞压下去多少都只看这一格：
+ *
+ * - 待发：球坐在柱塞头上，柱塞在原位。
+ * - 拖着：一根手指抓着柱塞，球坐在柱塞头上随力度下压；带着这一次拖拽。
+ *   拖回原位、拖出有效区域、系统抢走指针、开抽不受理，都退回待发。
+ * - 飞着：球按回放走，余韵也算飞着。
+ * - 落定：轨迹播完，球留在最后一帧的位置，一直到复位。
+ */
+type Stage =
+  | { readonly kind: 'ready' }
+  | { readonly kind: 'dragging'; readonly drag: Drag }
+  | { readonly kind: 'flying'; readonly flight: Flight }
+  | { readonly kind: 'settled' };
 
 /** 从按下的那一点往下拉了多远（屏幕像素）；往上推不算，记作 0。 */
 function pulledPx(drag: Drag, sample: PointerSample): number {
@@ -228,10 +228,6 @@ export function createPinballMachine(
   random: RandomSource = Math.random,
 ): PinballMachine {
   let stage: Stage = { kind: 'ready' };
-  /** 柱塞被拉出来的程度，也就是这一发的力度。 */
-  let power = 0;
-  /** 正在拖柱塞的那一次拖拽；没有手指在拖时是 undefined。 */
-  let drag: Drag | undefined;
   /** 风车相位（弧度）。发射瞬间快照它，喂给模拟。 */
   let windmillPhase = 0;
   let angles: readonly number[] = anglesFromPhase(windmillPhase);
@@ -304,6 +300,12 @@ export function createPinballMachine(
     windmillPhase = phaseFromAngles(angles) ?? windmillPhase;
   }
 
+  /** 正在拖柱塞的那根手指要是 `pointerId`，交回这一次拖拽；别的手指、或者没人在拖，交回 undefined。 */
+  function dragBy(pointerId: number): Drag | undefined {
+    if (stage.kind !== 'dragging' || stage.drag.pointerId !== pointerId) return undefined;
+    return stage.drag;
+  }
+
   /**
    * 作废这一发：柱塞弹回原位，球还坐在上面。
    *
@@ -311,8 +313,7 @@ export function createPinballMachine(
    * 开抽句柄——拖柱塞根本没进过开抽，自然也没什么可退的。
    */
   function cancelDrag(): void {
-    drag = undefined;
-    power = 0;
+    stage = { kind: 'ready' };
   }
 
   /**
@@ -320,7 +321,8 @@ export function createPinballMachine(
    * 宿主说了算；不受理，柱塞照样弹回原位，球还坐在上面。
    */
   function launch(shotPower: number): void {
-    power = 0;
+    // 松手即发射，这一次拖拽到此为止，柱塞先弹回原位。
+    stage = { kind: 'ready' };
     if (!roll.begin()) return;
 
     // 力度整段行程都有效：最轻的一发也绕得过顶弧，不存在「打空」（见 board.ts）。
@@ -330,7 +332,8 @@ export function createPinballMachine(
       windmillPhase,
       // 种子只对开局做微扰：同样的力度不必每次都走出同一条轨迹。
       seed: Math.floor(random() * 0xffffffff),
-      slotCount: SLOT_COUNT,
+      // 落格数是盘面自己的常量，与名单里有几个候选无关（CONTEXT.md「落格」）。
+      slotCount: BOARD.slotCount,
     });
     // 整段模拟已经跑完了（几毫秒），剩下的只是把它放出来：下一次 tick 就是回放起点。
     // 卡住的球在这之前就被兜底处理掉了，用户看不到（ADR-0006）。
@@ -341,42 +344,44 @@ export function createPinballMachine(
     press(sample) {
       // 开抽期间（球在飞、揭晓那一拍、卡片挂着）整块盘面都不受理——只问句柄上的锁
       // （ADR-0012）；已经拖着一根手指时，第二根按下去也不该抢走这一发。
-      if (drag || roll.locked) return false;
-      drag = {
-        pointerId: sample.pointerId,
-        startY: sample.clientY,
-        fullPullY: sample.clientY + FULL_PULL_PX,
+      if (stage.kind === 'dragging' || roll.locked) return false;
+      stage = {
+        kind: 'dragging',
+        drag: {
+          pointerId: sample.pointerId,
+          startY: sample.clientY,
+          fullPullY: sample.clientY + FULL_PULL_PX,
+          power: 0,
+        },
       };
-      power = 0;
       return true;
     },
 
     move(sample) {
-      const current = drag;
-      if (!current || sample.pointerId !== current.pointerId) return;
-      if (!withinValidArea(current, sample)) {
+      const drag = dragBy(sample.pointerId);
+      if (!drag) return;
+      if (!withinValidArea(drag, sample)) {
         // 移出有效区域：这一发作废，柱塞弹回原位。发射之前永远有退路。
         cancelDrag();
         return;
       }
-      power = Math.min(1, pulledPx(current, sample) / FULL_PULL_PX);
+      drag.power = Math.min(1, pulledPx(drag, sample) / FULL_PULL_PX);
     },
 
     release(sample) {
-      const current = drag;
-      if (!current || sample.pointerId !== current.pointerId) return;
+      const drag = dragBy(sample.pointerId);
+      if (!drag) return;
       // 拖回原位（或者根本没拖）等于取消，已经在有效区域之外也一样：抬手不发射。
-      if (pulledPx(current, sample) < REST_PULL_PX || !withinValidArea(current, sample)) {
+      if (pulledPx(drag, sample) < REST_PULL_PX || !withinValidArea(drag, sample)) {
         cancelDrag();
         return;
       }
-      // 松手即发射，这一次拖拽到此为止。力度取最后一次拖动时的那个。
-      drag = undefined;
-      launch(power);
+      // 力度取最后一次拖动时的那个。
+      launch(drag.power);
     },
 
     cancel(pointerId) {
-      if (drag?.pointerId !== pointerId) return;
+      if (!dragBy(pointerId)) return;
       cancelDrag();
     },
 
@@ -392,10 +397,12 @@ export function createPinballMachine(
         angles = anglesFromPhase(windmillPhase);
       }
 
-      if (stage.kind === 'ready') {
+      // 只有拖着的时候柱塞才压下去；待发、飞着、落定都在原位。
+      const power = stage.kind === 'dragging' ? stage.drag.power : 0;
+      if (stage.kind === 'ready' || stage.kind === 'dragging') {
         // 球坐在柱塞头上，柱塞压下去它跟着走。
         ballX = LANE_CENTER_X;
-        ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - 2;
+        ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - BALL_SEAT_GAP_PX;
       }
 
       return { ballX, ballY, windmillAngles: angles, power, revealed };
@@ -414,8 +421,8 @@ export function createPinballMachine(
     reset() {
       // 余韵要是还没播完（卡片弹得快、收得也快），就地掐掉，风车从当下的角度接着转。
       if (stage.kind === 'flying') finishFlight();
+      // 回到待发：球回柱塞、力度归零，拖了一半的那一次拖拽也一并清掉。
       stage = { kind: 'ready' };
-      cancelDrag();
     },
   };
 }
