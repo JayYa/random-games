@@ -40,7 +40,11 @@ it('把每个主题的地址解析成它自己的记录', () => {
   card's button before the host ever sees it) pins nothing — reach the guard
   through a scenario the interface allows, or delete the test. Prove it with
   `pnpm can-go-red <file> <find> <replace> [test files…]`: it breaks the line,
-  lists the tests that went red, and restores the file
+  lists the tests that went red, and restores the file. To prove a whole test
+  file, use `pnpm can-go-red --plan <plan.json>` (format in
+  `scripts/can-go-red.mjs`). It runs many breaks in one call and lists every test
+  that never went red. Use it on Windows too, because Git Bash mangles `//` and
+  newlines passed as arguments
 
 ## Bad tests
 
