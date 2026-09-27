@@ -31,7 +31,7 @@ Preconditions:
 - **Memory.** `await recentMemory()` has `random-games:recent-winners:breakfast` = `[<winner>]`, `random-games:recent-games` = `['pinball']`.
 - **Close.** Click `getByRole('button', {name: '再打一发'})`. `#card` hidden, and still hidden after `page.waitForTimeout(1500)`.
 - **Second shot.** Repeat the drag. A second card appears; storage now holds two names, newest last.
-- **Direct link entry.** With empty storage (a fresh drive, or `localStorage.clear()`), `page.goto('about:blank')` then `page.goto(baseURL + '#/go-out/pinball')`, pull, reveal. Storage holds only `random-games:recent-winners:go-out` = `[<winner>]`; `random-games:recent-games` stays absent. The scenario's last step does this.
+- **Direct link entry.** With empty storage (a fresh drive, or `localStorage.clear()`; after a picker roll `random-games:recent-games` is already set and a direct link leaves it as it was), `page.goto('about:blank')` then `page.goto(baseURL + '#/go-out/pinball')`, pull, reveal. Storage holds only `random-games:recent-winners:go-out` = `[<winner>]`; `random-games:recent-games` stays absent. The scenario's last step does this.
 
 ## Gotchas
 
@@ -39,4 +39,3 @@ Preconditions:
 - The ball path uses real physics; landing slot and time vary. Allow 20 s for the card.
 - Focus is not returned to any control after closing (there is none); don't assert focus.
 - The theme's last 7 winners can't be drawn again ([cooldown](./cooldown.md)), so two consecutive winners always differ. That is expected, not a bug.
-- The direct-link check needs empty storage: after a picker roll in the same drive, `random-games:recent-games` is already set and a direct link leaves it as it was.
