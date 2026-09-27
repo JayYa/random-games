@@ -17,9 +17,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { REVEAL_PAUSE_MS, type Board } from '../../gamePageHost';
-import { createSectors } from './sectors';
 import {
-  SECTOR_COUNT,
   SPIN_DURATION_MS,
   createWheelMachine,
   type WheelMachine,
@@ -35,9 +33,6 @@ const FIRST_TICK_MS = 0;
 
 /** `spin()` 之后下一次 `tick` 的时刻，也就是动画起点。 */
 const START_MS = 1_000;
-
-/** 转盘上的扇区，与机器里的是同一套换算：用例拿它问指针底下是哪一格。 */
-const SECTORS = createSectors(SECTOR_COUNT);
 
 interface Harness extends HostedBoard {
   /** 宿主挂上的那一台机器。 */
@@ -103,7 +98,8 @@ describe('指针底下就是揭晓的那一格（ADR-0003）', () => {
       harness.machine.tick(FIRST_TICK_MS);
       for (let spin = 0; spin < 5; spin += 1) {
         const stopped = spinThrough(harness.machine, START_MS + spin * 2 * SPIN_DURATION_MS);
-        pointed.push(SECTORS.sectorAt(stopped.rotation));
+        // 问的是机器自己那一份扇区换算，画布照的也是它。
+        pointed.push(harness.machine.sectors.sectorAt(stopped.rotation));
         revealed.push(stopped.reveal?.sector);
         accept(harness);
       }
@@ -319,7 +315,8 @@ describe('时间', () => {
 
 describe('扇区', () => {
   // 格数是固定的，不跟着候选数走（ADR-0010）；定扇区要等概率，哪一格都不能永远轮不到。
-  it('扫一批种子，12 个扇区每一个都停得到', () => {
+  it('扫一批种子，机器交出的每一个扇区都停得到', () => {
+    const { count } = setup().machine.sectors;
     const stopped = new Set<number | undefined>();
     for (let seed = 1; seed <= 200; seed += 1) {
       const { machine } = setup(seed);
@@ -328,7 +325,7 @@ describe('扇区', () => {
     }
 
     expect([...stopped].sort((a, b) => (a ?? -1) - (b ?? -1))).toEqual(
-      Array.from({ length: SECTOR_COUNT }, (_, index) => index),
+      Array.from({ length: count }, (_, index) => index),
     );
   });
 });
