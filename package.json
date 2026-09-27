@@ -11,7 +11,8 @@
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "can-go-red": "node scripts/can-go-red.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
