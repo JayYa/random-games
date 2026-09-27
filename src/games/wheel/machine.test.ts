@@ -23,7 +23,7 @@ import {
   type WheelMachine,
   type WheelView,
 } from './machine';
-import { mountOnHost, rosterNames, seededRandom, type HostedBoard } from '../../testHelpers';
+import { csv, mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
 /** 一帧的时长：60Hz 屏幕上 rAF 大致的间隔。 */
 const FRAME_MS = 16;
@@ -34,12 +34,16 @@ const FIRST_TICK_MS = 0;
 /** `spin()` 之后下一次 `tick` 的时刻，也就是动画起点。 */
 const START_MS = 1_000;
 
-/** 挂上之后第一次抽出的中选：`mountOnHost` 抽中选总取第一个，名单是 `roster(3)`。 */
-const [FIRST_WINNER] = rosterNames(3);
-
 interface Harness extends HostedBoard {
   /** 宿主挂上的那一台机器。 */
   readonly machine: WheelMachine;
+}
+
+interface SetupOptions {
+  /** 机器的种子随机源用的种子，默认 7。 */
+  readonly seed?: number;
+  /** 名单 CSV 的原文，默认用 `mountOnHost` 的那一份。 */
+  readonly csvText?: string;
 }
 
 /**
@@ -47,7 +51,7 @@ interface Harness extends HostedBoard {
  * 把机器本身当挂载结果交回——它的揭晓、抹掉与挂载结果同形。HTML、块名、按钮文字
  * 宿主只转手给假页面，随便给。
  */
-function setup(seed = 7): Harness {
+function setup({ seed = 7, csvText }: SetupOptions = {}): Harness {
   const machines: WheelMachine[] = [];
   const board: Board = {
     html: '<canvas class="wheel__canvas"></canvas>',
@@ -59,7 +63,7 @@ function setup(seed = 7): Harness {
       return machine;
     },
   };
-  const hosted = mountOnHost(board);
+  const hosted = mountOnHost(board, { csvText });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
   return { ...hosted, machine };
@@ -72,6 +76,13 @@ function setup(seed = 7): Harness {
 function accept({ timer, page }: Harness): void {
   timer.advance(REVEAL_PAUSE_MS);
   page.pressClose();
+}
+
+/** 刚挂上的机器起转：第一次 `tick` 作基准，按「转」，在 `START_MS` 走出动画起点那一帧。 */
+function startSpin(machine: WheelMachine): void {
+  machine.tick(FIRST_TICK_MS);
+  machine.spin();
+  machine.tick(START_MS);
 }
 
 /** 从 `start` 那一刻起转一次，一步跨过终点，交回停下那一刻的画面。 */
@@ -97,11 +108,10 @@ describe('指针底下就是揭晓的那一格（ADR-0003）', () => {
     const pointed: number[] = [];
     const revealed: (number | undefined)[] = [];
     for (let seed = 1; seed <= 40; seed += 1) {
-      const harness = setup(seed);
+      const harness = setup({ seed });
       harness.machine.tick(FIRST_TICK_MS);
       for (let spin = 0; spin < 5; spin += 1) {
         const stopped = spinThrough(harness.machine, START_MS + spin * 2 * SPIN_DURATION_MS);
-        // 问的是机器自己那一份扇区换算，画布照的也是它。
         pointed.push(harness.machine.sectors.sectorAt(stopped.rotation));
         revealed.push(stopped.reveal?.sector);
         accept(harness);
@@ -122,7 +132,7 @@ describe('一次开抽就是一次', () => {
    * 开抽锁着的三种情形，都按宿主造得出的顺序走到：先转起来、走到转动中途，再各往前推
    * 到那一刻。
    */
-  const LOCKED: readonly (readonly [string, (harness: Harness) => void])[] = [
+  const LOCKED_MOMENTS: readonly (readonly [string, (harness: Harness) => void])[] = [
     ['转动期间', (_harness) => {}],
     [
       '揭晓那一拍里',
@@ -143,9 +153,7 @@ describe('一次开抽就是一次', () => {
   function lockedBy(when: (harness: Harness) => void): Harness {
     const harness = setup();
     const { machine } = harness;
-    machine.tick(FIRST_TICK_MS);
-    machine.spin();
-    machine.tick(START_MS);
+    startSpin(machine);
     machine.tick(MID_SPIN_MS);
     when(harness);
     return harness;
@@ -168,7 +176,7 @@ describe('一次开抽就是一次', () => {
     return { pressed: run(true), untouched: run(false) };
   }
 
-  it.each(LOCKED)('%s再按「转」不开第二次转', (_when, when) => {
+  it.each(LOCKED_MOMENTS)('%s再按「转」不开第二次转', (_when, when) => {
     const { pressed, untouched } = pressedAgain(when);
 
     expect(pressed).toBe(untouched);
@@ -184,7 +192,7 @@ describe('一次开抽就是一次', () => {
     expect(accepted).toBe(true);
   });
 
-  it.each(LOCKED)('%s再按「转」，spin() 交回 false', (_when, when) => {
+  it.each(LOCKED_MOMENTS)('%s再按「转」，spin() 交回 false', (_when, when) => {
     const { machine } = lockedBy(when);
 
     const accepted = machine.spin();
@@ -201,9 +209,7 @@ describe('走到终点才揭晓', () => {
 
   it('终点前一帧还没揭晓', () => {
     const { machine } = setup();
-    machine.tick(FIRST_TICK_MS);
-    machine.spin();
-    machine.tick(START_MS);
+    startSpin(machine);
 
     const beforeEnd = machine.tick(START_MS + SPIN_DURATION_MS - FRAME_MS);
 
@@ -307,11 +313,7 @@ describe('时间', () => {
   it('转速与刷新率无关：同种子、同一时刻，16ms 一帧与 7ms 一帧交回的角度相同', () => {
     const coarse = setup().machine;
     const fine = setup().machine;
-    for (const machine of [coarse, fine]) {
-      machine.tick(FIRST_TICK_MS);
-      machine.spin();
-      machine.tick(START_MS);
-    }
+    for (const machine of [coarse, fine]) startSpin(machine);
     // 两种步长都恰好走得到的一刻，离停下还远。
     const at = START_MS + 16 * 7 * 10;
 
@@ -320,32 +322,32 @@ describe('时间', () => {
 
     expect(every7.rotation).toBe(every16.rotation);
   });
-
 });
 
 describe('补画不推进时间', () => {
-  // 补画（首次画、揭晓与抹掉之后、尺寸或像素比变了）用 `view()`：它只交回当下的画面，
-  // 补画的那一刻转盘不会多走一步。
-  it('转到一半先 tick 到某一刻，再 view()：旋转量与那次 tick 相同', () => {
+  it('转到一半补画，转盘停在上一帧的角度，不多走一步', () => {
     const { machine } = setup();
-    machine.tick(FIRST_TICK_MS);
-    machine.spin();
-    machine.tick(START_MS);
-    const ticked = machine.tick(START_MS + SPIN_DURATION_MS / 2);
+    startSpin(machine);
+    const lastFrame = machine.tick(START_MS + SPIN_DURATION_MS / 2);
 
-    const viewed = machine.view();
+    const redrawn = machine.view();
 
-    expect(viewed.rotation).toBe(ticked.rotation);
+    expect(redrawn.rotation).toBe(lastFrame.rotation);
   });
 
   it('揭晓后 view() 交回指针底下的那一格与中选的名字', () => {
-    const { machine } = setup();
+    // 名单只有一个候选：中选是谁不看宿主抽中选用的随机源。
+    const onlyCandidate = '甲';
+    const { machine } = setup({ csvText: csv(`${onlyCandidate},true`) });
     machine.tick(FIRST_TICK_MS);
     const stopped = spinThrough(machine, START_MS);
 
     const viewed = machine.view();
 
-    expect(viewed.reveal).toEqual({ sector: machine.sectors.sectorAt(stopped.rotation), name: FIRST_WINNER });
+    expect(viewed.reveal).toEqual({
+      sector: machine.sectors.sectorAt(stopped.rotation),
+      name: onlyCandidate,
+    });
   });
 
   it('收下之后 view() 交回的揭晓为空', () => {
@@ -366,7 +368,7 @@ describe('扇区', () => {
     const { count } = setup().machine.sectors;
     const stopped = new Set<number | undefined>();
     for (let seed = 1; seed <= 200; seed += 1) {
-      const { machine } = setup(seed);
+      const { machine } = setup({ seed });
       machine.tick(FIRST_TICK_MS);
       stopped.add(spinThrough(machine, START_MS).reveal?.sector);
     }

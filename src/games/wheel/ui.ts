@@ -9,7 +9,7 @@
  * 盘面背后的状态也不在这里：定扇区、反算角度、按时间推进、走到终点报停、揭晓写在
  * 哪一格，全归转盘机器（`./machine.ts`），用例在那边。这里只把「转」的点击交给它、
  * 照它交回的受没受理决定起不起 rAF 循环，用 rAF 把时间喂给它，照它交回的画面状态画。
- * 进 `tick` 的时刻只有 rAF 的时间戳一个来源；补画不推进时间，只向它要当下的画面。
+ * 进 `tick` 的时刻只有 rAF 的时间戳一个来源。
  */
 
 import { createById } from '../../byId';
@@ -54,7 +54,6 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     const fitted = fitCanvas(canvas, 1);
     if (!fitted) return;
     const { context, width: size } = fitted;
-    // 画布照机器交出的那一份扇区换算画，与它定扇区、反算角度问的是同一份。
     drawWheel(context, {
       sectors: machine.sectors,
       rotation: view.rotation,
