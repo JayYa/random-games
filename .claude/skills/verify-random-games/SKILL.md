@@ -129,4 +129,4 @@ Report each claim with its feature ID, entry point, and evidence dir, and name a
 - [`verify.mjs`](verify.mjs) — `start | doctor | drive | stop | list`; usage in its header.
 - Scenarios and what each covers: [`features/README.md`](features/README.md).
 
-Related, not a substitute: `pnpm test` (vitest, node only), `pnpm test:e2e` (Playwright smoke suite on port 4173 in `e2e/smoke.spec.ts`), `pnpm can-go-red`.
+Related, not a substitute: `pnpm test` (vitest, node only), `pnpm test:e2e` (Playwright smoke suite on port 4173 in `e2e/smoke.spec.ts`).
