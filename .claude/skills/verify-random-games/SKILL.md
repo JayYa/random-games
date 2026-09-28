@@ -1,6 +1,6 @@
 ---
 name: verify-random-games
-description: Prove user-facing behavior of 是但 (random-games) in a real browser, with evidence. Use when a change touches the theme picker, game roll, wheel or pinball draw, cooldown, or roster error pages and `pnpm test` isn't enough, or to compare two revisions for a refactor claiming no visible change.
+description: Prove user-facing behavior of 是但 (random-games) in a real browser, producing the evidence for the PR body. Use before writing a PR that touches the theme picker, game roll, wheel or pinball draw, cooldown, or roster error pages.
 ---
 
 # Verify 是但 (random-games)
@@ -17,14 +17,13 @@ $V = '.claude/skills/verify-random-games/verify.mjs'   # PowerShell
 ## Launch
 
 ```
-node $V start [--run <id>] [--port <n>] [--rev <ref>]
+node $V start [--run <id>] [--port <n>]
 ```
 
 - Runs `vite build` (no `tsc`) into `<tmp>/random-games-verify/<run>/scratch/dist`, never touching the repo's `dist/`, then spawns `vite preview` on `127.0.0.1` at a free port (or `--port`, strict), detached, and records the pid.
 - **Ready** when it prints `READY run=<id> url=http://127.0.0.1:<port>/random-games/ pid=<pid>`. It also echoes any `[themes] 跳过 public/...` build warning (a CSV skipped by theme discovery).
 - The site lives under `/random-games/` (Vite `base`); the bare port root is not the app.
 - The build is a snapshot. After changing `src/`, `public/` or `vite.config.ts`, `stop` and `start` again — doctor flags a stale build.
-- `--rev <ref>` builds that commit instead of the working tree. It checks the commit out as a detached git worktree under `scratch/src`, reusing the repo's `node_modules` when the lockfiles match and running `pnpm install` otherwise. `stop` removes the worktree.
 - `<tmp>` is `os.tmpdir()`: `C:\Users\<you>\AppData\Local\Temp` on Windows, `/tmp` elsewhere.
 
 Isolation: every run has its own port, build dir and state; any number can run side by side, and none of them collide with the e2e suite's fixed port 4173. Every `drive` gets a fresh browser context, so `localStorage` starts empty. Drive only servers you started with `start` — the user's `pnpm dev` on 5173 shares their browser storage and HMR state.
@@ -90,24 +89,6 @@ Each `drive` writes `<tmp>/random-games-verify/<run>/evidence/<feature>/<timesta
 - `trace.zip` (open with `pnpm exec playwright show-trace <path>`), `video.webm` of the whole session, `browser.log` (console, page errors, failed requests), `scenario.mjs` as run.
 - After `stop`: `server.log` from the preview server at the evidence root.
 
-## Compare two revisions
-
-When a change claims 使用者看不到任何变化 (a refactor), prove it against the base rather than only on the new build.
-
-1. **Pick recording scenarios.** The committed feature scenarios only catch what they assert. [`scenarios/navigation-compare.mjs`](scenarios/navigation-compare.mjs) records the address, `history.length` and title at each step of every navigation path, so it also catches changes nobody asserted. For other surfaces the change touches, write a recording scenario like it. Record only deterministic values: for a random game roll or a drawn winner, record relations such as "alternates" or "stored equals shown", since raw values differ from run to run even on one build.
-2. **Start both builds.** `node $V start --run base --rev master` and `node $V start --run head`.
-3. **Prove each recording scenario stable.** Drive it twice on `base` and diff the two logs as in step 4; they must match before you trust it.
-4. **Drive both and diff** (Git Bash):
-
-   ```
-   node $V drive --run base --feature navigation-compare .claude/skills/verify-random-games/scenarios/navigation-compare.mjs > base.log
-   node $V drive --run head --feature navigation-compare .claude/skills/verify-random-games/scenarios/navigation-compare.mjs > head.log
-   diff <(grep -E '✓|✗' base.log) <(grep -E '✓|✗' head.log)
-   ```
-
-   The comparison passes when the step lines are identical.
-5. **Report** which scenarios ran on both builds and which ran only on the head build.
-
 ## Cleanup
 
 ```
@@ -118,7 +99,7 @@ Kills only the recorded pid, and only if its port still serves this run's build 
 
 ## Report
 
-Report each claim with its feature ID, entry point, and evidence dir, and name any roster route you used. The verification is done when:
+The report is the evidence the next step's PR body cites (the `pr` skill's `## Evidence`): the revision you built, each claim with its feature ID, entry point, and evidence dir, and any roster route you used. The verification is done when:
 
 - every entry point under "How to get to it" in each touched feature file has a ✓ step in a `summary.json`, or is reported as unverified with the command you tried and the precondition that was unmet. An entry point you didn't drive is unverified, even if a neighbour passed;
 - `node $V list` shows every run you started as `stopped`;
@@ -129,4 +110,4 @@ Report each claim with its feature ID, entry point, and evidence dir, and name a
 - [`verify.mjs`](verify.mjs) — `start | doctor | drive | stop | list`; usage in its header.
 - Scenarios and what each covers: [`features/README.md`](features/README.md).
 
-Related, not a substitute: `pnpm test` (vitest, node only), `pnpm test:e2e` (Playwright smoke suite on port 4173 in `e2e/smoke.spec.ts`), `pnpm can-go-red`.
+Related, not a substitute: `pnpm test` (vitest, node only), `pnpm test:e2e` (Playwright smoke suite on port 4173 in `e2e/smoke.spec.ts`).

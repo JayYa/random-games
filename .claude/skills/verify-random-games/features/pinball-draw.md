@@ -35,7 +35,7 @@ Preconditions:
 
 ## Gotchas
 
-- A click, a drag shorter than 8 px, or a drag pulled back to where it started does not fire. Any longer downward drag fires, even with a single `mouse.move`, unless it is released more than 64 px left, right or above the board (that voids the shot); power grows with the pull up to 160 px, so the scenario's 120 px is a mid-strength shot.
+- A click, a drag shorter than 8 px, or a drag pulled back to where it started does not fire. Any longer downward drag fires, even with a single `mouse.move`, unless the pointer at any moment goes more than 64 px left, right or above the board, or below whichever is lower of the board's bottom + 64 px and the press point + 224 px (160 + 64). That voids the shot even if the pointer comes back before release. Power grows with the pull up to 160 px, so the scenario's 120 px is a mid-strength shot.
 - The ball path uses real physics; landing slot and time vary. Allow 20 s for the card.
 - Focus is not returned to any control after closing (there is none); don't assert focus.
 - The theme's last 7 winners can't be drawn again ([cooldown](./cooldown.md)), so two consecutive winners always differ. That is expected, not a bug.
