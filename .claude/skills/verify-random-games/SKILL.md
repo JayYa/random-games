@@ -1,6 +1,6 @@
 ---
 name: verify-random-games
-description: Prove user-facing behavior of 是但 (random-games) in a real browser, with evidence. Use when a change touches the theme picker, game roll, wheel or pinball draw, cooldown, or roster error pages and `pnpm test` isn't enough.
+description: Prove user-facing behavior of 是但 (random-games) in a real browser, producing the evidence for the PR body. Use before writing a PR that touches the theme picker, game roll, wheel or pinball draw, cooldown, or roster error pages.
 ---
 
 # Verify 是但 (random-games)
@@ -99,7 +99,7 @@ Kills only the recorded pid, and only if its port still serves this run's build 
 
 ## Report
 
-Report each claim with its feature ID, entry point, and evidence dir, and name any roster route you used. The verification is done when:
+The report is the evidence the next step's PR body cites (the `pr` skill's `## Evidence`): the revision you built, each claim with its feature ID, entry point, and evidence dir, and any roster route you used. The verification is done when:
 
 - every entry point under "How to get to it" in each touched feature file has a ✓ step in a `summary.json`, or is reported as unverified with the command you tried and the precondition that was unmet. An entry point you didn't drive is unverified, even if a neighbour passed;
 - `node $V list` shows every run you started as `stopped`;
