@@ -29,7 +29,7 @@ Preconditions:
 - **Both games.** Repeat each case with `#/breakfast/pinball`; same kinds.
 - **Escape.** On any error page click `getByRole('link', {name: '← 换个主题'})`. The picker shows. On an error page opened directly the URL ends `#/`; on one reached from the picker the link goes Back, so the URL is the picker's own (bare `baseURL` if that is where the picker was opened).
 - **Evidence.** `aria('error', 'main')` and a screenshot per case; `browser.log` should show no page errors.
-- **Real-file variant (optional).** Break a row of `public/breakfast.csv` in the working tree but keep its `# entry:` line, `stop` + `start` (without `--rev`, which builds a commit, not the working tree), drive without a route, then `git checkout -- public/breakfast.csv` and restart. Use when the change under test is in CSV parsing of committed files.
+- **Real-file variant (optional).** Break a row of `public/breakfast.csv` in the working tree but keep its `# entry:` line, `stop` + `start`, drive without a route, then `git checkout -- public/breakfast.csv` and restart. Use when the change under test is in CSV parsing of committed files.
 
 ## Gotchas
 
