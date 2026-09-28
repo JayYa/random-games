@@ -3,7 +3,7 @@
  * 是但 (random-games) verification harness. Node only, no shell tricks, so it runs the
  * same under PowerShell, Git Bash and Linux.
  *
- *   node .claude/skills/verify-random-games/verify.mjs start  [--run ID] [--port N] [--rev REF]
+ *   node .claude/skills/verify-random-games/verify.mjs start  [--run ID] [--port N]
  *   node .claude/skills/verify-random-games/verify.mjs doctor --run ID
  *   node .claude/skills/verify-random-games/verify.mjs drive  --run ID --feature NAME SCENARIO.mjs [--headed]
  *   node .claude/skills/verify-random-games/verify.mjs stop   --run ID [--force]
@@ -11,7 +11,6 @@
  *
  * Layout under <tmp>/random-games-verify/<run>/:
  *   scratch/   build output, server log, state.json   (removed by `stop`)
- *     src/     `--rev` only: detached git worktree of REF, node_modules linked to the repo's
  *   evidence/  one dir per `drive --feature`           (kept by `stop`)
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -57,7 +56,6 @@ function runDirs(run) {
     state: path.join(dir, 'scratch', 'state.json'),
     dist: path.join(dir, 'scratch', 'dist'),
     log: path.join(dir, 'scratch', 'server.log'),
-    src: path.join(dir, 'scratch', 'src'),
   };
 }
 
@@ -98,50 +96,6 @@ function git(...args) {
   return r.status === 0 ? r.stdout.trim() : '';
 }
 
-/**
- * Check out REF as a detached worktree in `d.src`, so another revision can be built side by
- * side with the working tree (e.g. master vs a refactor branch). node_modules is a link to
- * the repo's own when the lockfiles match; otherwise the worktree gets its own install.
- */
-function checkoutRev(ref, d) {
-  const sha = git('rev-parse', '--verify', '--quiet', `${ref}^{commit}`);
-  if (!sha) die(`--rev ${ref} is not a commit here (try \`git fetch\`)`);
-  const add = spawnSync('git', ['worktree', 'add', '--detach', d.src, sha], { cwd: REPO, encoding: 'utf8' });
-  if (add.status !== 0) die(`git worktree add failed:\n${add.stderr}`);
-  const lock = (dir) => fs.readFileSync(path.join(dir, 'pnpm-lock.yaml'), 'utf8');
-  if (lock(d.src) === lock(REPO)) {
-    // 'junction' needs no admin rights on Windows; ignored elsewhere.
-    fs.symlinkSync(path.join(REPO, 'node_modules'), path.join(d.src, 'node_modules'), 'junction');
-  } else {
-    console.log(`[start] ${ref} has a different pnpm-lock.yaml; installing its dependencies`);
-    const install = spawnSync('pnpm', ['install', '--frozen-lockfile'], {
-      cwd: d.src,
-      encoding: 'utf8',
-      shell: process.platform === 'win32',
-    });
-    if (install.status !== 0) die(`pnpm install in ${d.src} failed:\n${install.stdout}\n${install.stderr}`);
-  }
-  return `${ref}@${sha.slice(0, 7)}`;
-}
-
-/**
- * Undo `checkoutRev`. The node_modules link goes first and on its own: a recursive delete
- * that followed it would empty the repo's real node_modules.
- */
-function removeRevCheckout(d) {
-  if (!fs.existsSync(d.src)) return;
-  const link = path.join(d.src, 'node_modules');
-  const stat = fs.lstatSync(link, { throwIfNoEntry: false });
-  if (stat?.isSymbolicLink()) {
-    fs.unlinkSync(link);
-    if (fs.lstatSync(link, { throwIfNoEntry: false })) die(`could not unlink ${link}; remove it by hand, then rerun stop`);
-  }
-  spawnSync('git', ['worktree', 'remove', '--force', d.src], { cwd: REPO, encoding: 'utf8' });
-  // On Windows `git worktree remove` often leaves the directory behind ("Directory not empty").
-  fs.rmSync(d.src, { recursive: true, force: true });
-  git('worktree', 'prune');
-}
-
 /** HEAD plus a hash of the uncommitted diff, so doctor can flag a stale build. */
 function sourceRevision() {
   const head = git('rev-parse', '--short', 'HEAD');
@@ -171,14 +125,11 @@ async function start(flags) {
   fs.mkdirSync(d.scratch, { recursive: true });
   fs.mkdirSync(d.evidence, { recursive: true });
 
-  const rev = flags.rev && flags.rev !== true ? flags.rev : undefined;
-  const revision = rev ? checkoutRev(rev, d) : sourceRevision();
-  const cwd = rev ? d.src : REPO;
-  const vite = path.join(cwd, 'node_modules', 'vite', 'bin', 'vite.js');
+  const revision = sourceRevision();
   console.log(`[start] building ${revision} into ${d.dist}`);
   // vite build only (no tsc): verification needs the bundle, not a type check.
-  const build = spawnSync(process.execPath, [vite, 'build', '--outDir', d.dist, '--emptyOutDir'], {
-    cwd,
+  const build = spawnSync(process.execPath, [VITE, 'build', '--outDir', d.dist, '--emptyOutDir'], {
+    cwd: REPO,
     encoding: 'utf8',
   });
   fs.writeFileSync(path.join(d.scratch, 'build.log'), `${build.stdout}\n${build.stderr}`);
@@ -195,8 +146,8 @@ async function start(flags) {
   // Spawn vite directly with node (not via pnpm) so the recorded pid IS the server.
   const child = spawn(
     process.execPath,
-    [vite, 'preview', '--outDir', d.dist, '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
-    { cwd, detached: true, stdio: ['ignore', out, out], windowsHide: true },
+    [VITE, 'preview', '--outDir', d.dist, '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
+    { cwd: REPO, detached: true, stdio: ['ignore', out, out], windowsHide: true },
   );
   child.unref();
 
@@ -207,7 +158,6 @@ async function start(flags) {
     port,
     url,
     revision,
-    rev: rev ?? null,
     repo: REPO,
     startedAt: new Date().toISOString(),
     indexSha: createHash('sha1').update(fs.readFileSync(path.join(d.dist, 'index.html'))).digest('hex'),
@@ -258,12 +208,8 @@ async function doctor(flags) {
     check(sha === state.indexSha, 'port serves this run\'s build', sha === state.indexSha ? '' : 'index.html differs');
     check(served.text.includes('<title>是但</title>'), 'app identity', 'index.html <title>是但</title>');
   }
-  if (state.rev) {
-    check(true, 'build is current', `pinned to ${state.revision}`);
-  } else {
-    const now = sourceRevision();
-    check(now === state.revision, 'build is current', now === state.revision ? state.revision : `built ${state.revision}, source now ${now} — stop and start again`);
-  }
+  const now = sourceRevision();
+  check(now === state.revision, 'build is current', now === state.revision ? state.revision : `built ${state.revision}, source now ${now} — stop and start again`);
   console.log(`evidence dir: ${d.evidence}`);
   process.exit(ok ? 0 : 1);
 }
@@ -396,7 +342,6 @@ async function stop(flags) {
     }
   }
   if (fs.existsSync(d.log) && fs.existsSync(d.evidence)) fs.copyFileSync(d.log, path.join(d.evidence, 'server.log'));
-  removeRevCheckout(d);
   fs.rmSync(d.scratch, { recursive: true, force: true });
   console.log(`removed ${d.scratch}`);
   console.log(`evidence kept: ${d.evidence}`);
