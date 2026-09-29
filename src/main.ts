@@ -32,8 +32,7 @@ const navigation = createNavigation({
   random: Math.random,
   games: GAMES,
   page: browserNavigationPage(root),
-  root,
-  hostPage: browserPage,
+  hostPage: browserPage(root),
 });
 
 // 切换 hash 时整页重建：盘面、动画、监听都随着 DOM 一起换掉，不留上一页的残余。
