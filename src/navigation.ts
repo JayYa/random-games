@@ -4,7 +4,8 @@
  * 用 hash 地址，不用 history API 的地址：后者在 GitHub Pages 的项目子路径下刷新会
  * 404，而地址必须能收藏、能发给别人、刷新后还留在原地。
  *
- * 地址分三档（解析在 `games.ts` 的 `resolveRoute`）：`#/<主题>/<玩法>` 直接进那一页；
+ * 地址分三档（解析在 `games.ts` 的 `resolveRoute`，玩法只在注入的玩法清单里认）：
+ * `#/<主题>/<玩法>` 直接进那一页；
  * `#/<主题>` 是稳定入口，进来先抽一次玩法，再把抽到的写进地址（ADR-0007）；其余一切
  * （空 hash、`#/`、不认识的 slug、多余的路径段）回落到选主题页，地址栏也跟着改成
  * `#/`——站点不记住上次选的主题（ADR-0005），根地址永远落在首页。
@@ -18,8 +19,8 @@
  * 后退会把人送出站点，改成把当前这页原地换成首页。靠的就是上面记下的那个记号——
  * 它记在每条玩法页历史自己的 `history.state` 上，刷新不丢。
  *
- * 它不碰 DOM、不碰全局：浏览器的历史与地址、取名单、存储、随机源和写页面的办法都
- * 从接口注入，生产由入口文件交真的，用例交替身。
+ * 它不碰 DOM、不碰全局：浏览器的历史与地址、取名单、存储、随机源、玩法清单和写页面
+ * 的办法都从接口注入，生产由入口文件交真的，用例交替身。
  */
 
 // 只取类型，编译后不留痕迹；玩法页宿主本身也不碰 DOM。
@@ -85,6 +86,11 @@ export interface NavigationOptions {
   readonly storage: RecentStorage | undefined;
   /** 抽玩法用的随机源，生产传 `Math.random`。 */
   readonly random: RandomSource;
+  /**
+   * 玩法清单：地址解析在这份里认玩法，替人抽玩法也在这份里抽，两处读的是同一份。
+   * 生产传全部玩法（`GAMES`），用例交一份临时造的假玩法清单。
+   */
+  readonly games: readonly Game[];
   readonly page: NavigationPage;
 }
 
@@ -135,7 +141,7 @@ function isPlainClick(click: PickerLinkClick): boolean {
 }
 
 export function createNavigation(options: NavigationOptions): Navigation {
-  const { history, location, fetchRoster, storage, random, page } = options;
+  const { history, location, fetchRoster, storage, random, games, page } = options;
 
   /**
    * 领号的计数：名单在路上时地址可能已经变了，晚回来的那份 CSV 属于上一个主题，
@@ -166,7 +172,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
     teardown = undefined;
 
     const hash = location.hash;
-    const route = resolveRoute(hash);
+    const route = resolveRoute(hash, games);
     const cameFromPicker = lastPageWasPicker;
     lastPageWasPicker = !route;
 
@@ -198,7 +204,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
       //
       // 只有这里真正替人抽玩法，所以只有这里带上最近玩法（ADR-0011）：上一次抽出的
       // 这一次不出。直接打开带玩法的地址不走这里，也就不会被记下。
-      const rolled = rollGame(random, { recentGames: recentGamesMemory(storage) });
+      const rolled = rollGame(random, { recentGames: recentGamesMemory(storage), games });
       history.replaceState(history.state, '', gameHash(theme, rolled));
       render();
       return;

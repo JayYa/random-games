@@ -1,5 +1,6 @@
 import './style.css';
 import { browserNavigationPage } from './browserPage';
+import { GAMES } from './games';
 import { fetchRosterCsv } from './loadRoster';
 import { createNavigation } from './navigation';
 import type { RecentStorage } from './recentStorage';
@@ -29,6 +30,7 @@ const navigation = createNavigation({
   fetchRoster: fetchRosterCsv,
   storage: browserStorage(),
   random: Math.random,
+  games: GAMES,
   page: browserNavigationPage(root),
 });
 

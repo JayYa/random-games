@@ -11,13 +11,15 @@
  * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面。
  * - 记录调用的假页面适配器：挂玩法页只做记录，玩法页宿主在它自己的接缝上测透了。
  * - 可预测的随机源：恒给 0，抽玩法在还能抽的里面总取第一个。
+ * - 本地造的假玩法清单：每个假玩法只是一个 slug 加一个造假盘面的办法，不引入全部
+ *   真玩法——真盘面挂上时要碰 DOM，站内导航认玩法、抽玩法也只看这份清单。
  */
 
 import { describe, expect, it } from 'vitest';
 import type { RecentMemory } from './cooldown';
-import { GAMES, gameHash, type Game } from './games';
+import { gameHash, type Game } from './games';
 import { createNavigation, type NavigationPage, type PickerLinkClick } from './navigation';
-import { fakeStorage, scriptedRandom, type FakeStorage } from './testHelpers';
+import { fakeBoard, fakeStorage, scriptedRandom, type FakeStorage } from './testHelpers';
 import { THEMES, THEME_PICKER_HASH, themeHash, type Theme } from './themes';
 
 /** 一条历史：它的地址，和它身上记着的东西（新压进来的是 `null`）。 */
@@ -184,6 +186,12 @@ function fakeNavigationPage() {
   return { page, log, mounts };
 }
 
+/**
+ * 站内导航用例的假玩法清单：两种假玩法，slug 与真玩法都不同，盘面是 `fakeBoard`。
+ * 两种就够看玩法轮流；地址里认不认得出、抽出的是哪一种，都只在这份清单里定。
+ */
+const FAKE_GAMES: readonly Game[] = ['spin', 'drop'].map((slug) => ({ slug, createBoard: () => fakeBoard() }));
+
 interface StartOptions {
   /** 这台浏览器的存储，默认一份新的；刷新页面就是把同一份再交一次。 */
   readonly storage?: FakeStorage;
@@ -200,6 +208,7 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
     fetchRoster: fetch.fetchRoster,
     storage,
     random: scriptedRandom([0]),
+    games: FAKE_GAMES,
     page,
   });
   browser.listen(() => navigation.render());
@@ -208,7 +217,7 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
 }
 
 const [theme, otherTheme] = THEMES as readonly [Theme, Theme, ...Theme[]];
-const [firstGame, secondGame] = GAMES as readonly [Game, Game, ...Game[]];
+const [firstGame, secondGame] = FAKE_GAMES as readonly [Game, Game, ...Game[]];
 
 describe('选主题页', () => {
   it('空 hash 画选主题页', () => {
