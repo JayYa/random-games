@@ -21,8 +21,8 @@
  * 它记在每条玩法页历史自己的 `history.state` 上，刷新不丢。
  *
  * 它不碰 DOM、不碰全局：浏览器的历史与地址、取名单、存储、随机源、玩法清单、写页面
- * 的办法，连同宿主的页面适配器都从接口注入，生产由入口文件交真的，
- * 用例交替身。玩法页宿主本身也不碰 DOM，用例挂的就是真宿主。
+ * 的办法都从接口注入，生产由入口文件交真的，用例交替身。写页面的办法只有一个，
+ * 挂宿主时原样交给宿主。玩法页宿主本身也不碰 DOM，用例挂的就是真宿主。
  */
 
 import { mountGamePage, type PageAdapter } from './gamePageHost';
@@ -32,13 +32,14 @@ import type { RandomSource } from './rosterSession';
 import { THEME_PICKER_HASH, type Theme } from './themes';
 
 /**
- * 站内导航的页面适配器：它碰 DOM 的唯一出口。生产用 `browserPage.ts` 里的
- * `browserNavigationPage`，用例用一份记录调用的假页面。
+ * 站内导航的页面适配器：它碰 DOM 的唯一出口，建的时候就绑好了挂载点。生产用
+ * `browserPage.ts` 里的 `browserPage`，用例用一份记录调用的假页面。
  *
- * 与玩法页宿主的页面适配器（`hostPage`）是两个：这一个只画玩法页以外的那几页，
- * 玩法页由站内导航交给宿主去挂，里面怎么接由宿主定。
+ * 它在玩法页宿主的页面适配器之上再加三项：选主题页、加载中、取不到文件的错误页。
+ * 名单回来之后站内导航把同一个对象原样交给宿主，宿主只看得见其中与玩法页有关的
+ * 那部分（`PageAdapter`）。依赖只朝一个方向：这里引用宿主，宿主不认识这里。
  */
-export interface NavigationPage {
+export interface NavigationPage extends PageAdapter {
   /** 画选主题页，浏览器标签标题设成站点名。 */
   showThemePicker(): void;
   /** 名单在路上：画这个主题的页头和「正在加载名单…」，标签标题设成主题标题。 */
@@ -85,13 +86,11 @@ export interface NavigationOptions {
    * 生产传全部玩法（`GAMES`），用例交一份临时造的假玩法清单。
    */
   readonly games: readonly Game[];
-  /** 画玩法页以外那几页的页面适配器。 */
-  readonly page: NavigationPage;
   /**
-   * 玩法页宿主的页面适配器：宿主写玩法页、画名单错误页都经它，挂载点已经绑在里面。
-   * 生产由入口文件交一个绑好 `#app` 的 `browserPage`，用例交宿主那道接缝上现成的假页面。
+   * 页面适配器，挂载点已经绑在里面。玩法页以外那几页由站内导航自己经它画；玩法页和
+   * 名单错误页由宿主经它画，交给宿主的就是这同一个。
    */
-  readonly hostPage: PageAdapter;
+  readonly page: NavigationPage;
 }
 
 export interface Navigation {
@@ -141,7 +140,7 @@ function isPlainClick(click: PickerLinkClick): boolean {
 }
 
 export function createNavigation(options: NavigationOptions): Navigation {
-  const { history, location, fetchRoster, storage, random, games, page, hostPage } = options;
+  const { history, location, fetchRoster, storage, random, games, page } = options;
 
   /**
    * 领号的计数：名单在路上时地址可能已经变了，晚回来的那份 CSV 属于上一个主题，
@@ -225,7 +224,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
           csvText,
           recentWinners: recentWinnersMemory(storage, theme.slug),
           board: game.createBoard(),
-          page: hostPage,
+          page,
           random,
         });
       },
