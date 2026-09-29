@@ -53,19 +53,19 @@ export interface RollGameOptions {
    * 记下这一次。不传就是没有记忆，在全部玩法里等概率。
    */
   readonly recentGames?: RecentMemory;
-  /** 在哪份清单里抽，默认是全部玩法。用例靠它临时造一份三种玩法的清单。 */
-  readonly games?: readonly Game[];
 }
 
 /**
- * 从清单里抽一个玩法：按冷却规则避开最近玩法，其余等概率。
+ * 从传入的清单里抽一个玩法：按冷却规则避开最近玩法，其余等概率。
  *
- * 只有真正替人抽玩法的地方才该调它——直接打开带玩法的地址不算抽，不能记进
- * 最近玩法。随机源可注入，测试才能钉住"抽出了哪一条"。
+ * 清单必填：生产交全部玩法，用例交一份临时造的清单——与 `resolveRoute` 认的是
+ * 同一份。只有真正替人抽玩法的地方才该调它——直接打开带玩法的地址不算抽，不能
+ * 记进最近玩法。随机源可注入，测试才能钉住"抽出了哪一条"。
  */
 export function rollGame(
   random: RandomSource,
-  { recentGames = NO_RECENT_MEMORY, games = GAMES }: RollGameOptions = {},
+  games: readonly Game[],
+  { recentGames = NO_RECENT_MEMORY }: RollGameOptions = {},
 ): Game {
   return drawWithCooldown({
     pool: games,
@@ -99,13 +99,15 @@ export type Route = SettledRoute | PendingRollRoute;
 /**
  * 把地址栏里的 hash 解析成三态：玩法已定、待抽签、回落首页（`undefined`）。
  *
- * 直接吐出记录而不是 slug：调用方拿到就能用，不必再查一次表。
+ * 玩法只在传入的清单里认：生产交全部玩法，用例交一份临时造的清单——与 `rollGame`
+ * 读的是同一份，清单外的玩法 slug 一律认不出。直接吐出记录而不是 slug：调用方拿到
+ * 就能用，不必再查一次表。
  *
  * 严格程度与 `resolveTheme` 一致：区分大小写，不认多余的路径段、尾部斜杠、
  * 裸 hash 和没有 `#/` 前缀的地址——一个页面只有一个规范地址，其余一律回落到
  * 选主题页（ADR-0005）。
  */
-export function resolveRoute(hash: string): Route | undefined {
+export function resolveRoute(hash: string, games: readonly Game[]): Route | undefined {
   if (!hash.startsWith('#/')) return undefined;
 
   const segments = hash.slice(2).split('/');
@@ -118,7 +120,7 @@ export function resolveRoute(hash: string): Route | undefined {
   const gameSlug = segments[1];
   if (gameSlug === undefined) return { theme };
 
-  const game = GAMES.find((candidate) => candidate.slug === gameSlug);
+  const game = games.find((candidate) => candidate.slug === gameSlug);
   if (!game) return undefined;
   return { theme, game };
 }

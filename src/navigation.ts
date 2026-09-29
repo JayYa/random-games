@@ -4,45 +4,39 @@
  * 用 hash 地址，不用 history API 的地址：后者在 GitHub Pages 的项目子路径下刷新会
  * 404，而地址必须能收藏、能发给别人、刷新后还留在原地。
  *
- * 地址分三档（解析在 `games.ts` 的 `resolveRoute`）：`#/<主题>/<玩法>` 直接进那一页；
+ * 地址分三档（解析在 `games.ts` 的 `resolveRoute`，玩法只在注入的玩法清单里认）：
+ * `#/<主题>/<玩法>` 直接进那一页；
  * `#/<主题>` 是稳定入口，进来先抽一次玩法，再把抽到的写进地址（ADR-0007）；其余一切
  * （空 hash、`#/`、不认识的 slug、多余的路径段）回落到选主题页，地址栏也跟着改成
  * `#/`——站点不记住上次选的主题（ADR-0005），根地址永远落在首页。
  *
  * 「画当前地址」要照固定的先后做一串事：领一张号、拆掉上一页、给新压进来的历史记下
  * 「上一页是不是选主题页」、只定了主题的地址先抽玩法再换地址重画、取名单、晚回来的
- * 名单或失败一律作废。这串先后只住在这里，经这一个接口测。
+ * 名单或失败一律作废、名单回来之后挂玩法页宿主——按地址里的玩法造盘面、交上这个主题
+ * 的最近中选，留下宿主交回的拆卸。这串先后只住在这里，经这一个接口测。
  *
  * 页头的「换个主题」是后退，不是前往（ADR-0007）：从选主题页点进来的玩法页后退一步，
  * 不在历史上再压一页首页；从别人的链接、书签直接落进来的玩法页，上一页不是本站，
  * 后退会把人送出站点，改成把当前这页原地换成首页。靠的就是上面记下的那个记号——
  * 它记在每条玩法页历史自己的 `history.state` 上，刷新不丢。
  *
- * 它不碰 DOM、不碰全局：浏览器的历史与地址、取名单、存储、随机源和写页面的办法都
- * 从接口注入，生产由入口文件交真的，用例交替身。
+ * 它不碰 DOM、不碰全局：浏览器的历史与地址、取名单、存储、随机源、玩法清单、写页面
+ * 的办法，连同玩法页的挂载点和宿主的页面适配器都从接口注入，生产由入口文件交真的，
+ * 用例交替身。玩法页宿主本身也不碰 DOM，用例挂的就是真宿主。
  */
 
-// 只取类型，编译后不留痕迹；玩法页宿主本身也不碰 DOM。
-import type { GamePageHostOptions } from './gamePageHost';
+import { mountGamePage, type PageAdapter } from './gamePageHost';
 import { gameHash, resolveRoute, rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
 import type { RandomSource } from './rosterSession';
 import { THEME_PICKER_HASH, type Theme } from './themes';
 
 /**
- * 挂一页玩法页要交给页面适配器的东西：站内导航替玩法页宿主备好的那几样（主题、
- * 名单原文、最近中选，各自的说明在 `GamePageHostOptions`），加上这一次的玩法——
- * 页面适配器凭它挑盘面。
- */
-export type GamePageMount = Pick<GamePageHostOptions, 'theme' | 'csvText' | 'recentWinners'> & {
-  readonly game: Game;
-};
-
-/**
  * 站内导航的页面适配器：它碰 DOM 的唯一出口。生产用 `browserPage.ts` 里的
  * `browserNavigationPage`，用例用一份记录调用的假页面。
  *
- * 与玩法页宿主的页面适配器是两个：这一个只管整页画哪一页，玩法页里面怎么接由宿主定。
+ * 与玩法页宿主的页面适配器（`hostPage`）是两个：这一个只画玩法页以外的那几页，
+ * 玩法页由站内导航交给宿主去挂，里面怎么接由宿主定。
  */
 export interface NavigationPage {
   /** 画选主题页，浏览器标签标题设成站点名。 */
@@ -51,8 +45,6 @@ export interface NavigationPage {
   showRosterLoading(theme: Theme): void;
   /** 名单文件取不到（404 / 断网 / 服务器出错）：画取不到文件的错误页。 */
   showRosterLoadFailure(theme: Theme, cause: unknown): void;
-  /** 挂上一页玩法页，交回拆掉它的办法，换页前调。 */
-  mountGamePage(mount: GamePageMount): () => void;
 }
 
 /**
@@ -83,9 +75,28 @@ export interface NavigationOptions {
    * 禁用存储时拿不到就是 `undefined`，照常能抽，只是没有冷却。
    */
   readonly storage: RecentStorage | undefined;
-  /** 抽玩法用的随机源，生产传 `Math.random`。 */
+  /**
+   * 随机源，生产传 `Math.random`。替人抽玩法用它，宿主抽中选也用它：用例交一个
+   * 脚本化的随机源就把两件事都钉住。
+   */
   readonly random: RandomSource;
+  /**
+   * 玩法清单：地址解析在这份里认玩法，替人抽玩法也在这份里抽，两处读的是同一份。
+   * 生产传全部玩法（`GAMES`），用例交一份临时造的假玩法清单。
+   */
+  readonly games: readonly Game[];
+  /** 画玩法页以外那几页的页面适配器。 */
   readonly page: NavigationPage;
+  /**
+   * 玩法页的挂载点，生产传 `#app`。站内导航不碰它，只原样交给玩法页宿主；用例交
+   * 一个空对象就够。
+   */
+  readonly root: HTMLElement;
+  /**
+   * 玩法页宿主的页面适配器：宿主写玩法页、画名单错误页都经它。生产传 `browserPage.ts`
+   * 里的 `browserPage`，用例交宿主那道接缝上现成的假页面。
+   */
+  readonly hostPage: PageAdapter;
 }
 
 export interface Navigation {
@@ -135,7 +146,7 @@ function isPlainClick(click: PickerLinkClick): boolean {
 }
 
 export function createNavigation(options: NavigationOptions): Navigation {
-  const { history, location, fetchRoster, storage, random, page } = options;
+  const { history, location, fetchRoster, storage, random, games, page, root, hostPage } = options;
 
   /**
    * 领号的计数：名单在路上时地址可能已经变了，晚回来的那份 CSV 属于上一个主题，
@@ -166,7 +177,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
     teardown = undefined;
 
     const hash = location.hash;
-    const route = resolveRoute(hash);
+    const route = resolveRoute(hash, games);
     const cameFromPicker = lastPageWasPicker;
     lastPageWasPicker = !route;
 
@@ -198,7 +209,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
       //
       // 只有这里真正替人抽玩法，所以只有这里带上最近玩法（ADR-0011）：上一次抽出的
       // 这一次不出。直接打开带玩法的地址不走这里，也就不会被记下。
-      const rolled = rollGame(random, { recentGames: recentGamesMemory(storage) });
+      const rolled = rollGame(random, games, { recentGames: recentGamesMemory(storage) });
       history.replaceState(history.state, '', gameHash(theme, rolled));
       render();
       return;
@@ -211,13 +222,16 @@ export function createNavigation(options: NavigationOptions): Navigation {
     fetchRoster(theme.rosterFile).then(
       (csvText) => {
         if (!isCurrent()) return;
-        // 名单、开抽与结果卡片由玩法页宿主接，玩法只交盘面（ADR-0012）。最近中选存在
-        // 哪里是站内导航的事，宿主拿去建名单会话，盘面碰不到它（ADR-0011）。
-        teardown = page.mountGamePage({
+        // 名单、开抽与结果卡片由玩法页宿主接，玩法只交盘面（ADR-0012），盘面每进一次
+        // 玩法页新造一个。最近中选存在哪里是站内导航的事，按主题分份交给宿主建名单会话，
+        // 盘面碰不到它（ADR-0011）。名单写坏时宿主只画错误页、不挂盘面。
+        teardown = mountGamePage(root, {
           theme,
-          game,
           csvText,
           recentWinners: recentWinnersMemory(storage, theme.slug),
+          board: game.createBoard(),
+          page: hostPage,
+          random,
         });
       },
       (cause: unknown) => {

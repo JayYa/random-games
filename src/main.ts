@@ -1,5 +1,6 @@
 import './style.css';
-import { browserNavigationPage } from './browserPage';
+import { browserNavigationPage, browserPage } from './browserPage';
+import { GAMES } from './games';
 import { fetchRosterCsv } from './loadRoster';
 import { createNavigation } from './navigation';
 import type { RecentStorage } from './recentStorage';
@@ -29,7 +30,10 @@ const navigation = createNavigation({
   fetchRoster: fetchRosterCsv,
   storage: browserStorage(),
   random: Math.random,
+  games: GAMES,
   page: browserNavigationPage(root),
+  root,
+  hostPage: browserPage,
 });
 
 // 切换 hash 时整页重建：盘面、动画、监听都随着 DOM 一起换掉，不留上一页的残余。
