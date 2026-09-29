@@ -53,19 +53,19 @@ export interface RollGameOptions {
    * 记下这一次。不传就是没有记忆，在全部玩法里等概率。
    */
   readonly recentGames?: RecentMemory;
-  /** 在哪份清单里抽，默认是全部玩法。用例靠它临时造一份三种玩法的清单。 */
-  readonly games?: readonly Game[];
 }
 
 /**
- * 从清单里抽一个玩法：按冷却规则避开最近玩法，其余等概率。
+ * 从传入的清单里抽一个玩法：按冷却规则避开最近玩法，其余等概率。
  *
- * 只有真正替人抽玩法的地方才该调它——直接打开带玩法的地址不算抽，不能记进
- * 最近玩法。随机源可注入，测试才能钉住"抽出了哪一条"。
+ * 清单必填：生产交全部玩法，用例交一份临时造的清单——与 `resolveRoute` 认的是
+ * 同一份。只有真正替人抽玩法的地方才该调它——直接打开带玩法的地址不算抽，不能
+ * 记进最近玩法。随机源可注入，测试才能钉住"抽出了哪一条"。
  */
 export function rollGame(
   random: RandomSource,
-  { recentGames = NO_RECENT_MEMORY, games = GAMES }: RollGameOptions = {},
+  games: readonly Game[],
+  { recentGames = NO_RECENT_MEMORY }: RollGameOptions = {},
 ): Game {
   return drawWithCooldown({
     pool: games,

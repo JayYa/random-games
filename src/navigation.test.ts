@@ -184,13 +184,22 @@ function fakeNavigationPage(log: string[]): NavigationPage {
   };
 }
 
-/** 假玩法清单造过的一个盘面。 */
-interface MadeBoard {
+/** 假玩法清单记下的一个盘面：哪个玩法造的、盘面本身、挂上时拿到的开抽句柄。 */
+interface BoardRecord {
   /** 哪个玩法造的。 */
   readonly game: string;
   readonly board: FakeBoard;
   /** 宿主挂上它时交给它的真开抽句柄；没挂上（名单写坏）时为 undefined。 */
   readonly roll: RollHandle | undefined;
+}
+
+// 假玩法清单里两种假玩法的 slug，按清单里的先后：随机源恒给 0，抽玩法总抽到前一个。
+const firstSlug = 'spin';
+const secondSlug = 'drop';
+
+/** 这个主题下某个假玩法的地址：地址怎么写仍只由 `gameHash` 定。 */
+function gameAddress(theme: Theme, slug: string): string {
+  return gameHash(theme, { slug, createBoard: () => fakeBoard() });
 }
 
 /**
@@ -202,8 +211,8 @@ interface MadeBoard {
  * `board teardown <玩法>`。
  */
 function fakeGames(log: string[]) {
-  const boards: MadeBoard[] = [];
-  const games: readonly Game[] = ['spin', 'drop'].map((slug) => ({
+  const boards: BoardRecord[] = [];
+  const games: readonly Game[] = [firstSlug, secondSlug].map((slug) => ({
     slug,
     createBoard() {
       let roll: RollHandle | undefined;
@@ -230,18 +239,18 @@ function fakeGames(log: string[]) {
 }
 
 /** 挂上过的盘面是哪几个玩法的，按先后。 */
-function mountedGames(boards: readonly MadeBoard[]): string[] {
-  return boards.filter((made) => made.board.mountCount > 0).map((made) => made.game);
+function mountedGames(boards: readonly BoardRecord[]): string[] {
+  return boards.filter((record) => record.board.mountCount > 0).map((record) => record.game);
 }
 
 /**
  * 在这个盘面上开抽一次、报停，就像真盘面按「转」、转完报一声；交回盘面上揭晓的
  * 名字。盘面没造出来或没挂上就什么都揭晓不了，是 undefined。
  */
-function revealOn(made: MadeBoard | undefined): string | undefined {
-  made?.roll?.begin();
-  made?.roll?.boardStopped();
-  return made?.board.revealed?.name;
+function revealOn(record: BoardRecord | undefined): string | undefined {
+  record?.roll?.begin();
+  record?.roll?.boardStopped();
+  return record?.board.revealed?.name;
 }
 
 interface StartOptions {
@@ -273,8 +282,6 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
 }
 
 const [theme, otherTheme] = THEMES as readonly [Theme, Theme, ...Theme[]];
-// 只拿来写地址、比 slug：每个标签页各造一份清单，slug 都一样。
-const [firstGame, secondGame] = fakeGames([]).games as readonly [Game, Game, ...Game[]];
 
 describe('选主题页', () => {
   it('空 hash 画选主题页', () => {
@@ -288,7 +295,7 @@ describe('选主题页', () => {
   const unknownAddresses = [
     ['不认识的主题', '#/foo'],
     ['不认识的玩法', `#/${theme.slug}/xyz`],
-    ['多余的路径段', `${gameHash(theme, firstGame)}/detail`],
+    ['多余的路径段', `${gameAddress(theme, firstSlug)}/detail`],
   ];
 
   it.each(unknownAddresses)('%s画选主题页', (_case, hash) => {
@@ -302,29 +309,29 @@ describe('选主题页', () => {
 
 describe('带玩法的地址', () => {
   it('名单在路上时画这个主题的加载中', () => {
-    expect(open(gameHash(theme, secondGame)).log).toEqual([`loading ${theme.slug}`]);
+    expect(open(gameAddress(theme, secondSlug)).log).toEqual([`loading ${theme.slug}`]);
   });
 
   it('名单回来后挂上地址里的那个玩法', async () => {
-    const { fetch, boards } = open(gameHash(theme, secondGame));
+    const { fetch, boards } = open(gameAddress(theme, secondSlug));
     await fetch.succeed(theme.rosterFile);
-    expect(mountedGames(boards)).toEqual([secondGame.slug]);
+    expect(mountedGames(boards)).toEqual([secondSlug]);
   });
 
   it('盘面上揭晓的候选来自这一次取回的名单原文', async () => {
-    const { fetch, boards } = open(gameHash(theme, firstGame));
+    const { fetch, boards } = open(gameAddress(theme, firstSlug));
     await fetch.succeed(theme.rosterFile, '沙县小吃,true');
     expect(revealOn(boards[0])).toBe('沙县小吃');
   });
 
   it('名单写坏时画名单错误页，不挂盘面', async () => {
-    const { fetch, log } = open(gameHash(theme, firstGame));
+    const { fetch, log } = open(gameAddress(theme, firstSlug));
     await fetch.succeed(theme.rosterFile, '"没关引号,true');
     expect(log).toEqual([`loading ${theme.slug}`, 'page roster-failure parse-error']);
   });
 
   it('取不到文件时画取不到文件的错误页', async () => {
-    const { fetch, log } = open(gameHash(theme, firstGame));
+    const { fetch, log } = open(gameAddress(theme, firstSlug));
     await fetch.fail(theme.rosterFile);
     expect(log).toEqual([`loading ${theme.slug}`, `load-failure ${theme.slug}`]);
   });
@@ -332,13 +339,13 @@ describe('带玩法的地址', () => {
 
 describe('只定了主题的地址', () => {
   it('抽一次玩法，把地址换成带玩法的地址', () => {
-    expect(open(themeHash(theme)).browser.location.hash).toBe(gameHash(theme, firstGame));
+    expect(open(themeHash(theme)).browser.location.hash).toBe(gameAddress(theme, firstSlug));
   });
 
   it('接着只画一遍抽到的那个玩法：加载中一次，挂上一次', async () => {
     const { fetch, log } = open(themeHash(theme));
     await fetch.succeed(theme.rosterFile);
-    expect(log).toEqual([`loading ${theme.slug}`, 'page game', `board mount ${firstGame.slug}`]);
+    expect(log).toEqual([`loading ${theme.slug}`, 'page game', `board mount ${firstSlug}`]);
   });
 });
 
@@ -347,60 +354,60 @@ describe('最近玩法', () => {
   it('两次进同一个主题，玩法轮流', () => {
     const storage = fakeStorage();
     open(themeHash(theme), { storage });
-    expect(open(themeHash(theme), { storage }).browser.location.hash).toBe(gameHash(theme, secondGame));
+    expect(open(themeHash(theme), { storage }).browser.location.hash).toBe(gameAddress(theme, secondSlug));
   });
 
   it('直接打开带玩法的地址不记进最近玩法', () => {
     const storage = fakeStorage();
-    open(gameHash(theme, firstGame), { storage });
-    expect(open(themeHash(theme), { storage }).browser.location.hash).toBe(gameHash(theme, firstGame));
+    open(gameAddress(theme, firstSlug), { storage });
+    expect(open(themeHash(theme), { storage }).browser.location.hash).toBe(gameAddress(theme, firstSlug));
   });
 });
 
 describe('最近中选', () => {
   /**
-   * 在 `theme` 的 `firstGame` 上开抽一次，再换到 `to` 主题的 `game` 开抽一次，交回
+   * 在 `theme` 的 `firstSlug` 上开抽一次，再换到 `to` 主题的 `slug` 开抽一次，交回
    * 第二次揭晓的名字。两份名单都是 `roster(2)`，随机源恒给 0：第一次揭晓「候选1」；
    * 第二次它不在冷却里就还是「候选1」，冷却着就是「候选2」。
    */
-  async function revealedAfter(to: Theme, game: Game): Promise<string | undefined> {
-    const { browser, fetch, boards } = open(gameHash(theme, firstGame));
+  async function revealedAfter(to: Theme, slug: string): Promise<string | undefined> {
+    const { browser, fetch, boards } = open(gameAddress(theme, firstSlug));
     await fetch.succeed(theme.rosterFile, roster(2));
     revealOn(boards[0]);
-    browser.visit(gameHash(to, game));
+    browser.visit(gameAddress(to, slug));
     await fetch.succeed(to.rosterFile, roster(2));
     return revealOn(boards[1]);
   }
 
   it('同一个主题上刚中选的候选，换一种玩法再开抽，揭晓的不是它', async () => {
-    expect(await revealedAfter(theme, secondGame)).toBe('候选2');
+    expect(await revealedAfter(theme, secondSlug)).toBe('候选2');
   });
 
   it('一个主题上中选的候选，不影响另一个主题开抽时揭晓它', async () => {
-    expect(await revealedAfter(otherTheme, firstGame)).toBe('候选1');
+    expect(await revealedAfter(otherTheme, firstSlug)).toBe('候选1');
   });
 });
 
 describe('换页', () => {
   it('名单在路上时地址变了，晚回来的名单不挂', async () => {
-    const { browser, fetch, boards } = open(gameHash(theme, firstGame));
-    browser.visit(gameHash(otherTheme, firstGame));
+    const { browser, fetch, boards } = open(gameAddress(theme, firstSlug));
+    browser.visit(gameAddress(otherTheme, firstSlug));
     await fetch.succeed(theme.rosterFile);
     expect(mountedGames(boards)).toEqual([]);
   });
 
   it('名单在路上时地址变了，晚回来的失败不画错误页', async () => {
-    const { browser, fetch, log } = open(gameHash(theme, firstGame));
-    browser.visit(gameHash(otherTheme, firstGame));
+    const { browser, fetch, log } = open(gameAddress(theme, firstSlug));
+    browser.visit(gameAddress(otherTheme, firstSlug));
     await fetch.fail(theme.rosterFile);
     expect(log).toEqual([`loading ${theme.slug}`, `loading ${otherTheme.slug}`]);
   });
 
   it('先拆上一页，再画下一页', async () => {
-    const { browser, fetch, log } = open(gameHash(theme, firstGame));
+    const { browser, fetch, log } = open(gameAddress(theme, firstSlug));
     await fetch.succeed(theme.rosterFile);
     browser.visit(THEME_PICKER_HASH);
-    expect(log.slice(-2)).toEqual([`board teardown ${firstGame.slug}`, 'picker']);
+    expect(log.slice(-2)).toEqual([`board teardown ${firstSlug}`, 'picker']);
   });
 });
 
@@ -412,14 +419,14 @@ describe('换页', () => {
 describe('换个主题', () => {
   it('从选主题页点进来的玩法页，后退一步', () => {
     const { browser, navigation } = open('');
-    browser.visit(gameHash(theme, firstGame));
+    browser.visit(gameAddress(theme, firstSlug));
     navigation.handlePickerLinkClick(pickerLinkClick());
-    expect(browser.trail()).toEqual({ hashes: ['', gameHash(theme, firstGame)], at: 0 });
+    expect(browser.trail()).toEqual({ hashes: ['', gameAddress(theme, firstSlug)], at: 0 });
   });
 
   // 从别人的链接、书签直接落进来的：后退会出站，只能原地换成首页。
   it('直接落进来的玩法页，原地换成选主题页', () => {
-    const { browser, navigation } = open(gameHash(theme, firstGame));
+    const { browser, navigation } = open(gameAddress(theme, firstSlug));
     navigation.handlePickerLinkClick(pickerLinkClick());
     expect(browser.trail()).toEqual({ hashes: [THEME_PICKER_HASH], at: 0 });
   });
@@ -428,13 +435,13 @@ describe('换个主题', () => {
     const { browser, navigation } = open('');
     browser.visit(themeHash(theme));
     navigation.handlePickerLinkClick(pickerLinkClick());
-    expect(browser.trail()).toEqual({ hashes: ['', gameHash(theme, firstGame)], at: 0 });
+    expect(browser.trail()).toEqual({ hashes: ['', gameAddress(theme, firstSlug)], at: 0 });
   });
 
   // 直接落进玩法页，去选主题页，再后退回来：上一次画的是选主题页，
   // 但这条历史当初记的是「直接落进来」，不改。
   it('后退回到一条直接落进来的老历史，照样原地换', () => {
-    const { browser, navigation } = open(gameHash(theme, firstGame));
+    const { browser, navigation } = open(gameAddress(theme, firstSlug));
     browser.visit(THEME_PICKER_HASH);
     browser.history.back();
     navigation.handlePickerLinkClick(pickerLinkClick());
@@ -443,7 +450,7 @@ describe('换个主题', () => {
 
   // 接走了就不能再让浏览器照链接走，否则历史上又多压一页首页。
   it('接走的点击不再照链接走', () => {
-    const { navigation } = open(gameHash(theme, firstGame));
+    const { navigation } = open(gameAddress(theme, firstSlug));
     const click = pickerLinkClick();
     navigation.handlePickerLinkClick(click);
     expect(click.defaultPrevented).toBe(true);
@@ -460,8 +467,8 @@ describe('换个主题', () => {
     ['已经被拦下', { defaultPrevented: true }],
   ])('%s的点击不接走', (_case, init) => {
     const { browser, navigation } = open('');
-    browser.visit(gameHash(theme, firstGame));
+    browser.visit(gameAddress(theme, firstSlug));
     navigation.handlePickerLinkClick(pickerLinkClick(init));
-    expect(browser.trail()).toEqual({ hashes: ['', gameHash(theme, firstGame)], at: 1 });
+    expect(browser.trail()).toEqual({ hashes: ['', gameAddress(theme, firstSlug)], at: 1 });
   });
 });

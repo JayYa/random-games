@@ -209,7 +209,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
       //
       // 只有这里真正替人抽玩法，所以只有这里带上最近玩法（ADR-0011）：上一次抽出的
       // 这一次不出。直接打开带玩法的地址不走这里，也就不会被记下。
-      const rolled = rollGame(random, { recentGames: recentGamesMemory(storage), games });
+      const rolled = rollGame(random, games, { recentGames: recentGamesMemory(storage) });
       history.replaceState(history.state, '', gameHash(theme, rolled));
       render();
       return;

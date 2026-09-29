@@ -88,20 +88,20 @@ describe('rollGame', () => {
     GAMES.forEach((game, index) => {
       // 取这一格的正中，避开边界的取整争议。
       const random = scriptedRandom([(index + 0.5) / GAMES.length]);
-      expect(rollGame(random)).toBe(game);
+      expect(rollGame(random, GAMES)).toBe(game);
     });
   });
 
   // random() 按约定取不到 1，但实现上真吐出 1 时下标会越界，兜底不能少。
   it('随机数恰好是 1 时抽出最后一条，而不是越界', () => {
-    expect(rollGame(scriptedRandom([1]))).toBe(GAMES[GAMES.length - 1]);
+    expect(rollGame(scriptedRandom([1]), GAMES)).toBe(GAMES[GAMES.length - 1]);
   });
 
   it('每一条都抽得到', () => {
     const seen = new Set<string>();
     const random = seededRandom(20260905);
     for (let i = 0; i < 200 * GAMES.length; i += 1) {
-      seen.add(rollGame(random).slug);
+      seen.add(rollGame(random, GAMES).slug);
     }
     expect(seen.size).toBe(GAMES.length);
   });
@@ -110,7 +110,7 @@ describe('rollGame', () => {
     const games = threeGames();
     games.forEach((game, index) => {
       const random = scriptedRandom([(index + 0.5) / games.length]);
-      expect(rollGame(random, { games })).toBe(game);
+      expect(rollGame(random, games)).toBe(game);
     });
   });
 });
@@ -122,9 +122,9 @@ describe('rollGame 的最近玩法', () => {
   it('每抽一次都把这次的玩法记进最近玩法', () => {
     const random = seededRandom(1);
     const recentGames = fakeRecentMemory();
-    const first = rollGame(random, { recentGames });
+    const first = rollGame(random, GAMES, { recentGames });
     expect(recentGames.names).toEqual([first.slug]);
-    const second = rollGame(random, { recentGames });
+    const second = rollGame(random, GAMES, { recentGames });
     expect(recentGames.names).toEqual([first.slug, second.slug]);
   });
 
@@ -132,9 +132,9 @@ describe('rollGame 的最近玩法', () => {
     for (const seed of SEEDS) {
       const random = seededRandom(seed);
       const recentGames = fakeRecentMemory();
-      let previous = rollGame(random, { recentGames });
+      let previous = rollGame(random, GAMES, { recentGames });
       for (let i = 0; i < 10; i += 1) {
-        const next = rollGame(random, { recentGames });
+        const next = rollGame(random, GAMES, { recentGames });
         expect(next, `种子 ${seed} 第 ${i + 2} 次`).not.toBe(previous);
         previous = next;
       }
@@ -144,7 +144,7 @@ describe('rollGame 的最近玩法', () => {
   it('没有最近玩法时每种玩法都抽得到', () => {
     const seen = new Set<string>();
     for (const seed of SEEDS) {
-      seen.add(rollGame(seededRandom(seed), { recentGames: fakeRecentMemory() }).slug);
+      seen.add(rollGame(seededRandom(seed), GAMES, { recentGames: fakeRecentMemory() }).slug);
     }
     expect(seen.size).toBe(GAMES.length);
   });
@@ -154,7 +154,7 @@ describe('rollGame 的最近玩法', () => {
     const seen = new Set<string>();
     for (const seed of SEEDS) {
       const recentGames = fakeRecentMemory(['b']);
-      seen.add(rollGame(seededRandom(seed), { games, recentGames }).slug);
+      seen.add(rollGame(seededRandom(seed), games, { recentGames }).slug);
     }
     expect([...seen].sort()).toEqual(['a', 'c']);
   });
