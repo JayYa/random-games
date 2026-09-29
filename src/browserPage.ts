@@ -7,6 +7,8 @@
  *   取不到文件的错误页。玩法页由站内导航自己挂宿主，上面那一份由入口文件交给它、
  *   再由它转给宿主。
  *
+ * 标签标题由每一屏自己设：选主题页设成站点名，其余各屏设成主题标题，不靠前一步画过什么。
+ *
  * 宿主和站内导航自己都不碰 DOM，用例里各换成一份假页面（ADR-0012）。
  */
 
@@ -19,8 +21,12 @@ import { renderThemePicker } from './themePicker';
 import { SITE_TITLE } from './themes';
 
 export const browserPage: PageAdapter = {
-  showRosterFailure,
+  showRosterFailure(root, theme, roster) {
+    document.title = theme.title;
+    showRosterFailure(root, theme, roster);
+  },
   showGamePage(root, { theme, html, block, closeLabel }, onClose) {
+    document.title = theme.title;
     // 整页只写一次 DOM：盘面和卡片的 HTML 一起进这一次 `innerHTML`，写完当场
     // 接上卡片的行为交回去。焦点交给谁等收起时由宿主再说。
     root.innerHTML = gamePage(theme, `${html}${resultCardMarkup(closeLabel)}`, { block });
@@ -40,6 +46,7 @@ export function browserNavigationPage(root: HTMLElement): NavigationPage {
       showRosterLoading(root, theme);
     },
     showRosterLoadFailure(theme, cause) {
+      document.title = theme.title;
       showRosterLoadFailure(root, theme, cause);
     },
   };
