@@ -11,8 +11,8 @@
  * - 假取数：用例说什么时候回、回成功还是失败。
  * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面。
  * - 两份记录调用的假页面适配器：站内导航自己的那一份记下画了选主题页、加载中还是
- *   取不到文件的错误页；宿主的那一份是 `testHelpers.ts` 里现成的假页面，挂载点交
- *   一个空对象。两份与假盘面记进同一份 `log`，先后看得见。
+ *   取不到文件的错误页；宿主的那一份是 `testHelpers.ts` 里现成的假页面。两份与假盘面
+ *   记进同一份 `log`，先后看得见。
  * - 可预测的随机源：恒给 0，抽玩法、抽中选都在还能抽的里面总取第一个。
  * - 本地造的假玩法清单：每个假玩法只是一个 slug 加一个造假盘面的办法，不引入全部
  *   真玩法——真盘面挂上时要碰 DOM。清单记下它造过的每个盘面，用例从挂上那一刻拿到
@@ -272,8 +272,6 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
     random: scriptedRandom([0]),
     games,
     page: fakeNavigationPage(log),
-    // 站内导航不碰挂载点，只原样交给宿主：一个空对象就够。
-    root: {} as HTMLElement,
     hostPage: fakeGamePage(log),
   });
   browser.listen(() => navigation.render());

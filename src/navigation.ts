@@ -21,7 +21,7 @@
  * 它记在每条玩法页历史自己的 `history.state` 上，刷新不丢。
  *
  * 它不碰 DOM、不碰全局：浏览器的历史与地址、取名单、存储、随机源、玩法清单、写页面
- * 的办法，连同玩法页的挂载点和宿主的页面适配器都从接口注入，生产由入口文件交真的，
+ * 的办法，连同宿主的页面适配器都从接口注入，生产由入口文件交真的，
  * 用例交替身。玩法页宿主本身也不碰 DOM，用例挂的就是真宿主。
  */
 
@@ -88,13 +88,8 @@ export interface NavigationOptions {
   /** 画玩法页以外那几页的页面适配器。 */
   readonly page: NavigationPage;
   /**
-   * 玩法页的挂载点，生产传 `#app`。站内导航不碰它，只原样交给玩法页宿主；用例交
-   * 一个空对象就够。
-   */
-  readonly root: HTMLElement;
-  /**
-   * 玩法页宿主的页面适配器：宿主写玩法页、画名单错误页都经它。生产传 `browserPage.ts`
-   * 里的 `browserPage`，用例交宿主那道接缝上现成的假页面。
+   * 玩法页宿主的页面适配器：宿主写玩法页、画名单错误页都经它，挂载点已经绑在里面。
+   * 生产由入口文件交一个绑好 `#app` 的 `browserPage`，用例交宿主那道接缝上现成的假页面。
    */
   readonly hostPage: PageAdapter;
 }
@@ -146,7 +141,7 @@ function isPlainClick(click: PickerLinkClick): boolean {
 }
 
 export function createNavigation(options: NavigationOptions): Navigation {
-  const { history, location, fetchRoster, storage, random, games, page, root, hostPage } = options;
+  const { history, location, fetchRoster, storage, random, games, page, hostPage } = options;
 
   /**
    * 领号的计数：名单在路上时地址可能已经变了，晚回来的那份 CSV 属于上一个主题，
@@ -225,7 +220,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
         // 名单、开抽与结果卡片由玩法页宿主接，玩法只交盘面（ADR-0012），盘面每进一次
         // 玩法页新造一个。最近中选存在哪里是站内导航的事，按主题分份交给宿主建名单会话，
         // 盘面碰不到它（ADR-0011）。名单写坏时宿主只画错误页、不挂盘面。
-        teardown = mountGamePage(root, {
+        teardown = mountGamePage({
           theme,
           csvText,
           recentWinners: recentWinnersMemory(storage, theme.slug),

@@ -240,6 +240,11 @@ export interface FakeGamePage extends PageAdapter {
   /** 写玩法页时交回的那张卡片；还没写过玩法页则为 undefined。 */
   readonly card: FakeResultCard | undefined;
   /**
+   * 写玩法页时交回的盘面挂载点：一块可辨认的假元素，每份假页面一块，用例拿它比对
+   * 盘面挂在了哪里。宿主不碰 DOM，它只需认得出、不需要真能用。
+   */
+  readonly boardRoot: HTMLElement;
+  /**
    * 按一下卡片上的关掉按钮。卡片没挂着时按不到——真按钮藏着的时候点不着，
    * 所以这时什么都不发生。
    */
@@ -251,8 +256,10 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
   const gamePages: GamePageView[] = [];
   let card: FakeResultCard | undefined;
   let onClose: (() => void) | undefined;
+  const boardRoot = { id: 'fake-board-root' } as HTMLElement;
 
   return {
+    boardRoot,
     get rosterFailures() {
       return [...rosterFailures];
     },
@@ -262,7 +269,7 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
     get card() {
       return card;
     },
-    showRosterFailure(_root, theme, roster) {
+    showRosterFailure(theme, roster) {
       log?.push(`page roster-failure ${roster.status}`);
       rosterFailures.push({
         theme,
@@ -271,12 +278,12 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
         disabledCount: roster.disabledCount,
       });
     },
-    showGamePage(_root, view, close) {
+    showGamePage(view, close) {
       log?.push('page game');
       gamePages.push(view);
       card = fakeResultCard();
       onClose = close;
-      return card;
+      return { card, boardRoot };
     },
     pressClose() {
       if (!card?.isOpen) return;
@@ -313,6 +320,8 @@ export interface FakeBoardOptions {
 export interface FakeBoard extends Board {
   /** 被挂上过几次。 */
   readonly mountCount: number;
+  /** 最近一次被挂在哪块元素上；还没挂上过为 undefined。 */
+  readonly mountedOn: HTMLElement | undefined;
   /** 盘面上此刻亮着的中选；没在揭晓时为 undefined，盘面是匿名的。 */
   readonly revealed: Candidate | undefined;
   /** 被叫去揭晓过的中选，按先后。 */
@@ -324,6 +333,7 @@ export interface FakeBoard extends Board {
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
   const { reset = true, teardown = true, returnFocusTo, log, onMount, onReset, onTeardown } = options;
   let mountCount = 0;
+  let mountedOn: HTMLElement | undefined;
   let revealed: Candidate | undefined;
   const reveals: Candidate[] = [];
   let teardownCount = 0;
@@ -335,6 +345,9 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
     get mountCount() {
       return mountCount;
     },
+    get mountedOn() {
+      return mountedOn;
+    },
     get revealed() {
       return revealed;
     },
@@ -344,9 +357,10 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
     get teardownCount() {
       return teardownCount;
     },
-    mount(_root, roll) {
+    mount(root, roll) {
       log?.push('board mount');
       mountCount += 1;
+      mountedOn = root;
       const mounted: MountedBoard = {
         reveal(winner) {
           log?.push(`board reveal ${winner.name}`);
@@ -437,9 +451,7 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
       return board.mount(root, handle);
     },
   };
-  // 宿主不碰 DOM：挂载点只是原样转手给页面适配器和盘面，一个空对象就够。
-  const root = {} as HTMLElement;
-  const teardown = mountGamePage(root, {
+  const teardown = mountGamePage({
     theme: hostTheme,
     csvText,
     recentWinners,

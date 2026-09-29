@@ -3,8 +3,8 @@
  *
  * 站内导航取到名单原文之后只调它（ADR-0012）。它依次：建名单会话（带上最近中选）→
  * 名单开不了抽就画错误页、到此为止，不挂盘面 → 写出玩法页（页头 + 盘面 HTML +
- * 结果卡片），拿回结果卡片 → 建好开抽状态 → 把挂载点和开抽句柄交给盘面，拿回盘面
- * 的回调。这条先后只有这一份实现，加一个玩法只需要写盘面。开抽状态在盘面挂上之前
+ * 结果卡片），拿回结果卡片和盘面该挂的那块元素 → 建好开抽状态 → 把那块元素和开抽
+ * 句柄交给盘面，拿回盘面的回调。这条先后只有这一份实现，加一个玩法只需要写盘面。开抽状态在盘面挂上之前
  * 就建好，句柄从交到盘面手里的那一刻起就是活的。
  *
  * 它也是唯一的开抽状态机：一次开抽从按下到收下的整段过程——还没开抽、正在抽、
@@ -25,8 +25,9 @@
  * 是盘面自己记着的事，宿主只叫它「把这个中选揭晓出来」。卡片收起来之后焦点交给谁
  * 也问盘面，在收下中选、收起卡片的那一刻从盘面的回调里取来交给卡片。
  *
- * 它不碰 DOM：写页面、接卡片都经注入的页面适配器——生产传 `browserPage.ts` 里
- * 那一份，用例传一份记录调用的假页面。随机源与揭晓那一拍的计时器同样可注入。
+ * 它不碰 DOM，也不收挂载点：写页面、接卡片都经注入的页面适配器，适配器建的时候
+ * 就绑好了挂载点，写出玩法页时交回盘面该挂的那块元素——「先写页面、再挂盘面」这条
+ * 先后由接口本身表达。生产传 `browserPage.ts` 里那一份，用例传一份记录调用的假页面。随机源与揭晓那一拍的计时器同样可注入。
  */
 
 import type { RecentMemory } from './cooldown';
@@ -145,18 +146,28 @@ export type GamePageView = Pick<Board, 'html' | 'block' | 'closeLabel'> & {
   readonly theme: Theme;
 };
 
+/** 写出玩法页之后页面适配器交回的东西。 */
+export interface WrittenGamePage {
+  /** 接好行为的结果卡片。 */
+  readonly card: ResultCard;
+  /** 盘面该挂上的那块元素：刚写进去的玩法页所在的挂载点。 */
+  readonly boardRoot: HTMLElement;
+}
+
 /**
- * 页面适配器：宿主碰 DOM 的唯一出口。生产用 `browserPage.ts`，用例用假页面。
+ * 页面适配器：宿主碰 DOM 的唯一出口。建的时候就绑好了挂载点，宿主不再转手它。
+ * 生产用 `browserPage.ts`，用例用假页面。
  */
 export interface PageAdapter {
   /** 名单开不了抽：用整页错误提示替掉页面（三种毛病各说各的，见 `rosterFailure.ts`）。 */
-  showRosterFailure(root: HTMLElement, theme: Theme, roster: RosterFailureSource): void;
+  showRosterFailure(theme: Theme, roster: RosterFailureSource): void;
   /**
-   * 写出玩法页：页头、盘面 HTML 与结果卡片，一次写完，交回接好行为的结果卡片。
+   * 写出玩法页：页头、盘面 HTML 与结果卡片，一次写完，交回接好行为的结果卡片和
+   * 盘面该挂上的那块元素。
    *
    * @param onClose 卡片上的关掉按钮被按下时做什么。
    */
-  showGamePage(root: HTMLElement, view: GamePageView, onClose: () => void): ResultCard;
+  showGamePage(view: GamePageView, onClose: () => void): WrittenGamePage;
 }
 
 export interface GamePageHostOptions {
@@ -203,7 +214,7 @@ type RollState =
  * 拆卸的顺序固定：先停开抽（揭晓那一拍还挂在计时器上的话，卡片不会在下一页弹出来），
  * 再调盘面自己的拆卸。名单写坏时没有东西要拆。重复调用无害。
  */
-export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): () => void {
+export function mountGamePage(options: GamePageHostOptions): () => void {
   const { theme, board, page } = options;
   const schedule = options.schedule ?? realSchedule;
   const roster = createRosterSession({
@@ -214,7 +225,7 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
 
   // 开不了抽时不挂盘面：一个空盘面看着像程序坏了，说不清到底是名单哪里出了问题。
   if (roster.status !== 'ok') {
-    page.showRosterFailure(root, theme, roster);
+    page.showRosterFailure(theme, roster);
     return () => {};
   }
 
@@ -245,8 +256,7 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
 
   // 关掉按钮推的 `dismiss` 是下面的函数声明，靠提升先交出去。它头一件事是看这一格，
   // 不在「抽出了中选」就走人，所以哪怕卡片还没交回来就被按了，也碰不到 `card`。
-  const card = page.showGamePage(
-    root,
+  const { card, boardRoot } = page.showGamePage(
     { theme, html: board.html, block: board.block, closeLabel: board.closeLabel },
     dismiss,
   );
@@ -302,7 +312,7 @@ export function mountGamePage(root: HTMLElement, options: GamePageHostOptions): 
     },
   };
 
-  const mountedBoard = board.mount(root, handle);
+  const mountedBoard = board.mount(boardRoot, handle);
   mounted = mountedBoard;
 
   return () => {

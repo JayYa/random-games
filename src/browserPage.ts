@@ -1,8 +1,9 @@
 /**
  * 渲染层：生产用的两份页面适配器。只画 DOM，薄，不测。
  *
- * - `browserPage`：玩法页宿主用的。只是把现有的三样包一层交给宿主：玩法页外壳
- *   （`gamePage.ts`）、名单错误页（`rosterFailure.ts`）和结果卡片（`resultCard.ts`）。
+ * - `browserPage`：玩法页宿主用的，建的时候绑好挂载点。只是把现有的三样包一层交给
+ *   宿主：玩法页外壳（`gamePage.ts`）、名单错误页（`rosterFailure.ts`）和结果卡片
+ *   （`resultCard.ts`）；写出玩法页时交回盘面该挂的那块元素，就是挂载点本身。
  * - `browserNavigationPage`：站内导航用的。只画玩法页以外的那几页：选主题页、加载中、
  *   取不到文件的错误页。玩法页由站内导航自己挂宿主，上面那一份由入口文件交给它、
  *   再由它转给宿主。
@@ -18,15 +19,20 @@ import { showRosterFailure, showRosterLoadFailure } from './rosterFailure';
 import { renderThemePicker } from './themePicker';
 import { SITE_TITLE } from './themes';
 
-export const browserPage: PageAdapter = {
-  showRosterFailure,
-  showGamePage(root, { theme, html, block, closeLabel }, onClose) {
-    // 整页只写一次 DOM：盘面和卡片的 HTML 一起进这一次 `innerHTML`，写完当场
-    // 接上卡片的行为交回去。焦点交给谁等收起时由宿主再说。
-    root.innerHTML = gamePage(theme, `${html}${resultCardMarkup(closeLabel)}`, { block });
-    return createResultCard(root, onClose);
-  },
-};
+/** 玩法页宿主用的页面适配器，整页都画在 `root` 里，盘面也挂在它上面。 */
+export function browserPage(root: HTMLElement): PageAdapter {
+  return {
+    showRosterFailure(theme, roster) {
+      showRosterFailure(root, theme, roster);
+    },
+    showGamePage({ theme, html, block, closeLabel }, onClose) {
+      // 整页只写一次 DOM：盘面和卡片的 HTML 一起进这一次 `innerHTML`，写完当场
+      // 接上卡片的行为交回去。焦点交给谁等收起时由宿主再说。
+      root.innerHTML = gamePage(theme, `${html}${resultCardMarkup(closeLabel)}`, { block });
+      return { card: createResultCard(root, onClose), boardRoot: root };
+    },
+  };
+}
 
 /** 站内导航用的页面适配器，整页都画在 `root` 里。 */
 export function browserNavigationPage(root: HTMLElement): NavigationPage {
