@@ -1,6 +1,6 @@
 ---
 name: verify-random-games
-description: Prove user-facing behavior of 是但 (random-games) in a real browser, producing the evidence for the PR body. Use before writing a PR that touches the theme picker, game roll, wheel or pinball draw, cooldown, or roster error pages.
+description: Verify 是但 (random-games) in a real browser, producing the PR body's Evidence. Use before writing or updating any PR body whose diff touches src/ or public/, refactors meant to change nothing user-visible included.
 ---
 
 # Verify 是但 (random-games)
