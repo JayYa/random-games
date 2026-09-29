@@ -102,6 +102,11 @@ describe('名单正常时写出玩法页', () => {
     ]);
   });
 
+  it('盘面挂在写出玩法页时交回的那块元素上', () => {
+    const { page, board } = mountPage();
+    expect(board.mountedOn).toBe(page.boardRoot);
+  });
+
   it('挂上之后没锁，也还什么都没抽、没揭晓', () => {
     const harness = mountPage();
     const { board, page, recentWinners } = harness;

@@ -10,9 +10,9 @@
  * - 假点击：默认是普通的左键单击，记得自己有没有被拦下。
  * - 假取数：用例说什么时候回、回成功还是失败。
  * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面。
- * - 两份记录调用的假页面适配器：站内导航自己的那一份记下画了选主题页、加载中还是
- *   取不到文件的错误页；宿主的那一份是 `testHelpers.ts` 里现成的假页面，挂载点交
- *   一个空对象。两份与假盘面记进同一份 `log`，先后看得见。
+ * - 一份记录调用的假页面适配器：在 `testHelpers.ts` 里宿主那道接缝上现成的假页面
+ *   之上，补齐选主题页、加载中和取不到文件的错误页三项拼成，站内导航交给宿主的也是
+ *   这同一份。它与假盘面记进同一份 `log`，先后看得见。
  * - 可预测的随机源：恒给 0，抽玩法、抽中选都在还能抽的里面总取第一个。
  * - 本地造的假玩法清单：每个假玩法只是一个 slug 加一个造假盘面的办法，不引入全部
  *   真玩法——真盘面挂上时要碰 DOM。清单记下它造过的每个盘面，用例从挂上那一刻拿到
@@ -167,11 +167,17 @@ function settle(): Promise<void> {
 }
 
 /**
- * 站内导航自己的假页面适配器，往 `log` 里按先后记下每一下：`picker`、
- * `loading <主题>`、`load-failure <主题>`。
+ * 站内导航的假页面适配器：在宿主那道接缝上现成的假页面之上补齐站内导航多出的三项，
+ * 往 `log` 里按先后记下每一下——补上的三项记 `picker`、`loading <主题>`、
+ * `load-failure <主题>`，宿主那两项照假页面自己的记法（`page …`）。
+ *
+ * 宿主那两项逐个转交，不用对象展开：展开会把假页面上的取值器在拼的那一刻求成定值。
  */
 function fakeNavigationPage(log: string[]): NavigationPage {
+  const hostPage = fakeGamePage(log);
   return {
+    showRosterFailure: (theme, roster) => hostPage.showRosterFailure(theme, roster),
+    showGamePage: (view, onClose) => hostPage.showGamePage(view, onClose),
     showThemePicker() {
       log.push('picker');
     },
@@ -272,9 +278,6 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
     random: scriptedRandom([0]),
     games,
     page: fakeNavigationPage(log),
-    // 站内导航不碰挂载点，只原样交给宿主：一个空对象就够。
-    root: {} as HTMLElement,
-    hostPage: fakeGamePage(log),
   });
   browser.listen(() => navigation.render());
   navigation.render();
