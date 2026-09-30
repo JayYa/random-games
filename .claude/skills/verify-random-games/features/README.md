@@ -27,7 +27,7 @@ Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run all 
 - [Theme picker and routing](./theme-picker.md) covers the picker, the game roll from `#/<theme>` (picker link or shared link), Back, unknown-route fallback, and `← 换个主题`. Scenario: `scenarios/theme-picker.mjs`.
 - [Wheel draw](./wheel-draw.md) covers 转, the lock, the reveal and card, 再来一次, the stored winner, keyboard entry, and a direct link. Scenario: `scenarios/wheel-draw.mjs`.
 - [Pinball draw](./pinball-draw.md) covers the plunger drag, the slot reveal and card, 再打一发, a second shot, and a direct link. Scenario: `scenarios/pinball-draw.mjs`.
-- [Cooldown](./cooldown.md) covers recent winners (7 per theme) and the recent game (1, site-wide), including thawing, the cap, and a direct link not being recorded. Scenario: `scenarios/cooldown.mjs` (uses a roster route for the first two cases).
+- [Cooldown](./cooldown.md) covers recent winners (7 per theme) and the recent game (1, site-wide), including thawing, the cap on write and on read, a shared theme link, and a direct link not being recorded. Scenario: `scenarios/cooldown.mjs` (uses a roster route for the thaw and read-cap cases).
 - [Roster error pages](./roster-errors.md) covers the four error kinds on both games and the escape via `← 换个主题`. Scenario: `scenarios/roster-errors.mjs` (roster route throughout).
 
 Scenarios don't cover the real-file variant of roster errors; its recipe is in [roster-errors.md](./roster-errors.md) but unproven.
