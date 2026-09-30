@@ -1,11 +1,5 @@
 /**
- * 渲染层：把扇区画成转盘。薄，不测。
- *
- * 平时只画有颜色的扇区，不画任何名字——盘面是匿名的（ADR-0010）。唯一一次
- * 画名字是揭晓：把中选的名字写进停下的那个扇区，收下中选时再画回匿名。
- *
- * 每一格画在哪一段弧，向扇区模块要——角度约定只在那里说一次。揭晓写在哪一格、
- * 转到哪个角度都由转盘机器（`./machine.ts`）定，这里只照着画。
+ * 渲染层：把扇区画成转盘。薄，不测。只在揭晓时画名字（ADR-0010）。
  */
 
 import { TAU } from '../../angles';
@@ -13,9 +7,7 @@ import { PALETTE } from '../../palette';
 import type { Reveal } from './machine';
 import type { Sectors } from './sectors';
 
-/**
- * 扇区 i 用的颜色。相邻扇区必然不同色，包括跨 0 度的首尾相邻。
- */
+/** 相邻扇区不同色，包括首尾。 */
 function sectorColor(index: number, count: number): string {
   const base = index % PALETTE.length;
   const isLast = index === count - 1 && count > 1;
@@ -30,11 +22,7 @@ function sectorColor(index: number, count: number): string {
   return PALETTE[base]!;
 }
 
-/**
- * 把候选名字截到 `maxWidth` 以内，截过就加省略号。名字再长也绝不许溢出扇区。
- * 按码点截而不是按 UTF-16 单元，免得把 emoji 之类的代理对劈成半个字。
- * 连一个字加省略号都放不下时只留省略号。
- */
+/** 截到 `maxWidth` 以内加省略号。按码点截，不劈开 emoji。 */
 function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
   const chars = Array.from(text);
@@ -46,13 +34,12 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 }
 
 export interface DrawOptions {
-  /** 转盘上的扇区，数目是转盘自己的常量，与名单大小无关。 */
   readonly sectors: Sectors;
   /** 转盘逆时针转过的弧度。 */
   readonly rotation: number;
   /** 画布的 CSS 边长（正方形）。 */
   readonly size: number;
-  /** 正在揭晓时给出；平时不给，转盘上一个名字都不画。 */
+  /** 只在揭晓时给。 */
   readonly reveal?: Reveal;
 }
 

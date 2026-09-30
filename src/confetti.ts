@@ -1,9 +1,7 @@
 /**
- * 渲染层：结果卡片弹出时的一阵撒花。薄，不测。
+ * 渲染层：结果卡片弹出时的撒花。薄，不测。
  *
- * 用一块临时的全屏 Canvas 画纸屑，无音效、不引动画库（ADR-0003 的收束感）。
- * Canvas 自己创建、自己移除：撒完就从 DOM 里消失，`pointer-events: none`
- * 保证它在存在期间也不会挡住结果卡片上的按钮。
+ * 临时建一块全屏画布，撒完就移除；`pointer-events: none` 保证它不挡结果卡片。
  */
 
 import { TAU } from './angles';
@@ -54,11 +52,8 @@ function createParticles(width: number, height: number, random: () => number): P
 
 let stopCurrent: (() => void) | null = null;
 
-/**
- * 放一阵撒花。重复调用会先收掉上一阵，所以连着转两次不会越堆越多。
- */
+/** 放一阵撒花。上一阵还没落完就先收掉。 */
 export function burstConfetti(): void {
-  // 上一阵还没落完就又转了一次：先收掉旧的那块画布，纸屑才不会越积越厚。
   stopCurrent?.();
 
   const canvas = document.createElement('canvas');

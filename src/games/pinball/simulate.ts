@@ -1,16 +1,8 @@
 /**
- * 弹球模拟 (Pinball Simulation)：这个玩法的无头内核。
+ * 弹球模拟 (Pinball Simulation)：`{ 力度, 风车相位, 种子, 落格数 }` → `{ 落格, 轨迹 }`。
  *
- * 吃 `{ 力度, 风车相位, 种子, 落格数 }`，吐 `{ 落格索引, 轨迹帧 }`。它不认识
- * 候选、不认识主题、不碰 DOM——落格只是一个索引，决定揭晓时名字浮在哪一格上，
- * 不决定谁中选（ADR-0010）。
- *
- * 落格由物理决定（ADR-0006）：没有人预先挑好落格，球撞到哪格就是哪格。
- * 一次调用把整段模拟同步跑完，调用方拿到完整轨迹之后再按帧回放。
- *
- * 物理用 matter.js（ADR-0008），只用 Engine 不用它的 Render，关掉 sleeping，
- * 固定步长手动步进——这三条是「同样入参必得同样结果」的前提。确定性只
- * 承诺同一运行环境内成立，不承诺跨机器。
+ * 落格由物理决定（ADR-0006）。一次调用同步跑完整段，调用方再回放。用 matter.js 的 Engine、
+ * 关掉 sleeping、固定步长手动步进，同一环境内同样入参必得同样结果（ADR-0008）。
  */
 
 import { Bodies, Body, Composite, Engine } from 'matter-js';
@@ -27,51 +19,40 @@ import {
 } from './board';
 import { seededRandom } from '../../seededRandom';
 
-/** 轨迹上的一帧：球心位置，外加两个风车当下的角度。 */
 export interface PinballFrame {
   readonly x: number;
   readonly y: number;
-  /** 两个风车的角度（弧度），顺序同 `BOARD.windmillPivots`。 */
+  /** 顺序同 `BOARD.windmillPivots`。 */
   readonly windmillAngles: readonly number[];
 }
 
 /** 一发 (Shot) 的入参。 */
 export interface PinballShotInput {
-  /** 力度：柱塞行程归一化成 `[0, 1]`，越大球进盘面越快、越靠左。超界会被夹住。 */
+  /** `[0, 1]`，超界会被夹住。 */
   readonly power: number;
-  /** 风车相位（弧度）：发射瞬间快照的叶片角度。两片风车方向相反。 */
+  /** 发射瞬间的风车相位（弧度）。 */
   readonly windmillPhase: number;
-  /** 种子：对开局做微扰，是物理之外唯一的不确定性来源。 */
+  /** 对开局做微扰，是物理之外唯一的随机来源。 */
   readonly seed: number;
-  /** 落格数，默认 8。 */
+  /** 默认 `BOARD.slotCount`。 */
   readonly slotCount?: number;
-  /**
-   * 单次模拟的步数上限，默认 `BOARD.maxSteps`。
-   *
-   * 留这个口子是为了测试兜底路径：给一个必然超时的上限，就能验证卡住
-   * 之后仍然返回一个合法落格。生产代码不必传。
-   */
+  /** 默认 `BOARD.maxSteps`。留给测试压低上限、走兜底路径。 */
   readonly maxSteps?: number;
 }
 
-/** 一发的结果。 */
 export interface PinballShot {
-  /** 落格索引，永远在 `[0, 落格数)` 内。 */
+  /** 永远在 `[0, 落格数)` 内。 */
   readonly slotIndex: number;
-  /** 完整轨迹，逐个固定步长一帧。 */
+  /** 每个固定步长一帧。 */
   readonly frames: readonly PinballFrame[];
-  /** 判定发生在第几帧：球心越过隔板顶部那一帧（ADR-0006 的「进格即定」）。 */
+  /** 球心越过隔板顶的那一帧（ADR-0006「进格即定」）。 */
   readonly decidedAtFrame: number;
-  /**
-   * 是否走了兜底：重试次数用尽仍没进格，落格是按球到过的最低点就近判的，
-   * 轨迹的收尾那一段也是补出来的（见 `fallbackShot`）。正常的一发是 `false`。
-   */
+  /** 走了兜底：落格按最低点就近判，收尾一段是补出来的（见 `fallbackShot`）。 */
   readonly settledByFallback: boolean;
-  /** 一帧对应多少毫秒。回放层按累积时间索引轨迹时要用。 */
   readonly frameIntervalMs: number;
 }
 
-/** 三类碰撞类别：风车只跟球碰，不跟钉和墙较劲。 */
+/** 风车只跟球碰。 */
 const CATEGORY_BALL = 0x0001;
 const CATEGORY_WINDMILL = 0x0002;
 const CATEGORY_STATIC = 0x0004;
@@ -101,7 +82,7 @@ function buildWorld(input: {
   seed: number;
 }): World {
   const engine = Engine.create({
-    // ADR-0008：sleeping 一开，同样入参就不再必得同样结果。
+    // 开着 sleeping 就不再确定（ADR-0008）。
     enableSleeping: false,
   });
   engine.gravity.x = 0;
@@ -111,7 +92,7 @@ function buildWorld(input: {
   const bodies: MatterBody[] = [];
   const half = BOARD.wallThickness / 2;
 
-  // 四周的墙。底面就是落格的地面，恢复系数低，球进了格别再蹦出来。
+  // 四周的墙。底面恢复系数低，球进了格别再蹦出来。
   bodies.push(
     wall(BOARD.playLeft - half, BOARD.height / 2, BOARD.wallThickness, BOARD.height * 2, 0.3),
   );
@@ -172,7 +153,7 @@ function buildWorld(input: {
     );
   }
 
-  // 钉阵：错位排列，职责是把力度上的细微差别打散。
+  // 钉阵。
   for (const peg of pegPositions()) {
     bodies.push(
       Bodies.circle(peg.x, peg.y, BOARD.pegRadius, {
@@ -184,7 +165,7 @@ function buildWorld(input: {
     );
   }
 
-  // 弹力柱：恢复系数大于 1，撞一下弹回来比撞上去更快。
+  // 弹力柱。
   for (const bumper of BOARD.bumperPositions) {
     bodies.push(
       Bodies.circle(bumper.x, bumper.y, BOARD.bumperRadius, {
@@ -196,7 +177,7 @@ function buildWorld(input: {
     );
   }
 
-  // 隔板：把底部分成一个个落格，顶部那条水平线就是判定线。
+  // 隔板，顶部那条线就是判定线。
   for (const x of dividerPositions(input.slotCount)) {
     bodies.push(
       wall(
@@ -209,8 +190,7 @@ function buildWorld(input: {
     );
   }
 
-  // 风车：不能是静止体——静止体撞上去不会把动量传给球。给它极大的质量和
-  // 转动惯量，再每一步把位置与角速度按住，它就成了一根匀速旋转的搅拌棒。
+  // 风车不能是静止体，否则不把动量传给球。给极大的质量和转动惯量，每一步按住位置与角速度。
   const windmills = BOARD.windmillPivots.map((pivot, i) => {
     const direction = BOARD.windmillDirections[i] ?? 1;
     const blade = Bodies.rectangle(
@@ -232,7 +212,7 @@ function buildWorld(input: {
   });
   bodies.push(...windmills);
 
-  // 球：由柱塞从通道底部往上打。种子只在这里起作用——微扰出发点与初速度。
+  // 球。种子只在这里微扰出发点与初速度。
   const random = seededRandom(input.seed);
   const speed =
     (BOARD.launchSpeedMin + input.power * (BOARD.launchSpeedMax - BOARD.launchSpeedMin)) *
@@ -271,7 +251,7 @@ function frameOf(world: World): PinballFrame {
   };
 }
 
-/** 球是不是还在盘面里。飞出去了就当这一发废了，换种子重来。 */
+/** 飞出盘面就换种子重来。 */
 function inBounds(frame: PinballFrame): boolean {
   return (
     frame.x > -BOARD.width &&
@@ -281,7 +261,7 @@ function inBounds(frame: PinballFrame): boolean {
   );
 }
 
-/** 跑一次模拟。没能进格就返回 `decidedAtFrame: -1`，由调用方决定重跑还是兜底。 */
+/** 跑一次模拟。没进格返回 `decidedAtFrame: -1`。 */
 function runAttempt(input: {
   power: number;
   windmillPhase: number;
@@ -315,8 +295,7 @@ function runAttempt(input: {
     }
 
     if (decidedAtFrame < 0) {
-      // 进格即定：球心向下越过隔板顶部所在水平线的那一帧就是判定帧。
-      // 之后的弹跳只是余韵，改不了结果（ADR-0006）。
+      // 进格即定：球心向下越过隔板顶的那一帧（ADR-0006）。
       const crossed = previousY < BOARD.dividerTopY && frame.y >= BOARD.dividerTopY;
       const inPlayArea = frame.x >= BOARD.playLeft && frame.x <= BOARD.playRight;
       if (crossed && inPlayArea) {
@@ -325,7 +304,7 @@ function runAttempt(input: {
       }
       previousY = frame.y;
     } else {
-      // 判定完了再跑一小段，让球在落格里落稳，轨迹有个收尾。
+      // 再跑一小段让球落稳。
       remainingSettleSteps -= 1;
       if (remainingSettleSteps <= 0) break;
     }
@@ -339,41 +318,26 @@ function nextSeed(seed: number, attempt: number): number {
   return (Math.trunc(seed) + (attempt + 1) * 0x9e3779b9) >>> 0;
 }
 
-/** 补出来的那一段落格收尾有多少帧。约 0.4 秒，看得清是「掉进去了」就够。 */
+/** 兜底补出来的落格收尾，约 0.4 秒。 */
 const FALLBACK_DROP_FRAMES = 48;
 
-/** 风车每一步转多少弧度：matter 的角速度口径是每 16.67ms 基准步。 */
+/** matter 的角速度按 16.67ms 基准步计，换算成每个固定步长。 */
 const WINDMILL_RADIANS_PER_STEP =
   BOARD.windmillAngularVelocity * (BOARD.stepMs / (1000 / 60));
 
 /**
- * 兜底那一发：重试全部用尽，谁也没进格。
+ * 重试用尽仍没进格时的兜底。失败那次的轨迹卡住或飞出了盘面，不能上屏（ADR-0006），
+ * 所以重新拼一条：
  *
- * **失败那次模拟的帧不能原样交出去。** 它要么是球卡在钉子上原地抖了十几秒，
- * 要么是球飞出了盘面；而它的结尾必然不在任何一个落格里，回放完就会从一个球
- * 根本没进过的落格里弹出一个中选。ADR-0006 说「因为模拟在回放之前，用户看不到
- * 这个过程」，指的正是这一段不该上屏——那就真的别把它交出去。story 27：
- * 「球永远不会卡在盘面上不动」。
+ * 1. 截到球到过的最低点为止，这段是真模拟的；卡住必定发生在这之后。
+ * 2. 从这一点补一段掉进最近的落格，让看见的球落进揭晓的那一格。
  *
- * 所以兜底重新拼一条能看的轨迹，两段：
- *
- * 1. **真的那一段**：截到球这一路上到过的最低点（第一次到达那个 y 的那一帧）。
- *    这之前是实打实模拟出来的，照播不误；这之后正是它卡住或者飞出去的那一段，
- *    丢掉。取「最低点」而不是「最后一帧」，是因为球一路往下打，卡住必定发生在
- *    它到达最低点之后。
- * 2. **补的那一段**：从这一点掉进落格。落格按最低点的横坐标就近判——球到过的
- *    最深处离哪一格近就是哪一格。这一段不是物理算出来的，但兜底本来就已经不是
- *    物理决定的落格了（`settledByFallback` 如实说了这件事）；它唯一的职责是让用户
- *    看见的球确实落进了最后宣布的那一格。
- *
- * 这条路在正常盘面上打不到：`simulate.test.ts` 里两百发一次都没走过兜底，只有
- * 测试把 `maxSteps` 压到球出不了柱塞通道时才够得着。
+ * 正常盘面上打不到，只有测试压低 `maxSteps` 才走得到。
  */
 function fallbackShot(attempt: Attempt, slotCount: number): PinballShot {
   const frames = attempt.frames;
 
-  // 球到过的最低点，只认可玩区域里、判定线以上的帧——柱塞通道里那一段和
-  // 飞出盘面那一段都不能拿来定落格。
+  // 只认可玩区域里、判定线以上的帧。
   let anchorIndex = -1;
   let lowest = -Infinity;
   for (let i = 0; i < frames.length; i += 1) {
@@ -385,7 +349,7 @@ function fallbackShot(attempt: Attempt, slotCount: number): PinballShot {
     }
   }
 
-  // 一帧都够不上（球连盘面都没进）：只留发射那一帧，剩下的全靠补。
+  // 球连盘面都没进：只留发射那一帧。
   const kept = frames.slice(0, Math.max(1, anchorIndex + 1));
   const anchor = kept[kept.length - 1] ?? {
     x: LANE_CENTER_X,
@@ -401,15 +365,14 @@ function fallbackShot(attempt: Attempt, slotCount: number): PinballShot {
   let decidedAtFrame = -1;
   for (let step = 1; step <= FALLBACK_DROP_FRAMES; step += 1) {
     const t = step / FALLBACK_DROP_FRAMES;
-    // 竖直方向按自由落体的样子加速，横向匀速摆到格子中线——看着像掉下去，
-    // 而不是像被人拎过去。
+    // 竖直加速、横向匀速，看着像掉下去。
     const x = anchor.x + (targetX - anchor.x) * t;
     const y = anchor.y + (targetY - anchor.y) * t * t;
     const windmillAngles = anchor.windmillAngles.map(
       (angle, i) => angle + (BOARD.windmillDirections[i] ?? 1) * WINDMILL_RADIANS_PER_STEP * step,
     );
     out.push({ x, y, windmillAngles });
-    // 进格即定：补出来的这一段也照同一条线判，回放层拿到的语义不变。
+    // 补的这段也照同一条线判定。
     if (decidedAtFrame < 0 && y >= BOARD.dividerTopY) decidedAtFrame = out.length - 1;
   }
 
@@ -423,11 +386,7 @@ function fallbackShot(attempt: Attempt, slotCount: number): PinballShot {
 }
 
 /**
- * 打一发：把整段模拟同步跑完，返回落格索引和完整轨迹。
- *
- * 卡住兜底：单次模拟超过步数上限就换种子重跑；重试次数用尽才走 `fallbackShot`。
- * 它不抛错，也不会死循环，而且**返回的轨迹永远是能给人看的**——卡住或者飞出
- * 盘面的那一段绝不会被交出去，因为模拟发生在回放之前，用户永远看不见它（ADR-0006）。
+ * 打一发。超过步数上限就换种子重跑，用尽才走 `fallbackShot`。不抛错，返回的轨迹总能上屏。
  */
 export function simulateShot(input: PinballShotInput): PinballShot {
   const slotCount = Math.max(1, Math.trunc(input.slotCount ?? BOARD.slotCount));
@@ -454,6 +413,5 @@ export function simulateShot(input: PinballShotInput): PinballShot {
     }
   }
 
-  // 重试用尽：交出一条重新拼过的、能给人看的轨迹。
   return fallbackShot(attempt, slotCount);
 }

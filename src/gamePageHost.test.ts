@@ -1,15 +1,6 @@
 /**
- * 玩法页宿主的用例：名单写坏时画什么，名单正常时怎么把玩法页、盘面、结果卡片和
- * 开抽接起来，一次开抽怎么走，锁什么时候变，最近中选什么时候记，换页怎么拆。
- *
- * 宿主是唯一的开抽状态机，挂载入口是唯一的测试面：用例经开抽句柄推（开抽、报停、
- * 读锁、订阅），经假页面上的「按关掉按钮」收下，只钉看得到的行为——页面适配器
- * 被叫去画了什么、盘面上此刻亮着哪个名字、卡片挂没挂着、带的是哪个中选、最近中选
- * 记下了什么、句柄上的锁此刻是什么。名单会话的冷却细节有它自己的用例，这里不再验一遍。
- *
- * 页面、盘面、卡片、计时器都是 `testHelpers.ts` 里记录调用的替身，所以这一批在
- * node 里跑，不需要 jsdom，也不必真等那一拍。挂载走那里的 `mountOnHost`，开抽句柄
- * 也从它交回的那一份拿——与盘面的用例站在同一道接缝上。
+ * 玩法页宿主的用例。经开抽句柄和假页面上的收下按钮驱动，只看页面、盘面、卡片、
+ * 最近中选和锁上看得到的行为。冷却细节归名单会话的用例。
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -27,12 +18,11 @@ import {
   type MountOnHostOptions,
 } from './testHelpers';
 
-/** 一个假的焦点去向：只看它是不是被原样交给了卡片。 */
+/** 假焦点去向，只比对身份。 */
 const spinButton = {} as HTMLElement;
 
 interface Harness extends HostedBoard {
   readonly board: FakeBoard;
-  /** 页面与盘面共用的调用记录，按先后。 */
   readonly log: string[];
 }
 
@@ -40,17 +30,14 @@ interface HarnessOptions extends Omit<MountOnHostOptions, 'log'> {
   readonly board?: Omit<FakeBoardOptions, 'log'>;
 }
 
-/**
- * 经 `mountOnHost` 把一个假盘面挂上一页，页面与盘面记进同一份调用记录。
- * 随机源恒给 0：`roster(3)` 第一次抽出的是「候选1」，冷却之后的第二次是「候选2」。
- */
+/** 挂上一个假盘面，页面与盘面记进同一份 log。 */
 function mountPage({ board: boardOptions, ...hostOptions }: HarnessOptions = {}): Harness {
   const log: string[] = [];
   const board = fakeBoard({ ...boardOptions, log });
   return { ...mountOnHost(board, { ...hostOptions, log }), board, log };
 }
 
-/** 开抽、盘面停下、揭晓那一拍走完：卡片弹出来。 */
+/** 开抽 → 报停 → 停一拍，卡片弹出。 */
 function rollOnce(harness: Harness): void {
   const roll = rollOf(harness);
   roll.begin();
@@ -132,7 +119,6 @@ describe('一整次开抽', () => {
     expect(page.card?.showCount).toBe(0);
     expect(roll.locked).toBe(true);
 
-    // 差一点点都不该弹：名字得先在盘面上亮一会儿。
     timer.advance(REVEAL_PAUSE_MS - 1);
     expect(page.card?.showCount).toBe(0);
 
@@ -166,7 +152,7 @@ describe('一整次开抽', () => {
   });
 
   it('盘面不给焦点去向时，收下中选交给卡片的焦点去向是空的，焦点不动', () => {
-    // 弹球机就是这样：整页没有可聚焦的操作（ADR-0006）。
+    // 弹球机就是这样（ADR-0006）。
     const harness = mountPage();
     rollOnce(harness);
     harness.page.pressClose();
@@ -179,7 +165,6 @@ describe('一整次开抽', () => {
     rollOnce(harness);
     page.pressClose();
 
-    // 报停也不受理：没开抽就没什么可停。
     rollOf(harness).boardStopped();
     timer.advance(REVEAL_PAUSE_MS * 2);
     expect(board.reveals).toHaveLength(1);
@@ -198,7 +183,7 @@ describe('一整次开抽', () => {
   });
 
   it('收下之后在盘面的复位里立刻开抽，照常受理', () => {
-    // 复位运行时锁已经解开：盘面在复位里想立刻再开一次抽，不会被上一次的残留挡掉。
+    // 复位时锁已经解开。
     let acceptedInReset: boolean | undefined;
     const harness = mountPage({
       board: {
@@ -325,13 +310,12 @@ describe('锁', () => {
     const roll = rollOf(harness);
     const seen: boolean[] = [];
     roll.subscribe(() => seen.push(roll.locked));
-    // 订阅当下那一次是初值。
+    // 订阅当下先给一次初值。
     expect(seen).toEqual([false]);
 
     roll.begin();
     expect(seen).toEqual([false, true]);
 
-    // 连点：不受理，锁没变，订阅者不该被惊动。
     roll.begin();
     roll.boardStopped();
     timer.advance(REVEAL_PAUSE_MS);
@@ -342,7 +326,6 @@ describe('锁', () => {
   });
 
   it('挂上时就订阅的控件在订阅当下就拿到初值，读到没锁', () => {
-    // 句柄交到盘面手里时就是活的：不必等宿主再补发一次，「转」一进页面就是对的状态。
     const seen: boolean[] = [];
     mountPage({
       board: {
@@ -385,7 +368,7 @@ describe('最近中选', () => {
   });
 
   it('最近中选里的候选冷却，不被抽出', () => {
-    // 随机源恒给 0：没有冷却时会抽出排在第一的「候选1」。
+    // 随机源恒为 0，不冷却就会抽出「候选1」。
     const harness = mountPage({ csvText: roster(2), recent: ['候选1'] });
     rollOnce(harness);
     expect(harness.board.revealed?.name).toBe('候选2');
@@ -431,7 +414,6 @@ describe('换页拆卸', () => {
   });
 
   it('拆卸之后句柄一直算锁着，与开抽不受理说的是同一回事', () => {
-    // 盘面若在拆卸之后还问一句「锁没锁」，得到的答案要与 `begin()` 对得上。
     const harness = mountPage();
     const roll = rollOf(harness);
     expect(roll.locked).toBe(false);
@@ -443,8 +425,7 @@ describe('换页拆卸', () => {
   });
 
   it('拆卸之后盘面再报停：不抽、不揭晓、不记、不弹卡片', () => {
-    // 停动画是盘面自己拆卸时的事（转盘会掐掉 rAF），宿主不指望它：哪个盘面漏停了，
-    // 拆卸之后仍可能报一声「盘面停下」，宿主这边照样不能再抽、再揭晓。
+    // 宿主不指望盘面拆卸时一定停了动画。
     const harness = mountPage();
     const { teardown, timer, board, page, recentWinners } = harness;
     const roll = rollOf(harness);
@@ -470,7 +451,7 @@ describe('换页拆卸', () => {
     expect(seen).toEqual([false]);
   });
 
-  it('卡片挂着时拆卸，之后再按关掉按钮：不抹名字、不复位', () => {
+  it('卡片挂着时拆卸，之后再按收下：不抹名字、不复位', () => {
     const harness = mountPage();
     const { teardown, page, log } = harness;
     rollOnce(harness);

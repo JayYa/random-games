@@ -24,7 +24,6 @@ describe('resolveRoute', () => {
     }
   });
 
-  // 三态里的中间那一档：主题定了、玩法还没定，由站内导航抽一次再改地址。
   it('只有主题的地址解析成待抽签：有主题，没有玩法', () => {
     for (const theme of THEMES) {
       const route = resolveRoute(`#/${theme.slug}`, GAMES);
@@ -33,8 +32,7 @@ describe('resolveRoute', () => {
     }
   });
 
-  // 反例用真实存在的主题和玩法来拼：主题不存在的地址本来就回落，用例名说的那条
-  // 规则坏了也看不出来。每条只违反名字里说的那一条。
+  // 反例用真实的主题和玩法拼，每条只违反用例名说的那一条。
   const theme = THEMES[0]!.slug;
   const game = GAMES[0]!.slug;
 
@@ -67,12 +65,10 @@ describe('resolveRoute', () => {
 });
 
 describe('玩法清单', () => {
-  // slug 是地址的一部分，重了就会有一个玩法永远打不开。
   it('slug 不重复', () => {
     expect(new Set(GAMES.map((game) => game.slug)).size).toBe(GAMES.length);
   });
 
-  // 宿主拿盘面交出的这几样写页面：空了一样，这个玩法页就是坏的。
   it('每条记录都造得出盘面：HTML、块名、按钮上的字都不空', () => {
     for (const game of GAMES) {
       const board = game.createBoard();
@@ -86,13 +82,13 @@ describe('玩法清单', () => {
 describe('rollGame', () => {
   it('随机数落在哪一格就抽出哪一条', () => {
     GAMES.forEach((game, index) => {
-      // 取这一格的正中，避开边界的取整争议。
+      // 取格正中，避开边界。
       const random = scriptedRandom([(index + 0.5) / GAMES.length]);
       expect(rollGame(random, GAMES)).toBe(game);
     });
   });
 
-  // random() 按约定取不到 1，但实现上真吐出 1 时下标会越界，兜底不能少。
+  // random() 按约定取不到 1，但真吐出 1 时不能越界。
   it('随机数恰好是 1 时抽出最后一条，而不是越界', () => {
     expect(rollGame(scriptedRandom([1]), GAMES)).toBe(GAMES[GAMES.length - 1]);
   });
@@ -118,7 +114,7 @@ describe('rollGame', () => {
 describe('rollGame 的最近玩法', () => {
   const SEEDS = Array.from({ length: 40 }, (_, i) => 20260925 + i);
 
-  // 最近玩法只留 1 个是存储适配的事，在 recentStorage.test.ts 里测；这里只看记下了谁。
+  // 只留几个归存储适配，见 recentStorage.test.ts。
   it('每抽一次都把这次的玩法记进最近玩法', () => {
     const random = seededRandom(1);
     const recentGames = fakeRecentMemory();
@@ -160,10 +156,7 @@ describe('rollGame 的最近玩法', () => {
   });
 });
 
-/**
- * 临时造的三种玩法：现在只有两种，冷却在多于两种时的样子只能靠它看；地址解析也靠它
- * 看注入的清单是不是替掉了全部玩法。
- */
+/** 三种假玩法：看多于两种时的冷却，以及注入的清单是否替掉全部玩法。 */
 function threeGames(): Game[] {
   return ['a', 'b', 'c'].map((slug) => ({ slug, createBoard: () => fakeBoard() }));
 }

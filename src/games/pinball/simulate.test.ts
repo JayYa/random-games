@@ -5,13 +5,7 @@ import { simulateShot, type PinballShot } from './simulate';
 
 const SLOT_COUNT = BOARD.slotCount;
 
-/**
- * 下面几乎每条用例都拿 `slotIndexAtX` 当尺子量模拟的结果——尺子自己歪了，
- * 那些用例会一起歪，而且歪得看不出来。所以先把尺子钉住。
- *
- * 它也是兜底路径唯一的落格来源（出界的横坐标被夹在两端），那一段是真行为，
- * 不是常量表的复述。
- */
+/** 后面的用例都拿 `slotIndexAtX` 当尺子，先把尺子钉住。它也是兜底时落格的来源。 */
 describe('横坐标反查落格', () => {
   it('格内取自己，出界被夹在两端', () => {
     for (let i = 0; i < SLOT_COUNT; i += 1) {
@@ -24,7 +18,7 @@ describe('横坐标反查落格', () => {
     expect(slotIndexAtX(BOARD.playRight, SLOT_COUNT)).toBe(SLOT_COUNT - 1);
   });
 
-  // 盘面上的落格数恒为 8，但尺子收的是落格数这个入参：换一个数它也得量得准。
+  // 盘面落格数固定，但尺子接受任意落格数。
   it('落格数变了尺子跟着变', () => {
     for (const slotCount of [2, 5, 12]) {
       for (let i = 0; i < slotCount; i += 1) {
@@ -34,7 +28,7 @@ describe('横坐标反查落格', () => {
   });
 });
 
-/** 一发的默认入参，各条用例只改自己关心的那一项。 */
+/** 默认入参，用例只改关心的那项。 */
 function shoot(overrides: Partial<Parameters<typeof simulateShot>[0]> = {}): PinballShot {
   return simulateShot({ power: 0.5, windmillPhase: 0.3, seed: 42, ...overrides });
 }
@@ -46,7 +40,7 @@ describe('弹球模拟', () => {
 
     expect(second.slotIndex).toBe(first.slotIndex);
     expect(second.decidedAtFrame).toBe(first.decidedAtFrame);
-    // 逐帧全等：只对落格，不对轨迹，回放层就可能每次演得不一样。
+    // 轨迹也得逐帧全等，否则回放每次不一样。
     expect(second.frames).toEqual(first.frames);
   });
 
@@ -57,7 +51,6 @@ describe('弹球模拟', () => {
     shoot({ power: 0.9, windmillPhase: 1.4, seed: 12345, slotCount: 5 });
     const interleaved = shoot({ power: 0.62, windmillPhase: 2.2, seed: 11 });
 
-    // 模块里没有跨调用的状态：matter 的世界每一发都是新搭的。
     expect(interleaved.slotIndex).toBe(alone.slotIndex);
     expect(interleaved.frames).toEqual(alone.frames);
   });
@@ -79,19 +72,18 @@ describe('弹球模拟', () => {
       (_, i) => shoot({ power: i / 23, windmillPhase: 0.3, seed: 42 }).slotIndex,
     );
 
-    // 只要力度根本没接上，这 24 发就会全落一个格。
     expect(new Set(slots).size).toBeGreaterThan(3);
   });
 
   it('风车相位真的接上了：同一力度同一种子，挑不同的时机会打出不同的落格', () => {
-    // 叶片是一根两头对称的杆，相位的周期是 π 而不是 2π。
+    // 叶片两头对称，相位周期是 π。
     const phases = Array.from({ length: 8 }, (_, i) => (i * Math.PI) / 8);
     const sensitivePowers = Array.from({ length: 20 }, (_, p) => p / 19).filter((power) => {
       const slots = phases.map((phase) => shoot({ power, windmillPhase: phase, seed: 42 }).slotIndex);
       return new Set(slots).size > 1;
     });
 
-    // 有些力度的球压根碰不到风车，那没关系；绝大多数力度得让相位说了算。
+    // 有些力度碰不到风车，允许。
     expect(sensitivePowers.length).toBeGreaterThanOrEqual(12);
   });
 
@@ -105,9 +97,7 @@ describe('弹球模拟', () => {
   });
 
   it('分布冒烟：两百发覆盖全部力度区间，8 个落格每格至少中一次', () => {
-    // 钉阵摆得让某一格永远打不中，肉眼极难发现——这条用例是唯一能自动抓到
-    // 它的手段（ADR-0008）。它不是统计检验：这个玩法不追求等概率，只要求
-    // 每一格都够得着。真跑不过就去调盘面几何，别来削这条断言。
+    // 不追求等概率，只要求每格够得着（ADR-0008）。跑不过就调盘面几何，别削断言。
     const shots = 200;
     const hits = new Array<number>(SLOT_COUNT).fill(0);
 
@@ -147,7 +137,7 @@ describe('弹球模拟', () => {
       for (let i = 1; i < frames.length; i += 1) {
         const previous = frames[i - 1]!;
         const current = frames[i]!;
-        // 一步走的距离得小于球的直径，否则球是穿过障碍而不是撞上去的。
+        // 一步超过球径就可能穿过障碍。
         expect(Math.hypot(current.x - previous.x, current.y - previous.y)).toBeLessThan(
           BOARD.ballRadius * 2,
         );
@@ -164,9 +154,8 @@ describe('弹球模拟', () => {
       const before = shot.frames[shot.decidedAtFrame - 1]!;
       expect(before.y).toBeLessThan(BOARD.dividerTopY);
       expect(decided.y).toBeGreaterThanOrEqual(BOARD.dividerTopY);
-      // 落格由判定那一帧的横坐标决定，不由最后停在哪决定。
       expect(slotIndexAtX(decided.x, SLOT_COUNT)).toBe(shot.slotIndex);
-      // 判定之后还继续跑了一段，轨迹不是到判定帧就断掉。
+      // 判定之后还有余韵。
       expect(shot.frames.length).toBeGreaterThan(shot.decidedAtFrame + 1);
     }
   });
@@ -182,7 +171,7 @@ describe('弹球模拟', () => {
   });
 
   it('卡住兜底：必然超时的一发仍然返回合法落格，不抛错也不死循环', () => {
-    // 步数上限给到球连柱塞通道都出不来，重试多少次都只会再超时一遍。
+    // 球连柱塞通道都出不来，重试也只会再超时。
     const shot = shoot({ maxSteps: 5 });
 
     expect(shot.settledByFallback).toBe(true);
@@ -191,23 +180,21 @@ describe('弹球模拟', () => {
   });
 
   it('兜底的轨迹也是能给人看的：球确实掉进它宣布的那一格', () => {
-    // 这是 story 27 的底线：用户绝不该看着一个卡住的球，更不该看见中选从一个
-    // 球没进过的落格里弹出来。兜底交出去的轨迹必须自己站得住。
+    // 不能让人看着球卡住，也不能让球没进的落格揭晓中选。
     for (const maxSteps of [5, 60, 300]) {
       const shot = shoot({ maxSteps, seed: 4242 });
       expect(shot.settledByFallback).toBe(true);
 
       const last = shot.frames[shot.frames.length - 1]!;
-      // 收在判定出的那个落格里，而不是收在球卡住的地方。
       expect(last.y).toBeGreaterThan(BOARD.dividerTopY);
       expect(slotIndexAtX(last.x, SLOT_COUNT)).toBe(shot.slotIndex);
 
-      // 判定帧仍然是球心越过隔板顶线的那一帧，回放层拿到的语义与正常一发相同。
+      // 判定帧的含义与正常一发相同。
       const decided = shot.frames[shot.decidedAtFrame]!;
       expect(decided.y).toBeGreaterThanOrEqual(BOARD.dividerTopY);
       expect(shot.decidedAtFrame).toBeLessThan(shot.frames.length);
 
-      // 帧与帧之间不瞬移：补出来的那一段也得看得下去。
+      // 补出来的一段也不瞬移。
       for (let i = 1; i < shot.frames.length; i += 1) {
         const previous = shot.frames[i - 1]!;
         const current = shot.frames[i]!;
@@ -244,7 +231,6 @@ describe('弹球模拟', () => {
 
     expect(first.windmillAngles).toHaveLength(BOARD.windmillPivots.length);
     expect(first.windmillAngles[0]).toBeCloseTo(-(first.windmillAngles[1] ?? 0), 6);
-    // 风车在球飞的时候一直在转。
     expect(later.windmillAngles[0]).not.toBeCloseTo(first.windmillAngles[0] ?? 0, 3);
     expect(later.windmillAngles[1]).not.toBeCloseTo(first.windmillAngles[1] ?? 0, 3);
   });
