@@ -332,7 +332,7 @@ export function createPinballMachine(
       windmillPhase,
       // 种子只对开局做微扰：同样的力度不必每次都走出同一条轨迹。
       seed: Math.floor(random() * 0xffffffff),
-      // 落格数是盘面自己的常量，与名单里有几个候选无关（CONTEXT.md「落格」）。
+      // 落格数是盘面自己的常量，与名单里有几个候选无关（GLOSSARY.md「落格」）。
       slotCount: BOARD.slotCount,
     });
     // 整段模拟已经跑完了（几毫秒），剩下的只是把它放出来：下一次 tick 就是回放起点。

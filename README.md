@@ -88,4 +88,4 @@ pnpm build    # tsc --noEmit + vite build
 
 ## 文档
 
-- [CONTEXT.md](CONTEXT.md) —— 项目的领域词汇表（主题、名单、候选、开抽、中选、揭晓……）。读代码之前先读它。
+- [GLOSSARY.md](GLOSSARY.md) —— 项目的领域词汇表（主题、名单、候选、开抽、中选、揭晓……）。读代码之前先读它。

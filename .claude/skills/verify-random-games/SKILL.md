@@ -5,7 +5,7 @@ description: Verify 是但 (random-games) in a real browser, producing the PR bo
 
 # Verify 是但 (random-games)
 
-The app is a hash-routed single-page site: a theme picker at `#/`, then a game page at `#/<theme>/<game>` where the game is `wheel` (转盘) or `pinball` (弹球机). Entering a game page fetches the theme's roster CSV from `public/`, the app's only I/O. The only persistent state is `localStorage` keys prefixed `random-games:` (recent winners per theme, recent game). Read [CONTEXT.md](../../../CONTEXT.md) for the vocabulary (主题, 名单, 候选, 开抽, 中选, 揭晓, 冷却…).
+The app is a hash-routed single-page site: a theme picker at `#/`, then a game page at `#/<theme>/<game>` where the game is `wheel` (转盘) or `pinball` (弹球机). Entering a game page fetches the theme's roster CSV from `public/`, the app's only I/O. The only persistent state is `localStorage` keys prefixed `random-games:` (recent winners per theme, recent game). Read [GLOSSARY.md](../../../GLOSSARY.md) for the vocabulary (主题, 名单, 候选, 开抽, 中选, 揭晓, 冷却…).
 
 Everything goes through one helper, `verify.mjs`, which drives headless Chromium against an isolated `vite preview` build. Run it with plain `node` from the repo root. Prerequisites: `pnpm install` done, and Playwright's Chromium present (`pnpm exec playwright install chromium` if `drive` says the browser is missing).
 
