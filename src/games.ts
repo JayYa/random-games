@@ -1,6 +1,6 @@
 /**
  * 玩法的类型、抽玩法与 `#/<主题>/<玩法>` 的地址解析。不引任何盘面：玩法清单在
- * `games/allGames.ts`，由入口文件注入。
+ * `games/allGames.ts`，由 `main.ts` 注入。
  */
 
 import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';

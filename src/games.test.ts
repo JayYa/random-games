@@ -130,7 +130,7 @@ describe('rollGame 的最近玩法', () => {
     expect(seen.size).toBe(games.length);
   });
 
-  it('三种玩法时只在上一次之外的两种里随机，两种都抽得到', () => {
+  it('三种玩法时不抽最近玩法里的，其余两种都抽得到', () => {
     const games = threeGames();
     const seen = new Set<string>();
     for (const seed of SEEDS) {
