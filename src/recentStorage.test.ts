@@ -65,6 +65,13 @@ describe('最近中选的存储', () => {
     expect(recentWinnersMemory(storage, 'eat').read()).toEqual(names.slice(-7));
   });
 
+  it('存储里已有多于 7 个名字时只读出最新的 7 个：旧版本多记的不算', () => {
+    const storage = fakeStorage();
+    const names = Array.from({ length: 10 }, (_, i) => `候选${i + 1}`);
+    corrupt(storage, recentWinnersMemory(storage, 'eat'), JSON.stringify(names));
+    expect(recentWinnersMemory(storage, 'eat').read()).toEqual(names.slice(-7));
+  });
+
   it.each([
     ['坏掉的 JSON', '["沙县小吃"'],
     ['不是 JSON', '沙县小吃'],

@@ -5,7 +5,7 @@
  * 起名字，也不说玩法是抽出来的（ADR-0007）。
  */
 
-import { NO_RECENT_MEMORY, RECENT_GAMES_COUNT, drawWithCooldown, type RecentMemory } from './cooldown';
+import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';
 import type { RandomSource } from './rosterSession';
 import { resolveTheme, type Theme } from './themes';
 import type { Board } from './gamePageHost';
@@ -44,7 +44,6 @@ export function rollGame(
     pool: games,
     keyOf: (game) => game.slug,
     memory: recentGames,
-    count: RECENT_GAMES_COUNT,
     random,
   });
 }

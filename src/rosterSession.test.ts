@@ -305,22 +305,16 @@ describe('最近中选冷却', () => {
   });
 
   it('停用的候选不算进可抽的个数', () => {
-    // 冷却 min(7, 3 − 1) = 2 个。
+    // 可抽总数 3，最多冷却 3 − 1 = 2 个，两个都冷却。
     const csvText = csv('沙县小吃,true', '停业,false', '兰州拉面,true', '搬走了,no', '黄焖鸡,true', '关门,0', '歇业,false');
     expect(sorted(drawableNames(csvText, ['黄焖鸡', '沙县小吃']))).toEqual(['兰州拉面']);
   });
 
-  it('启用的候选不超过 7 个时只冷却「启用数 − 1」个，最早的先解冷', () => {
+  it('最近中选多过「启用数 − 1」个时只冷却最新的「启用数 − 1」个，最早的先解冷', () => {
     // 冷却最新的 4 个。
     expect(sorted(drawableNames(roster(5), rosterNames(5)))).toEqual(['候选1']);
     // 冷却最新的 2 个。
     expect(sorted(drawableNames(roster(3), ['候选3', '候选1', '候选2']))).toEqual(['候选3']);
-  });
-
-  it('冷却个数最多 7 个：更早的最近中选不再冷却', () => {
-    // 只有最新的 7 个（候选3–9）冷却。
-    const recent = rosterNames(9);
-    expect(sorted(drawableNames(roster(10), recent))).toEqual(sorted(['候选1', '候选2', '候选10']));
   });
 
   it('只有一个启用的候选时照常抽出它', () => {
@@ -340,7 +334,7 @@ describe('最近中选冷却', () => {
   });
 
   it('名单里写重了的名字算一个候选，冷却不会把可抽的扣光', () => {
-    // 两个不同的名字，冷却 min(7, 2 − 1) = 1 个。
+    // 两个不同的名字，最多冷却 2 − 1 = 1 个。
     const csvText = csv('沙县小吃,true', '沙县小吃,true', '兰州拉面,true');
     expect(sorted(drawableNames(csvText, ['兰州拉面', '沙县小吃']))).toEqual(['兰州拉面']);
   });
