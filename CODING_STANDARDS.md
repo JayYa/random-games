@@ -11,6 +11,10 @@ is optional only when its default is right for every caller that omits it; the
 routine case is a boundary dependency (`random`, `schedule`) that defaults to
 the real thing (`Math.random`, `setTimeout`) and that tests pass in.
 
+## Comments
+
+Write a comment only when it tells the reader something the code can't (why, a constraint, a gotcha), and keep it to the fewest words that carry it.
+
 ## Interface design
 
 ### Deep modules

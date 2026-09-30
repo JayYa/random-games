@@ -1,6 +1,7 @@
 // Feature: cooldown (features/cooldown.md). Recent winners cool, the oldest thaws, the
-// list caps at 7, games alternate, and a direct link neither checks nor records a game.
-// The first two cases serve a 3-candidate roster via page.route (roster fetch boundary).
+// list caps at 7 on write and on read, games alternate (picker and shared theme link),
+// and a direct link neither checks nor records a game.
+// The cool, thaw and read-cap cases serve a roster via page.route (roster fetch boundary).
 //
 //   node .claude/skills/verify-random-games/verify.mjs drive --run <RUN> --feature cooldown \
 //     .claude/skills/verify-random-games/scenarios/cooldown.mjs
@@ -61,6 +62,25 @@ export default async function ({ page, expect, baseURL, step, shot, recentMemory
     return { winner, stored };
   });
 
+  await step('[route: 9-candidate roster] only the newest 7 stored names cool', async () => {
+    // Uncapped, the newest 8 would cool and only 甲 could win; 乙 winning proves the cap.
+    const nine = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬'];
+    const nineRoster = (route) =>
+      route.fulfill({ body: nine.map((n) => `${n},true\n`).join(''), contentType: 'text/csv; charset=utf-8' });
+    await page.route('**/breakfast.csv', nineRoster);
+    const winners = [];
+    while (!winners.includes('乙') && winners.length < 10) {
+      await seed({ [WINNERS_KEY]: nine });
+      const winner = await drawOnWheel();
+      expect(['甲', '乙']).toContain(winner);
+      expect((await recentMemory())[WINNERS_KEY]).toEqual([...nine.slice(3), winner]);
+      winners.push(winner);
+    }
+    await page.unroute('**/breakfast.csv', nineRoster);
+    expect(winners).toContain('乙');
+    return winners;
+  });
+
   await step('games alternate across picker rolls', async () => {
     await seed({});
     await page.getByRole('link', { name: '早餐吃什么' }).click();
@@ -73,6 +93,14 @@ export default async function ({ page, expect, baseURL, step, shot, recentMemory
     expect(second).not.toBe(first);
     expect((await recentMemory())[GAMES_KEY]).toEqual([second]);
     return { first, second };
+  });
+
+  await step('a shared #/<slug> link rolls past the recent game', async () => {
+    await seed({ [GAMES_KEY]: ['wheel'] });
+    await page.goto(baseURL + '#/go-out');
+    await expect(page).toHaveURL(/#\/go-out\/pinball$/);
+    expect((await recentMemory())[GAMES_KEY]).toEqual(['pinball']);
+    return page.url();
   });
 
   await step('direct link neither checks nor records the recent game', async () => {
