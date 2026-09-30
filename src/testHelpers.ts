@@ -51,6 +51,7 @@ export interface FakeRecentMemory extends RecentMemory {
   readonly names: readonly string[];
 }
 
+/** 相当于 N 无上限的记忆：从不截断，照样守「最多 N 个」的约定。 */
 export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMemory {
   const names: string[] = [...initial];
   return {

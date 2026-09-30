@@ -4,7 +4,7 @@
  * 中选从启用且不在冷却中的候选里等概率抽，抽完当场记进最近中选（ADR-0010、ADR-0011）。
  */
 
-import { NO_RECENT_MEMORY, RECENT_WINNERS_COUNT, drawWithCooldown, type RecentMemory } from './cooldown';
+import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';
 import { parseRoster, type Candidate } from './roster';
 
 export type { Candidate };
@@ -68,7 +68,6 @@ export function createRosterSession(options: RosterSessionOptions): RosterSessio
         pool: enabled,
         keyOf: (candidate) => candidate.name,
         memory: recentWinners,
-        count: RECENT_WINNERS_COUNT,
         random,
       });
     },
