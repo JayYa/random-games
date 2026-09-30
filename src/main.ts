@@ -1,6 +1,6 @@
 import './style.css';
 import { browserPage } from './browserPage';
-import { GAMES } from './games';
+import { GAMES } from './games/allGames';
 import { fetchRosterCsv } from './loadRoster';
 import { createNavigation } from './navigation';
 import type { RecentStorage } from './recentStorage';

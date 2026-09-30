@@ -1,16 +1,12 @@
 /**
- * 玩法清单、抽玩法与 `#/<主题>/<玩法>` 的地址解析。
- *
- * 加一个玩法 = 加一条记录（ADR-0012）。记录不带任何面向使用者的文案：页面不给玩法
- * 起名字，也不说玩法是抽出来的（ADR-0007）。
+ * 玩法的类型、抽玩法与 `#/<主题>/<玩法>` 的地址解析。不引任何盘面：玩法清单在
+ * `games/allGames.ts`，由入口文件注入。
  */
 
 import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';
 import type { RandomSource } from './rosterSession';
 import { resolveTheme, type Theme } from './themes';
 import type { Board } from './gamePageHost';
-import { createWheelBoard } from './games/wheel/ui';
-import { createPinballBoard } from './games/pinball/ui';
 
 /** 一个玩法：地址里的一段，加一个盘面工厂。 */
 export interface Game {
@@ -19,12 +15,6 @@ export interface Game {
   /** 每进一次玩法页造一个新盘面，状态不跨页。 */
   readonly createBoard: () => Board;
 }
-
-/** 全部玩法。顺序不影响概率。 */
-export const GAMES: readonly Game[] = [
-  { slug: 'wheel', createBoard: createWheelBoard },
-  { slug: 'pinball', createBoard: createPinballBoard },
-];
 
 export interface RollGameOptions {
   /** 最近玩法（ADR-0011）。不传就没有冷却。 */

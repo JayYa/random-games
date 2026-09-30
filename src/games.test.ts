@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { GAMES, gameHash, resolveRoute, rollGame, type Game } from './games';
+import { gameHash, resolveRoute, rollGame, type Game } from './games';
 import { THEMES } from './themes';
 import { fakeBoard, fakeRecentMemory, scriptedRandom, seededRandom } from './testHelpers';
 
 describe('resolveRoute', () => {
+  const games = twoGames();
+
   it('把每个主题加玩法的地址解析成那两条记录', () => {
     for (const theme of THEMES) {
-      for (const game of GAMES) {
-        const route = resolveRoute(`#/${theme.slug}/${game.slug}`, GAMES);
+      for (const game of games) {
+        const route = resolveRoute(`#/${theme.slug}/${game.slug}`, games);
         expect(route?.theme).toBe(theme);
         expect(route?.game).toBe(game);
       }
@@ -16,8 +18,8 @@ describe('resolveRoute', () => {
 
   it('记录能自己拼出被解析回来的地址', () => {
     for (const theme of THEMES) {
-      for (const game of GAMES) {
-        const route = resolveRoute(gameHash(theme, game), GAMES);
+      for (const game of games) {
+        const route = resolveRoute(gameHash(theme, game), games);
         expect(route?.theme).toBe(theme);
         expect(route?.game).toBe(game);
       }
@@ -26,15 +28,15 @@ describe('resolveRoute', () => {
 
   it('只有主题的地址解析成待抽签：有主题，没有玩法', () => {
     for (const theme of THEMES) {
-      const route = resolveRoute(`#/${theme.slug}`, GAMES);
+      const route = resolveRoute(`#/${theme.slug}`, games);
       expect(route?.theme).toBe(theme);
       expect(route?.game).toBeUndefined();
     }
   });
 
-  // 反例用真实的主题和玩法拼，每条只违反用例名说的那一条。
+  // 反例用真实的主题和清单里的玩法拼，每条只违反用例名说的那一条。
   const theme = THEMES[0]!.slug;
-  const game = GAMES[0]!.slug;
+  const game = games[0]!.slug;
 
   it.each([
     ['空 hash', ''],
@@ -51,63 +53,43 @@ describe('resolveRoute', () => {
     ['没有 #/ 前缀', `/${theme}/${game}`],
     ['旧式的裸 hash', `#${theme}/${game}`],
   ])('%s 回落到选主题页', (_case, hash) => {
-    expect(resolveRoute(hash, GAMES)).toBeUndefined();
+    expect(resolveRoute(hash, games)).toBeUndefined();
   });
 
-  it('注入的清单替掉全部玩法：清单里的玩法认得出', () => {
-    const games = threeGames();
-    expect(resolveRoute(`#/${theme}/b`, games)?.game).toBe(games[1]);
+  it('只在传入的清单里认玩法：换一份清单，同一个地址认得出', () => {
+    const three = threeGames();
+    expect(resolveRoute(`#/${theme}/c`, three)?.game).toBe(three[2]);
   });
 
-  it('注入的清单替掉全部玩法：清单外的玩法回落到选主题页', () => {
-    expect(resolveRoute(`#/${theme}/${game}`, threeGames())).toBeUndefined();
-  });
-});
-
-describe('玩法清单', () => {
-  it('slug 不重复', () => {
-    expect(new Set(GAMES.map((game) => game.slug)).size).toBe(GAMES.length);
-  });
-
-  it('每条记录都造得出盘面：HTML、块名、按钮上的字都不空', () => {
-    for (const game of GAMES) {
-      const board = game.createBoard();
-      expect(board.html.trim(), game.slug).not.toBe('');
-      expect(board.block, game.slug).not.toBe('');
-      expect(board.closeLabel, game.slug).not.toBe('');
-    }
+  it('只在传入的清单里认玩法：清单外的玩法回落到选主题页', () => {
+    expect(resolveRoute(`#/${theme}/c`, games)).toBeUndefined();
   });
 });
 
 describe('rollGame', () => {
   it('随机数落在哪一格就抽出哪一条', () => {
-    GAMES.forEach((game, index) => {
+    const games = threeGames();
+    games.forEach((game, index) => {
       // 取格正中，避开边界。
-      const random = scriptedRandom([(index + 0.5) / GAMES.length]);
-      expect(rollGame(random, GAMES)).toBe(game);
+      const random = scriptedRandom([(index + 0.5) / games.length]);
+      expect(rollGame(random, games)).toBe(game);
     });
   });
 
   // random() 按约定取不到 1，但真吐出 1 时不能越界。
   it('随机数恰好是 1 时抽出最后一条，而不是越界', () => {
-    expect(rollGame(scriptedRandom([1]), GAMES)).toBe(GAMES[GAMES.length - 1]);
+    const games = threeGames();
+    expect(rollGame(scriptedRandom([1]), games)).toBe(games[games.length - 1]);
   });
 
   it('每一条都抽得到', () => {
+    const games = threeGames();
     const seen = new Set<string>();
     const random = seededRandom(20260905);
-    for (let i = 0; i < 200 * GAMES.length; i += 1) {
-      seen.add(rollGame(random, GAMES).slug);
+    for (let i = 0; i < 200 * games.length; i += 1) {
+      seen.add(rollGame(random, games).slug);
     }
-    expect(seen.size).toBe(GAMES.length);
-  });
-
-  it('注入的清单替掉全部玩法：只在那份清单里抽', () => {
-    const games = threeGames();
-    games.forEach((game, index) => {
-      const random = scriptedRandom([(index + 0.5) / games.length]);
-      expect(rollGame(random, games)).toBe(game);
-    });
+    expect(seen.size).toBe(games.length);
   });
 });
 
@@ -116,21 +98,23 @@ describe('rollGame 的最近玩法', () => {
 
   // 只留几个归存储适配，见 recentStorage.test.ts。
   it('每抽一次都把这次的玩法记进最近玩法', () => {
+    const games = twoGames();
     const random = seededRandom(1);
     const recentGames = fakeRecentMemory();
-    const first = rollGame(random, GAMES, { recentGames });
+    const first = rollGame(random, games, { recentGames });
     expect(recentGames.names).toEqual([first.slug]);
-    const second = rollGame(random, GAMES, { recentGames });
+    const second = rollGame(random, games, { recentGames });
     expect(recentGames.names).toEqual([first.slug, second.slug]);
   });
 
   it('两种玩法时严格轮流', () => {
+    const games = twoGames();
     for (const seed of SEEDS) {
       const random = seededRandom(seed);
       const recentGames = fakeRecentMemory();
-      let previous = rollGame(random, GAMES, { recentGames });
+      let previous = rollGame(random, games, { recentGames });
       for (let i = 0; i < 10; i += 1) {
-        const next = rollGame(random, GAMES, { recentGames });
+        const next = rollGame(random, games, { recentGames });
         expect(next, `种子 ${seed} 第 ${i + 2} 次`).not.toBe(previous);
         previous = next;
       }
@@ -138,11 +122,12 @@ describe('rollGame 的最近玩法', () => {
   });
 
   it('没有最近玩法时每种玩法都抽得到', () => {
+    const games = twoGames();
     const seen = new Set<string>();
     for (const seed of SEEDS) {
-      seen.add(rollGame(seededRandom(seed), GAMES, { recentGames: fakeRecentMemory() }).slug);
+      seen.add(rollGame(seededRandom(seed), games, { recentGames: fakeRecentMemory() }).slug);
     }
-    expect(seen.size).toBe(GAMES.length);
+    expect(seen.size).toBe(games.length);
   });
 
   it('三种玩法时只在上一次之外的两种里随机，两种都抽得到', () => {
@@ -156,7 +141,15 @@ describe('rollGame 的最近玩法', () => {
   });
 });
 
-/** 三种假玩法：看多于两种时的冷却，以及注入的清单是否替掉全部玩法。 */
+/** 假玩法，盘面是 `fakeBoard`：用例不因加减真实玩法而变，也不载入盘面。 */
+function fakeGames(slugs: readonly string[]): Game[] {
+  return slugs.map((slug) => ({ slug, createBoard: () => fakeBoard() }));
+}
+
+function twoGames(): Game[] {
+  return fakeGames(['a', 'b']);
+}
+
 function threeGames(): Game[] {
-  return ['a', 'b', 'c'].map((slug) => ({ slug, createBoard: () => fakeBoard() }));
+  return fakeGames(['a', 'b', 'c']);
 }
