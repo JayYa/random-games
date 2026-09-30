@@ -1,12 +1,8 @@
 /**
- * 渲染层：名单出问题时的整页提示。薄，不测。
+ * 渲染层：名单出问题时替掉整页的提示。薄，不测。
  *
- * 四种毛病——取不到文件、某行读不懂、文件里没有记录、全部停用——共用这一套版式，
- * 各自给出不同的标题、细节和下一步怎么改。它们一律替掉整个页面，
- * 绝不留一个空盘面让人以为是玩法本身坏了。
- *
- * 与玩法无关：名单坏了跟用哪个玩法摇没有关系，提示的说法也不该因此不同。
- * 文案一律中性（说「候选」，不说主题里的那个名词），也不提任何一种玩法（ADR-0005）。
+ * 四种毛病（取不到文件、某行读不懂、没有候选、全部停用）共用一套版式。文案与玩法无关，
+ * 一律说「候选」。
  */
 
 import { escapeHtml } from './escapeHtml';
@@ -14,24 +10,13 @@ import { gamePage } from './gamePage';
 import type { RosterSession, RosterStatus } from './rosterSession';
 import type { Theme } from './themes';
 
-/**
- * 当前主题的名单文件在仓库里的路径，错误提示里要告诉人去改哪个文件。
- *
- * 叫 `rosterPath` 而不是 `rosterFile`：`theme.rosterFile` 是 `public/` 下的文件名
- * （`eat.csv`），这里给的是它在仓库里的位置（`public/eat.csv`）。同一条提示里两个
- * 都要出现，同名会让人以为它们是一个东西。
- */
+/** 名单文件在仓库里的路径（`public/eat.csv`），区别于 `theme.rosterFile`（`eat.csv`）。 */
 function rosterPath(theme: Theme): string {
   return `public/${theme.rosterFile}`;
 }
 
 interface FailureView {
-  /**
-   * 区分错误种类的标记，也方便在 DOM 里一眼认出是哪一种。
-   *
-   * 三种名单毛病直接沿用会话的状态名，不另起一套叫法——否则两边迟早会各说各的。
-   * `'load'` 是多出来的那一种：文件根本没取回来，还没轮到会话，所以它不是名单状态。
-   */
+  /** 沿用会话的状态名；`'load'` 是文件没取回来，还没轮到会话。 */
   readonly kind: Exclude<RosterStatus, 'ok'> | 'load';
   readonly title: string;
   readonly detail: string;
@@ -51,11 +36,7 @@ function renderFailure(root: HTMLElement, theme: Theme, view: FailureView): void
   );
 }
 
-/**
- * 名单文件根本没取回来（404 / 断网 / 服务器出错）时的页面。
- *
- * 它和解析失败共用版式，但说的是另一回事：那边是文件读到了、某一行写坏了。
- */
+/** 名单文件没取回来（404、断网、服务器出错）。 */
 export function showRosterLoadFailure(root: HTMLElement, theme: Theme, cause: unknown): void {
   const detail = cause instanceof Error ? cause.message : String(cause);
   renderFailure(root, theme, {
@@ -66,22 +47,15 @@ export function showRosterLoadFailure(root: HTMLElement, theme: Theme, cause: un
   });
 }
 
-/**
- * 名单里的毛病，只看会话里跟毛病有关的那几样。
- *
- * 收窄到这三个字段而不是收整个会话：呈现错误不需要知道怎么抽中选、
- * 也不需要知道这是哪个玩法的会话。
- */
+/** 呈现名单毛病只需要会话里的这几样。 */
 export type RosterFailureSource = Pick<RosterSession, 'status' | 'error' | 'disabledCount'>;
 
-/** 文件取到了，但名单本身有毛病：三种情况各说各的。 */
 function rosterFailureView(session: RosterFailureSource, theme: Theme): FailureView | undefined {
   switch (session.status) {
     case 'parse-error':
       return {
         kind: 'parse-error',
         title: '名单里有一行读不懂',
-        // session.error 带的是文件中的原始行号和这一行到底哪里不对，照着去改就行。
         detail: session.error ?? '名单解析失败',
         hint: `打开 ${rosterPath(theme)}，按上面说的行号改掉那一行，再刷新页面。`,
       };
@@ -104,12 +78,7 @@ function rosterFailureView(session: RosterFailureSource, theme: Theme): FailureV
   }
 }
 
-/**
- * 名单开不了抽时替掉整个页面。
- *
- * 玩法页宿主经页面适配器（`browserPage.ts`）叫它：名单写坏时只画这一页，不挂盘面
- * （ADR-0012）。名单是好的时什么都不做。
- */
+/** 名单开不了抽时替掉整页；名单是好的时什么都不做。 */
 export function showRosterFailure(
   root: HTMLElement,
   theme: Theme,

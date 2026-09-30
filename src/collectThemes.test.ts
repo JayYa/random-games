@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { collectThemes } from './collectThemes';
 
 /**
- * 名单头部那段写给人读的说明。
- *
- * 前半段逐字照搬现有 `public/breakfast.csv` 的头部说明（其余几份名单的也是同一段）。
- * 光有它不够：里面没有一行以 `entry` / `title` 开头，任何只认这两个键的实现都能过。
- * 所以后半段补上几行宽松实现会误认的：键不在行首、键后面跟的是全角冒号。
+ * 名单头部的说明文字。前半段照搬 `public/` 下名单的头部；后半段补几行宽松实现会误认的：
+ * 键不在行首、键后跟全角冒号。
  */
 const PROSE_HEADER = [
   '# 名单 (Roster)：每行一个候选，两列 name,enabled',
@@ -59,8 +56,7 @@ describe('collectThemes', () => {
     expect(warnings).toEqual([]);
   });
 
-  // `result` 曾经是第三个键（结果卡片上名字前面那句话），后来拿掉了。还留着这一行的
-  // 旧文件不该因此上不了线：它和别的散文注释一样被跳过。
+  // `result` 是已拿掉的旧键。
   it('还写着 # result: 的旧文件照常解析，那一行当散文跳过', () => {
     const { themes, warnings } = collectThemes([
       {
@@ -117,8 +113,7 @@ describe('collectThemes', () => {
     expect(warnings[0]?.reason).toContain('entry');
   });
 
-  // 「没写这一行」和「写了却没填值」都被跳过，但 warning 要说的不是同一件事：
-  // 让人去补一行明明就在眼前的 `# entry:`，他找不到该改的地方（故事 10）。
+  // 叫人去补一行就在眼前的 `# entry:`，他会找不到该改哪。
   it('entry 写了键却没写值时被跳过，warning 说的是这一行没填值而不是没写', () => {
     const { themes, warnings } = collectThemes([
       { fileName: 'drink.csv', csvText: '# entry:   \n瑞幸,true\n' },
@@ -131,7 +126,6 @@ describe('collectThemes', () => {
     expect(warnings[0]?.reason).not.toContain('缺少');
   });
 
-  // 同一个键写了两次没有报错的必要，但总得定死认哪一个：先写的赢。
   it('同一个键写了多次时以先写的为准', () => {
     const { themes } = collectThemes([
       {
@@ -156,8 +150,7 @@ describe('collectThemes', () => {
     expect(warnings.map((warning) => warning.fileName)).toEqual(['read.csv', '喝的.csv']);
   });
 
-  // 名单头部那段说明是写给人读的，里面有全角冒号、`name` 字样，也会顺嘴提到 `entry:`：
-  // 它一旦被当成配置，改名单的人就会莫名其妙地改坏首页入口（故事 12）。
+  // 说明被当成配置的话，改名单的人会莫名改坏首页入口。
   it('头部那段散文注释不会被误解析成元数据', () => {
     const { themes, warnings } = collectThemes([
       { fileName: 'eat.csv', csvText: `${PROSE_HEADER}\n\n肠粉,true\n` },
@@ -169,7 +162,7 @@ describe('collectThemes', () => {
     ]);
   });
 
-  // 散文放在元数据前面：放在后面的话，「先写的赢」会把误解析出来的值挡掉，看不出来。
+  // 说明放在前面：放在后面的话，误解析会被「先写的为准」掩盖。
   it('散文注释和元数据同在一份文件里时只认元数据', () => {
     const { themes } = collectThemes([
       {

@@ -16,8 +16,7 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* 一页玩法页的版式：加载态、四类错误页和每个玩法的盘面都用它（见 gamePage.ts 的 gamePage）。
-   玩法自己的块名（.wheel 等）加在它后面，只用来挂那个玩法专有的东西。 */
+/* 玩法页的版式。玩法自己的块名（.wheel 等）加在它后面。 */
 .page {
   max-width: 640px;
   margin: 0 auto;
@@ -30,16 +29,11 @@ body {
 }
 
 .wheel {
-  /* 转盘之外的固定部件（标题、「转」和它们之间的间距）大致占掉的高度。
-     用它把转盘限制在首屏内：不滚动也能同时看见转盘和「转」。
-     「换个主题」不占这里的一分一毫：它和标题同占一行（见 .page__header）。 */
+  /* 转盘之外的部件大致占掉的高度，让转盘和「转」同在首屏内。 */
   --wheel-chrome: 200px;
 }
 
-/* 页头：标题居中，回选主题页的入口靠左，两者同占一行。
-   三列 1fr auto 1fr——中间那列装标题，左右两列等宽，所以标题是相对整行居中的，
-   不是相对「链接右边剩下的地方」居中。右边那列空着，只为把标题顶回中间。
-   链接因此不占任何额外的竖向高度：这一行的高度由标题决定，转盘一个像素都没矮。 */
+/* 页头：入口靠左、标题居中，同占一行。左右两列等宽，标题才相对整行居中。 */
 .page__header {
   width: 100%;
   display: grid;
@@ -55,8 +49,7 @@ body {
   text-align: center;
 }
 
-/* 加载态：进玩法页后、名单取回来之前显示（见 gamePage.ts 的 showRosterLoading）。
-   加载失败不走这里，走整页的 .page__error。 */
+/* 名单取回来之前的加载态。 */
 .page__status {
   margin: 0;
   font-size: 1rem;
@@ -64,10 +57,7 @@ body {
   text-align: center;
 }
 
-/* 回到选主题页的入口。每一页玩法页都有一个，在页头标题的左边（见 gamePage.ts 的 gamePage）。
-   是链接不是按钮：中键能新开、长按有菜单、地址看得见。
-   只占自己那几个字的宽（justify-self: start），下划线才不会拉成半行长；
-   竖向比标题矮，所以这一行的高度还是标题的高度。 */
+/* 「换个主题」。只占自己那几个字的宽，下划线不拉长；比标题矮，不撑高页头。 */
 .page__home {
   justify-self: start;
   padding: 6px 0;
@@ -93,14 +83,12 @@ body {
 
 .wheel__canvas {
   display: block;
-  /* 边长取「容器宽度」和「首屏剩下的高度」里的小者，
-     aspect-ratio 保证它永远是正方形，所以转盘永远是圆的，不被裁切也不被压扁。 */
+  /* 边长取容器宽度和首屏剩余高度的小者，保持正方形。 */
   width: min(100%, max(200px, calc(100vh - var(--wheel-chrome))));
   width: min(100%, max(200px, calc(100svh - var(--wheel-chrome))));
   height: auto;
   aspect-ratio: 1 / 1;
-  /* 转盘只看不点：去掉双击缩放的 300ms 延迟，同时不拦竖向滚动。
-     不做甩动手势（ADR-0003）。 */
+  /* 不做甩动手势（ADR-0003），不拦竖向滚动。 */
   touch-action: manipulation;
 }
 
@@ -120,15 +108,13 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 转动期间按钮是 aria-disabled 而不是 disabled：它得留在 tab 序里，
-   焦点才不会在开转的瞬间掉回 body（见 games/wheel/ui.ts 的 setBusy）。 */
+/* 锁着时用 aria-disabled，按钮留在 tab 序里（见 games/wheel/ui.ts）。 */
 .wheel__spin[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
 }
 
-/* 结果卡片：两种玩法共用同一张（见 resultCard.ts），所以它是自己的块，
-   不挂在哪一个玩法的块名底下。 */
+/* 结果卡片：两种玩法共用，是独立的块。 */
 .card[hidden] {
   display: none;
 }
@@ -175,11 +161,8 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 弹球机：只有一块竖版盘面。盘面是匿名的，旁边不摆任何透露名单的东西；
-   揭晓时名字直接浮在落格上方，画在画布里（见 games/pinball/ui.ts）。 */
 .pinball {
-  /* 盘面之外的固定部件（页头、留白与间距）大致占掉的高度。
-     用它把盘面限制在首屏内：不滚动也能看见整块盘面，连同底下的柱塞。 */
+  /* 盘面之外的部件大致占掉的高度，让整块盘面连同柱塞在首屏内。 */
   --pinball-chrome: 128px;
 }
 
@@ -192,26 +175,19 @@ body {
 
 .pinball__board {
   display: block;
-  /* 宽度取「容器宽度」和「首屏剩下的高度换算成的宽度」里的小者，
-     aspect-ratio 要跟 ui.ts 里裁掉天花板以上那一截之后的画面一致（360×540），
-     盘面才不被压扁。 */
+  /* 宽度取容器宽度和首屏剩余高度换算的宽度的小者。宽高比与 ui.ts 的可视区域一致（360×540）。 */
   width: min(100%, max(160px, calc((100vh - var(--pinball-chrome)) * 360 / 540)));
   width: min(100%, max(160px, calc((100svh - var(--pinball-chrome)) * 360 / 540)));
   height: auto;
   aspect-ratio: 360 / 540;
   border-radius: 18px;
-  /* 拉柱塞是竖向拖拽，所以这里是 none 而不是别处那个 manipulation：
-     manipulation 只免掉双击缩放，竖向拖拽仍会被浏览器当成滚动抢走。 */
+  /* 拉柱塞是竖向拖拽，用 manipulation 会被浏览器当成滚动抢走。 */
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
   cursor: grab;
 }
 
-/* 桌面端不另做一套横排：竖版盘面居中留白即可（本次的 Out of Scope 明确说了
-   不做横屏专属布局）。`.pinball__stage` 的 column 与 `align-items: center`
-   就是这份居中留白。 */
-
-/* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给转盘。 */
+/* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给盘面。 */
 @media (max-height: 560px) {
   .page {
     padding-top: 12px;
@@ -223,7 +199,6 @@ body {
   }
 
   .pinball {
-    /* 页头矮了、留白少了，让出来的都给盘面。 */
     --pinball-chrome: 96px;
   }
 
@@ -231,8 +206,7 @@ body {
     font-size: 1.2rem;
   }
 
-  /* 标题矮了，页头这一行的高度就由它说了算——链接得跟着缩，
-     否则它反倒成了这一行最高的东西，把上面算好的那点高度又吃回去。 */
+  /* 链接跟着缩，否则它比标题高，撑高页头。 */
   .page__home {
     padding: 2px 0;
     font-size: 0.85rem;
@@ -243,7 +217,7 @@ body {
   }
 }
 
-/* 撒花：临时插入 body 的全屏画布，覆盖在结果卡片之上但不吃点击（见 confetti.ts）。 */
+/* 撒花：盖在结果卡片之上，但不吃点击。 */
 .confetti {
   position: fixed;
   inset: 0;
@@ -251,7 +225,7 @@ body {
   pointer-events: none;
 }
 
-/* 名单出错时的整页提示：四类错误共用这一套版式，只是文案不同（见 rosterFailure.ts）。 */
+/* 名单出错时的整页提示。 */
 .page__error {
   width: 100%;
   max-width: 32rem;
@@ -283,8 +257,7 @@ body {
   color: #6b6b7b;
 }
 
-/* 选主题页：站点的入口。条目由主题清单渲染（见 themePicker.ts），
-   加主题不必动这里的样式。 */
+/* 选主题页。 */
 .picker {
   max-width: 640px;
   margin: 0 auto;
@@ -317,7 +290,7 @@ body {
   gap: 12px;
 }
 
-/* 入口做成整块可点的链接：手指够得着，键盘 tab 得到，长按看得到地址。 */
+/* 入口是整块可点的链接。 */
 .picker__entry {
   display: flex;
   align-items: center;

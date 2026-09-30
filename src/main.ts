@@ -9,12 +9,7 @@ const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('缺少 #app 挂载点');
 const root: HTMLDivElement = app;
 
-/**
- * 这台浏览器的 localStorage，存最近中选和最近玩法用（ADR-0011）。
- *
- * 禁用存储时连取 `window.localStorage` 这一下都会抛错，所以包一层：拿不到就是
- * `undefined`，存储适配把它当成没有记忆，照常能抽。
- */
+/** 这台浏览器的 localStorage（ADR-0011）。禁用存储时连取值都会抛错，拿不到就当没有记忆。 */
 function browserStorage(): RecentStorage | undefined {
   try {
     return window.localStorage;
@@ -23,7 +18,6 @@ function browserStorage(): RecentStorage | undefined {
   }
 }
 
-// 按地址画哪一页的规矩全在站内导航里（`navigation.ts`），这里只把真的依赖交给它。
 const navigation = createNavigation({
   history,
   location,
@@ -34,11 +28,9 @@ const navigation = createNavigation({
   page: browserPage(root),
 });
 
-// 切换 hash 时整页重建：盘面、动画、监听都随着 DOM 一起换掉，不留上一页的残余。
 window.addEventListener('hashchange', () => navigation.render());
 
-// 页头的「换个主题」：这里只认点的是不是那个链接，接不接走、怎么走由站内导航定
-//（ADR-0007）。挂在 `#app` 上而不是链接上：整页重建时链接换了，`#app` 不换。
+// 页头的「换个主题」交给站内导航处理（ADR-0007）。挂在 `#app` 上：整页重建时链接会换，`#app` 不换。
 root.addEventListener('click', (event) => {
   if (event.target instanceof Element && event.target.closest('[data-to-picker]')) {
     navigation.handlePickerLinkClick(event);

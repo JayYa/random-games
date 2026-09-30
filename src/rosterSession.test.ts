@@ -1,9 +1,4 @@
-/**
- * 名单会话的用例：解析、四种状态、抽一个中选、最近中选冷却。
- *
- * 这些都是玩法无关的性质——转盘和弹球机看到的是同一份名单逻辑。
- * 转盘的角度用例在 `games/wheel/machine.test.ts`。
- */
+/** 名单会话的用例：解析、四种状态、抽中选、冷却。 */
 
 import { describe, expect, it } from 'vitest';
 import { createRosterSession, type RandomSource } from './rosterSession';
@@ -14,12 +9,7 @@ function makeSession(options: { csvText: string; random?: RandomSource; recentWi
   return createRosterSession(options);
 }
 
-/**
- * 同一份名单、同一份最近中选下，各个种子各抽一次，抽出过的名字都在这里。
- *
- * 每个种子都从同一份最近中选起步——抽一次就会记下一个，接着抽冷却就变了，
- * 所以一个种子只抽一次。
- */
+/** 每个种子从同一份最近中选起各抽一次，交回抽出过的名字。只抽一次，因为抽完冷却就变了。 */
 function drawableNames(csvText: string, recent: readonly string[], seeds = 200): Set<string> {
   const drawn = new Set<string>();
   for (let seed = 1; seed <= seeds; seed += 1) {
@@ -37,12 +27,7 @@ function sorted(names: Iterable<string>): string[] {
   return [...names].sort();
 }
 
-/**
- * 名单会话眼里全部启用的候选，按 CSV 的书写顺序。
- *
- * 会话不把候选整列交出来，唯一看得见它们的口子是「抽一个中选」：把随机值扫过
- * 每一个下标、逐个抽出来，就是那一列。
- */
+/** 全部启用的候选，按书写顺序。会话不交出候选列表，只能让随机值扫过每个下标逐个抽出。 */
 function enabledNames(csvText: string): string[] {
   let index = 0;
   const session = createRosterSession({
@@ -110,8 +95,7 @@ describe('解析错误', () => {
   });
 
   it('前部有整段注释与空行时，行号仍指向文件里的那一行', () => {
-    // 照着 public/ 下名单文件（如 breakfast.csv）的样子：文件开头是一大段说明注释和空行，
-    // 真正的第一条记录在第 11 行，坏行在第 13 行。
+    // 仿 public/ 下名单文件的开头，坏行在第 13 行。
     const session = makeSession({
       csvText: csv(
         '# 名单：每行一个候选，两列 name,enabled',
@@ -135,7 +119,6 @@ describe('解析错误', () => {
   });
 
   it('每一行都可能是坏行时，行号逐行对得上', () => {
-    // 把同一个坏行放在文件的每一个位置上，报出的行号必须跟着走。
     for (let badLine = 1; badLine <= 8; badLine += 1) {
       const rows = ['# 头注释', '', '沙县小吃,true', '', '# 中间注释', '兰州拉面,true', '', '黄焖鸡,true'];
       rows[badLine - 1] = '"没关引号,true';
@@ -159,7 +142,6 @@ describe('解析错误', () => {
   });
 
   it('缺少名字的错误说得出是哪一行、这一行写了什么、该怎么改', () => {
-    // 一个手滑的逗号会让整页变成错误提示，那这条提示就得让人一眼知道去改哪里。
     const session = makeSession({
       csvText: csv('# 注释', '沙县小吃,true', ',true'),
     });
@@ -221,7 +203,6 @@ describe('转不起来的三种名单状态', () => {
     const emptyFile = makeSession({ csvText: '' });
     const allDisabled = makeSession({ csvText: csv('沙县小吃,false', '兰州拉面,0') });
 
-    // 两者都一个启用的候选都没有，光看启用数分辨不出来——所以状态必须不同。
     expect(emptyFile.enabledCount).toBe(0);
     expect(allDisabled.enabledCount).toBe(0);
     expect(emptyFile.status).not.toBe(allDisabled.status);
@@ -252,7 +233,6 @@ describe('转不起来的三种名单状态', () => {
 
 describe('抽一个中选', () => {
   it('只会抽到启用的候选', () => {
-    // 启用与停用交错排列，随机值把 [0, 1) 扫一遍：停用的名字一次都不该出来。
     const session = makeSession({
       csvText: csv('沙县小吃,true', '关门大吉,false', '兰州拉面,true', '停业,no', '黄焖鸡,true', '搬走了,0'),
       random: scriptedRandom(Array.from({ length: 50 }, (_, i) => i / 50)),
@@ -262,7 +242,7 @@ describe('抽一个中选', () => {
   });
 
   it('注入的随机序列下抽到的是预期的那一个', () => {
-    // 启用的候选按 CSV 的书写顺序排成一列，随机值乘上启用数取整就是下标。
+    // 下标 = ⌊随机值 × 启用数⌋，按书写顺序。
     const session = makeSession({
       csvText: csv('沙县小吃,true', '关门大吉,false', '兰州拉面,true', '黄焖鸡,true', '麻辣烫,true'),
       random: scriptedRandom([0, 0.3, 0.5, 0.99, 0.26]),
@@ -280,7 +260,7 @@ describe('抽一个中选', () => {
   });
 
   it('每个启用的候选都抽得到，不受任何盘面格数所限', () => {
-    // 40 个启用的候选，多于转盘的 12 个扇区，也多于弹球机的 8 个落格。
+    // 多于转盘的扇区数和弹球机的落格数。
     const count = 40;
     const session = makeSession({
       csvText: roster(count),
@@ -301,7 +281,7 @@ describe('抽一个中选', () => {
   });
 
   it('一个启用的候选都没有时抽不出来，直接报错', () => {
-    // 这几种名单渲染层会给整页错误提示，根本走不到开抽；真走到了就是调用方的错。
+    // 这些名单走不到开抽，走到了就是调用方的错。
     for (const csvText of ['', csv('沙县小吃,false'), csv('"没关引号,true')]) {
       expect(() => makeSession({ csvText }).drawWinner()).toThrow();
     }
@@ -325,20 +305,20 @@ describe('最近中选冷却', () => {
   });
 
   it('停用的候选不算进可抽的个数', () => {
-    // 3 个启用、4 个停用：冷却个数按启用数算，是 min(7, 3 − 1) = 2。
+    // 冷却 min(7, 3 − 1) = 2 个。
     const csvText = csv('沙县小吃,true', '停业,false', '兰州拉面,true', '搬走了,no', '黄焖鸡,true', '关门,0', '歇业,false');
     expect(sorted(drawableNames(csvText, ['黄焖鸡', '沙县小吃']))).toEqual(['兰州拉面']);
   });
 
   it('启用的候选不超过 7 个时只冷却「启用数 − 1」个，最早的先解冷', () => {
-    // 5 个启用、最近中选按先后是 1 到 5：冷却最新的 4 个，最早的候选1 解冷。
+    // 冷却最新的 4 个。
     expect(sorted(drawableNames(roster(5), rosterNames(5)))).toEqual(['候选1']);
-    // 3 个启用：只冷却最新的 2 个。
+    // 冷却最新的 2 个。
     expect(sorted(drawableNames(roster(3), ['候选3', '候选1', '候选2']))).toEqual(['候选3']);
   });
 
   it('冷却个数最多 7 个：更早的最近中选不再冷却', () => {
-    // 最近中选里有 9 个：只有最新的 7 个（候选3 到 候选9）在冷却。
+    // 只有最新的 7 个（候选3–9）冷却。
     const recent = rosterNames(9);
     expect(sorted(drawableNames(roster(10), recent))).toEqual(sorted(['候选1', '候选2', '候选10']));
   });
@@ -349,24 +329,23 @@ describe('最近中选冷却', () => {
   });
 
   it('最近中选里的失效名字照旧占一格，不回溯补满', () => {
-    // 3 个启用，冷却 2 格：最新的两个是「候选2」和一个名单里已经没有的名字。
-    // 失效的名字占掉一格，所以更早的候选1 不冷却。
+    // 冷却 2 格，被「候选2」和失效的名字占满。
     expect(sorted(drawableNames(roster(3), ['候选1', '候选2', '改了名的']))).toEqual(sorted(['候选1', '候选3']));
   });
 
   it('停用了的名字同样照旧占一格', () => {
     const csvText = csv('候选1,true', '候选2,true', '候选3,false', '候选4,true');
-    // 3 个启用，冷却 2 格：最新的两个是「候选2」和停用的「候选3」。
+    // 冷却 2 格，被「候选2」和停用的「候选3」占满。
     expect(sorted(drawableNames(csvText, ['候选1', '候选2', '候选3']))).toEqual(sorted(['候选1', '候选4']));
   });
 
   it('名单里写重了的名字算一个候选，冷却不会把可抽的扣光', () => {
-    // 两个不同的名字，冷却 min(7, 2 − 1) = 1 个：最新的沙县小吃冷却，兰州拉面照常抽得到。
+    // 两个不同的名字，冷却 min(7, 2 − 1) = 1 个。
     const csvText = csv('沙县小吃,true', '沙县小吃,true', '兰州拉面,true');
     expect(sorted(drawableNames(csvText, ['兰州拉面', '沙县小吃']))).toEqual(['兰州拉面']);
   });
 
-  // 最近中选只留 7 个是存储适配的事，在 recentStorage.test.ts 里测；这里只看记下了谁。
+  // 只留几个归存储适配，见 recentStorage.test.ts。
   it('每抽一次都把中选按先后记进最近中选', () => {
     const memory = fakeRecentMemory(['候选1']);
     const session = makeSession({ csvText: roster(10), random: seededRandom(7), recentWinners: memory });

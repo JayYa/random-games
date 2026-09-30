@@ -1,32 +1,22 @@
-/**
- * 对齐画布的用例：宽度为 0 或拿不到上下文就交回空、像素比缺省当 1 并封顶、缓冲按
- * CSS 宽与高宽比取整、尺寸没变不动缓冲、变换按像素比缩放、交回的是 CSS 像素。
- *
- * 浏览器画布是系统边界，替身只有它：假画布带 CSS 宽度与可读写的缓冲宽高，像真画布
- * 一样写一次宽或高就被清空一次，并记下清空了几次；假上下文只记最后一次设的变换。
- * 设备像素比经可选的第三个参数注入，用例在 node 下直接跑；只有测缺省的那一条临时
- * 塞一个没有设备像素比的假 `window`，用完就撤。
- */
+/** 对齐画布的用例。替身只有画布本身；设备像素比经参数注入。 */
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { fitCanvas, type FittableCanvas } from './fitCanvas';
 
-/** 假上下文：记下最后一次设的变换，六个数按 `setTransform(a, b, c, d, e, f)` 的顺序。 */
 interface FakeContext {
+  /** 最后一次 `setTransform` 的六个参数。 */
   readonly transform: readonly number[] | undefined;
 }
 
 interface FakeCanvas extends FittableCanvas {
-  /** 此刻的 CSS 宽度；用例改它模拟转屏、缩放之后画布变了大小。 */
+  /** 改它模拟画布变了大小。 */
   clientWidth: number;
-  /** 画布被清空过几次：真画布写一次宽或高就清一次，哪怕写的是原值。 */
+  /** 与真画布一样，写一次宽或高就清空一次。 */
   readonly clearCount: number;
-  /** `getContext('2d')` 交回的那个假上下文。 */
   readonly context: FakeContext;
 }
 
-/** 造一块假画布，`getContext('2d')` 交回它的假上下文。 */
 function fakeCanvas(clientWidth: number): FakeCanvas {
   let width = 0;
   let height = 0;
@@ -60,12 +50,12 @@ function fakeCanvas(clientWidth: number): FakeCanvas {
       return clearCount;
     },
     context,
-    // 只有 `setTransform` 是真的：对齐画布不画画，别的方法它碰不到。
+    // 对齐画布只用 `setTransform`。
     getContext: () => context as unknown as CanvasRenderingContext2D,
   };
 }
 
-/** 造一块拿不到 2D 上下文的假画布，像不支持画布的环境。 */
+/** 拿不到 2D 上下文的画布。 */
 function contextlessCanvas(clientWidth: number): FittableCanvas {
   return { clientWidth, width: 0, height: 0, getContext: () => null };
 }

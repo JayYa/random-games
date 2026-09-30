@@ -1,11 +1,6 @@
 /**
- * 浏览器存储适配的用例：把 Storage 包成最近中选与最近玩法的记忆（ADR-0011）。
- *
- * Storage 一律是注入的假货：内存里的正常存储、被写坏的存储、一碰就抛错的存储。
- * 用例只看记忆读出了什么，不看存储里的 JSON 长什么样——唯一的例外是往里写坏数据，
- * 而那也是先经记忆记一次、找到它用的那个键再改坏，不在用例里钉死键名。
- *
- * 只留几个（最近中选 7 个、最近玩法 1 个）是这一层的事，只在这里测。
+ * 存储适配的用例（ADR-0011）。只看记忆读出了什么，不钉存储的键名和格式。
+ * 只留几个（最近中选 7 个、最近玩法 1 个）只在这里测。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -25,12 +20,11 @@ function throwingStorage(): RecentStorage {
   };
 }
 
-/** 按先后把几个名字依次记下。 */
 function rememberAll(memory: RecentMemory, names: readonly string[]): void {
   for (const name of names) memory.remember(name);
 }
 
-/** 先经记忆记一次，找到它用的那个键，再把那个键的内容换成 `raw`。 */
+/** 先记一次找出键，再把内容换成 `raw`。 */
 function corrupt(storage: FakeStorage, memory: RecentMemory, raw: string): void {
   memory.remember('占位');
   const [key] = storage.keys;
@@ -123,7 +117,7 @@ describe('最近玩法的存储', () => {
     expect(recentGamesMemory(storage).read()).toEqual(['pinball']);
   });
 
-  // 全站一份：不跟着主题分，也不和任何一个主题的最近中选互相覆盖。
+  // 最近玩法全站一份。
   it('与各主题的最近中选互不影响', () => {
     const storage = fakeStorage();
     recentGamesMemory(storage).remember('wheel');

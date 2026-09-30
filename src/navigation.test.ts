@@ -1,25 +1,8 @@
 /**
- * 站内导航的用例：按地址画哪一页、地址被换成什么、挂上的是哪个玩法的盘面、盘面上
- * 揭晓的中选从哪份名单来、换了玩法或主题之后谁还在冷却、上一页有没有被拆，以及点
- * 「换个主题」之后历史怎么走。
+ * 站内导航的用例。背后是真的玩法页宿主，浏览器、取数、存储、页面和玩法清单都是替身。
+ * 随机源恒为 0，抽玩法、抽中选总取第一个可抽的。
  *
- * 只有一道接缝：站内导航的接口。背后挂的是真的玩法页宿主，其余全是替身——
- * - 假浏览器：一串历史，每条带着地址和记号。照实模拟两条最容易写错的规矩：
- *   `replaceState` 不触发 `hashchange`；改地址（点链接、后退、原地换）触发
- *   `hashchange`，用例把它接到「画当前地址」上，与入口文件的接法一样。
- * - 假点击：默认是普通的左键单击，记得自己有没有被拦下。
- * - 假取数：用例说什么时候回、回成功还是失败。
- * - 内存里的假 Storage：同一份交给第二个站内导航，就是刷新了页面。
- * - 一份记录调用的假页面适配器：在 `testHelpers.ts` 里宿主那道接缝上现成的假页面
- *   之上，补齐选主题页、加载中和取不到文件的错误页三项拼成，站内导航交给宿主的也是
- *   这同一份。它与假盘面记进同一份 `log`，先后看得见。
- * - 可预测的随机源：恒给 0，抽玩法、抽中选都在还能抽的里面总取第一个。
- * - 本地造的假玩法清单：每个假玩法只是一个 slug 加一个造假盘面的办法，不引入全部
- *   真玩法——真盘面挂上时要碰 DOM。清单记下它造过的每个盘面，用例从挂上那一刻拿到
- *   宿主交给盘面的开抽句柄，开抽、报停，再看盘面上揭晓了谁。
- *
- * 揭晓那一拍用宿主自己的真计时器：中选在报停那一刻就揭晓、记进最近中选，用例不必
- * 等那一拍走完；换页时宿主的拆卸会掐掉它。
+ * 宿主用真计时器：中选在报停当下就揭晓，用例不必等那一拍。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -37,23 +20,21 @@ import {
 } from './testHelpers';
 import { THEMES, THEME_PICKER_HASH, themeHash, type Theme } from './themes';
 
-/** 一条历史：它的地址，和它身上记着的东西（新压进来的是 `null`）。 */
 interface FakeEntry {
   readonly hash: string;
+  /** 新压进来的是 `null`。 */
   readonly state: unknown;
 }
 
-/** 这个标签页的历史走到了哪儿：每条历史的地址，和当前停在第几条（`-1` 是退出了站点）。 */
 interface Trail {
   readonly hashes: readonly string[];
+  /** 当前停在第几条，`-1` 是退出了站点。 */
   readonly at: number;
 }
 
 /**
- * 一个假浏览器：历史与地址共用一串历史记录。
- *
- * `history` 与 `location` 交给站内导航，使用者按后退也是 `history.back`；`visit` 是
- * 使用者点链接、在地址栏里敲。改了地址就触发 `hashchange`，`replaceState` 不触发。
+ * 假浏览器。`visit` 是点链接或在地址栏里敲。与真的一样，改地址触发 `hashchange`，
+ * `replaceState` 不触发。
  */
 function fakeBrowser(initialHash: string) {
   const entries: FakeEntry[] = [{ hash: initialHash, state: null }];
@@ -73,11 +54,10 @@ function fakeBrowser(initialHash: string) {
       get state(): unknown {
         return current().state;
       },
-      // 与真的一样：换掉当前这条历史，不触发 `hashchange`。
       replaceState(data: unknown, _unused: string, url?: string | URL | null): void {
         entries[index] = { hash: url == null ? current().hash : String(url), state: structuredClone(data) };
       },
-      /** 退回上一条历史；已经是这个标签页的第一条，就退出了站点。 */
+      /** 已经是第一条就退出站点。 */
       back(): void {
         if (index === 0) {
           index = -1;
@@ -90,7 +70,7 @@ function fakeBrowser(initialHash: string) {
       get hash(): string {
         return current().hash;
       },
-      /** 把当前这条历史换成新地址，记号清空；地址变了就触发 `hashchange`。 */
+      /** 原地换地址，记号清空。 */
       replace(url: string | URL): void {
         const before = current().hash;
         entries[index] = { hash: String(url), state: null };
@@ -100,7 +80,7 @@ function fakeBrowser(initialHash: string) {
     listen(listener: () => void): void {
       onHashChange = listener;
     },
-    /** 点一个链接：丢掉前进的那几条，压进一条新历史。 */
+    /** 丢掉前进的历史，压进一条新的。 */
     visit(hash: string): void {
       entries.splice(index + 1, entries.length, { hash, state: null });
       moveTo(index + 1);
@@ -111,7 +91,7 @@ function fakeBrowser(initialHash: string) {
   };
 }
 
-/** 点一下「换个主题」：默认是普通的左键单击，`init` 改其中几样。 */
+/** 点「换个主题」，默认是普通左键单击。 */
 function pickerLinkClick(init: Partial<Omit<PickerLinkClick, 'preventDefault'>> = {}) {
   const click = {
     button: 0,
@@ -128,7 +108,7 @@ function pickerLinkClick(init: Partial<Omit<PickerLinkClick, 'preventDefault'>> 
   return click;
 }
 
-/** 一个用例说什么时候回、回成功还是失败的假取数。 */
+/** 由用例决定何时回、成败的假取数。 */
 function fakeFetch() {
   const pending: Array<{
     readonly file: string;
@@ -136,7 +116,7 @@ function fakeFetch() {
     readonly reject: (cause: unknown) => void;
   }> = [];
 
-  /** 取走这份名单所有还在路上的请求：同一份文件被取了几次，就一起回来几次。 */
+  /** 取走这份文件所有在路上的请求。 */
   function takeAll(file: string) {
     const taken = pending.filter((request) => request.file === file);
     if (taken.length === 0) throw new Error(`没有在路上的 ${file}`);
@@ -148,12 +128,12 @@ function fakeFetch() {
     fetchRoster(file: string): Promise<string> {
       return new Promise((resolve, reject) => pending.push({ file, resolve, reject }));
     },
-    /** 让某份名单带着这段原文回来，等回调跑完。 */
+    /** 带着原文回来，等回调跑完。 */
     async succeed(file: string, text = roster(3)): Promise<void> {
       for (const request of takeAll(file)) request.resolve(text);
       await settle();
     },
-    /** 让某份名单取不到，等回调跑完。 */
+    /** 取不到，等回调跑完。 */
     async fail(file: string): Promise<void> {
       for (const request of takeAll(file)) request.reject(new Error('HTTP 404'));
       await settle();
@@ -161,17 +141,14 @@ function fakeFetch() {
   };
 }
 
-/** 等已经回来的名单把回调跑完。 */
 function settle(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /**
- * 站内导航的假页面适配器：在宿主那道接缝上现成的假页面之上补齐站内导航多出的三项，
- * 往 `log` 里按先后记下每一下——补上的三项记 `picker`、`loading <主题>`、
- * `load-failure <主题>`，宿主那两项照假页面自己的记法（`page …`）。
+ * 在 `fakeGamePage` 上补齐站内导航多出的三项，都记进 `log`。
  *
- * 宿主那两项逐个转交，不用对象展开：展开会把假页面上的取值器在拼的那一刻求成定值。
+ * 逐个转交而不用对象展开：展开会把取值器求成定值。
  */
 function fakeNavigationPage(log: string[]): NavigationPage {
   const hostPage = fakeGamePage(log);
@@ -190,31 +167,25 @@ function fakeNavigationPage(log: string[]): NavigationPage {
   };
 }
 
-/** 假玩法清单记下的一个盘面：哪个玩法造的、盘面本身、挂上时拿到的开抽句柄。 */
 interface BoardRecord {
   /** 哪个玩法造的。 */
   readonly game: string;
   readonly board: FakeBoard;
-  /** 宿主挂上它时交给它的真开抽句柄；没挂上（名单写坏）时为 undefined。 */
+  /** 名单写坏、没挂上时为 undefined。 */
   readonly roll: RollHandle | undefined;
 }
 
-// 假玩法清单里两种假玩法的 slug，按清单里的先后：随机源恒给 0，抽玩法总抽到前一个。
+// 随机源恒为 0，抽玩法总抽到前一个。
 const firstSlug = 'spin';
 const secondSlug = 'drop';
 
-/** 这个主题下某个假玩法的地址：地址怎么写仍只由 `gameHash` 定。 */
 function gameAddress(theme: Theme, slug: string): string {
   return gameHash(theme, { slug, createBoard: () => fakeBoard() });
 }
 
 /**
- * 站内导航用例的假玩法清单：两种假玩法，slug 与真玩法都不同，盘面是 `fakeBoard`。
- * 两种就够看玩法轮流；地址里认不认得出、抽出的是哪一种，都只在这份清单里定。
- *
- * 每开一个标签页造一份新的，免得造过的盘面串到别的用例里：`boards` 按先后记下它
- * 造过的每个盘面；盘面挂上、被拆时往 `log` 里记一行 `board mount <玩法>`、
- * `board teardown <玩法>`。
+ * 两种假玩法，盘面是 `fakeBoard`。`boards` 记下造过的每个盘面；挂上、拆掉时往 `log`
+ * 记 `board mount <玩法>`、`board teardown <玩法>`。每个标签页造一份新的。
  */
 function fakeGames(log: string[]) {
   const boards: BoardRecord[] = [];
@@ -244,15 +215,11 @@ function fakeGames(log: string[]) {
   return { games, boards };
 }
 
-/** 挂上过的盘面是哪几个玩法的，按先后。 */
 function mountedGames(boards: readonly BoardRecord[]): string[] {
   return boards.filter((record) => record.board.mountCount > 0).map((record) => record.game);
 }
 
-/**
- * 在这个盘面上开抽一次、报停，就像真盘面按「转」、转完报一声；交回盘面上揭晓的
- * 名字。盘面没造出来或没挂上就什么都揭晓不了，是 undefined。
- */
+/** 开抽、报停，交回揭晓的名字。 */
 function revealOn(record: BoardRecord | undefined): string | undefined {
   record?.roll?.begin();
   record?.roll?.boardStopped();
@@ -260,11 +227,11 @@ function revealOn(record: BoardRecord | undefined): string | undefined {
 }
 
 interface StartOptions {
-  /** 这台浏览器的存储，默认一份新的；刷新页面就是把同一份再交一次。 */
+  /** 同一份再交一次就是刷新页面。 */
   readonly storage?: FakeStorage;
 }
 
-/** 在一个新开的标签页里打开 `hash`：造好站内导航、接上 `hashchange`、起步画一次。 */
+/** 在新标签页里打开 `hash`。 */
 function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
   const browser = fakeBrowser(hash);
   const fetch = fakeFetch();
@@ -353,7 +320,7 @@ describe('只定了主题的地址', () => {
 });
 
 describe('最近玩法', () => {
-  // 同一份存储交给第二个站内导航：刷新之后还记得，说明最近玩法落进了存储。
+  // 同一份存储交给第二个站内导航，就是刷新了页面。
   it('两次进同一个主题，玩法轮流', () => {
     const storage = fakeStorage();
     open(themeHash(theme), { storage });
@@ -369,9 +336,8 @@ describe('最近玩法', () => {
 
 describe('最近中选', () => {
   /**
-   * 在 `theme` 的 `firstSlug` 上开抽一次，再换到 `to` 主题的 `slug` 开抽一次，交回
-   * 第二次揭晓的名字。两份名单都是 `roster(2)`，随机源恒给 0：第一次揭晓「候选1」；
-   * 第二次它不在冷却里就还是「候选1」，冷却着就是「候选2」。
+   * 先在 `theme` 抽出「候选1」，再换到 `to` 的 `slug` 开抽，交回第二次揭晓的名字：
+   * 「候选1」冷却着就是「候选2」。
    */
   async function revealedAfter(to: Theme, slug: string): Promise<string | undefined> {
     const { browser, fetch, boards } = open(gameAddress(theme, firstSlug));
@@ -414,11 +380,7 @@ describe('换页', () => {
   });
 });
 
-/**
- * 页头的「换个主题」（ADR-0007）：从选主题页点进来的后退一步，直接落进来的原地换成
- * 选主题页。看的是点完之后这个标签页的历史——后退是停到了上一条，原地换是当前这条
- * 变成了 `#/`。
- */
+/** 「换个主题」：从选主题页点进来的后退一步，直接落进来的原地换（ADR-0007）。 */
 describe('换个主题', () => {
   it('从选主题页点进来的玩法页，后退一步', () => {
     const { browser, navigation } = open('');
@@ -427,7 +389,7 @@ describe('换个主题', () => {
     expect(browser.trail()).toEqual({ hashes: ['', gameAddress(theme, firstSlug)], at: 0 });
   });
 
-  // 从别人的链接、书签直接落进来的：后退会出站，只能原地换成首页。
+  // 后退会出站。
   it('直接落进来的玩法页，原地换成选主题页', () => {
     const { browser, navigation } = open(gameAddress(theme, firstSlug));
     navigation.handlePickerLinkClick(pickerLinkClick());
@@ -441,8 +403,7 @@ describe('换个主题', () => {
     expect(browser.trail()).toEqual({ hashes: ['', gameAddress(theme, firstSlug)], at: 0 });
   });
 
-  // 直接落进玩法页，去选主题页，再后退回来：上一次画的是选主题页，
-  // 但这条历史当初记的是「直接落进来」，不改。
+  // 这条历史记的是「直接落进来」，上一页画的是什么不影响它。
   it('后退回到一条直接落进来的老历史，照样原地换', () => {
     const { browser, navigation } = open(gameAddress(theme, firstSlug));
     browser.visit(THEME_PICKER_HASH);
@@ -451,7 +412,7 @@ describe('换个主题', () => {
     expect(browser.trail()).toEqual({ hashes: [THEME_PICKER_HASH, THEME_PICKER_HASH], at: 0 });
   });
 
-  // 接走了就不能再让浏览器照链接走，否则历史上又多压一页首页。
+  // 否则历史上会多压一页选主题页。
   it('接走的点击不再照链接走', () => {
     const { navigation } = open(gameAddress(theme, firstSlug));
     const click = pickerLinkClick();
@@ -459,7 +420,7 @@ describe('换个主题', () => {
     expect(click.defaultPrevented).toBe(true);
   });
 
-  // 新开标签页、新开窗口、下载，或者别人已经接手了：这个标签页的历史一动不动。
+  // 新开标签页、窗口、下载，或已被别人接手。
   it.each([
     ['按着 Ctrl', { ctrlKey: true }],
     ['按着 Meta', { metaKey: true }],

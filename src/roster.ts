@@ -1,13 +1,8 @@
-/**
- * 名单 (Roster) 的解析：CSV 原文 → 候选条目。
- *
- * 无头模块：不引用 DOM、不引用 Canvas、不发网络请求。
- */
+/** 名单 (Roster) 的解析：CSV 原文 → 候选。 */
 
-/** 名单中的一条记录。 */
 export interface Candidate {
   readonly name: string;
-  /** 停用 (Disabled) 的候选 `enabled` 为 false，永远不会中选。 */
+  /** 停用的候选为 false。 */
   readonly enabled: boolean;
 }
 
@@ -110,9 +105,7 @@ export function parseRoster(csvText: string): RosterParseResult {
       };
     }
 
-    // 没有名字的行不能悄悄跳过：那等于让一个手滑的逗号无声地删掉一个候选，
-    // 而 enabled 列写错的后果应该是「这个候选还在转盘上」（故事 20）。
-    // 所以报错，但把话说到位——是哪一行、这一行长什么样、怎么改。
+    // 没有名字的行报错而不跳过：跳过等于让一个手滑的逗号无声地删掉一个候选。
     const name = (fields[0] ?? '').trim();
     if (name === '') {
       return {

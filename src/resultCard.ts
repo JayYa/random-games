@@ -1,13 +1,8 @@
 /**
- * 渲染层：中选结果的卡片，连同弹出时的那一阵撒花。薄，不测。
+ * 渲染层：结果卡片 (Result Card)，连同弹出时的撒花。不论哪种玩法都是同一张。薄，不测。
  *
- * 两种玩法共用同一张卡片（ADR 决议）：中选是这个站唯一的产出，它长什么样
- * 不该取决于是用哪种玩法摇出来的。玩法之间不一样的只有两处——关掉卡片的按钮
- * 上写什么、按下去之后做什么——所以只有这两处是入参。
- *
- * 卡片的 HTML 由 `resultCardMarkup` 给出、拼进玩法页那一次 `innerHTML` 里，
- * 写进 DOM 之后再用 `createResultCard` 把行为接上：整页只写一次 DOM，
- * 卡片不必自己往 body 上插节点。
+ * HTML 由 `resultCardMarkup` 拼进玩法页那一次 `innerHTML`，写进 DOM 之后再由
+ * `createResultCard` 接上行为。
  */
 
 import { createById } from './byId';
@@ -15,12 +10,7 @@ import { burstConfetti } from './confetti';
 import { escapeHtml } from './escapeHtml';
 import type { Candidate } from './rosterSession';
 
-/**
- * 结果卡片的 HTML。放进玩法页的 body 里，再交给 `createResultCard` 接上行为。
- *
- * @param closeLabel 关掉卡片那个按钮上的字。它说什么就得真的做什么，
- *   所以文案由盘面给：转盘写「再来一次」，弹球机写「再打一发」，按下去就真的回到能再来的状态。
- */
+/** @param closeLabel 收下按钮上的字，由盘面给：转盘「再来一次」，弹球机「再打一发」。 */
 export function resultCardMarkup(closeLabel: string): string {
   return `
       <div class="card" id="card" hidden role="dialog" aria-live="polite">
@@ -33,24 +23,20 @@ export function resultCardMarkup(closeLabel: string): string {
 }
 
 export interface ResultCard {
-  /** 弹出卡片：写上中选的名字，撒一阵花，焦点落到关掉按钮上。 */
+  /** 写上中选的名字，撒花，焦点落到收下按钮上。 */
   show(winner: Candidate): void;
   /**
-   * 收起卡片。本来就没开时什么都不做，也不挪焦点。
+   * 收起卡片。本来就没开时什么都不做。
    *
-   * @param returnFocusTo 收起来之后把焦点交给谁。卡片上的按钮即将从可聚焦的位置
-   *   消失，焦点得有地方去；由收起的那一方当场告诉卡片（宿主从盘面那里问来），
-   *   卡片接上时不必知道。没有可交回的按钮的玩法（弹球机）给 undefined，焦点就不动。
+   * @param returnFocusTo 收起后焦点交给谁；弹球机没有可聚焦的操作，给 undefined。
    */
   hide(returnFocusTo: HTMLElement | undefined): void;
 }
 
 /**
- * 把已经写进 `root` 的那张卡片接上行为。
+ * 给已经写进 `root` 的卡片接上行为。
  *
- * @param root 已经含有 `resultCardMarkup` 那段 HTML 的容器。
- * @param onClose 按下关掉按钮时做什么。收掉卡片之后玩法接着干什么由玩法定：
- *   转盘什么都不做，等用户再按「转」。
+ * @param onClose 按下收下按钮时做什么。
  */
 export function createResultCard(root: HTMLElement, onClose: () => void): ResultCard {
   const byId = createById(root);
@@ -69,7 +55,7 @@ export function createResultCard(root: HTMLElement, onClose: () => void): Result
       cardClose.focus();
     },
     hide(returnFocusTo: HTMLElement | undefined): void {
-      // 卡片本来就没开时什么都不做，免得抢走当前按钮的焦点。
+      // 没开时不动，免得抢走当前的焦点。
       if (card.hidden) return;
       card.hidden = true;
       returnFocusTo?.focus();

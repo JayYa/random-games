@@ -1,10 +1,4 @@
-/**
- * 扇区模块的用例：扇区与角度之间的换算。
- *
- * 这里钉的是这个模块的外部性质——落点在哪一格里、指针底下是哪一格，
- * 不钉实现里那两条落点带子的具体数字（它们是观感取舍，注释里说明了）。
- * 停在哪个扇区是转盘机器的事，用例在 `./machine.test.ts`。
- */
+/** 扇区与角度换算的用例。只钉外部性质，不钉落点带子的具体数字。 */
 
 import { describe, expect, it } from 'vitest';
 import { TAU } from '../../angles';
@@ -20,8 +14,6 @@ describe('造扇区', () => {
 });
 
 describe('落点角度与指针底下的扇区', () => {
-  // 这个模块的核心性质：要来的落点角度，问回去必须还是同一格。
-  // 几十个种子过一遍，而不是钉几个碰巧成立的数。
   it('任意扇区、任意随机数，要来的落点角度问回去还是那一格', () => {
     for (const size of SIZES) {
       const sectors = createSectors(size);
@@ -35,8 +27,7 @@ describe('落点角度与指针底下的扇区', () => {
   });
 
   it('落点始终在扇区内部，离两条边界都有余量', () => {
-    // 指针有实际宽度：落点贴着扇区边界时，肉眼说不清停在哪一格。
-    // 要的是"离边界有余量"这条性质，所以只钉一个宽松的下限（扇区的 5%）。
+    // 贴着边界时肉眼说不清停在哪一格。只钉宽松下限：扇区的 5%。
     const margin = 0.05;
     for (const size of SIZES) {
       const sectors = createSectors(size);
@@ -56,9 +47,7 @@ describe('落点角度与指针底下的扇区', () => {
     const size = 8;
     const sectors = createSectors(size);
     const sectorAngle = TAU / size;
-    // 实现把 `r` 分成两条带子，正中恰好落在两条的接缝上：只探 `step / 20 - 1e-12`
-    // 会让 r = 0.5 这一点永远走进下面那条带子，上面那条的正中邻域一次都没问过。
-    // 所以每一步都从三个方向探——差一点、正好、多一点。
+    // 正中在两条带子的接缝上，所以每一步从差一点、正好、多一点三处探。
     for (let index = 0; index < size; index += 1) {
       for (let step = 0; step <= 20; step += 1) {
         for (const nudge of [-1e-12, 0, 1e-12]) {
@@ -86,22 +75,20 @@ describe('落点角度与指针底下的扇区', () => {
 
 describe('指针底下是哪个扇区', () => {
   it('扇区正好交界处归后一格', () => {
-    // 边界归上一格还是下一格，这里给出确定的答案：扇区 i 占 [i·w, (i+1)·w)，
-    // 左闭右开，所以正好等于 i·w 的角度算第 i 格。
+    // 扇区 i 占 [i·w, (i+1)·w)。
     for (const size of SIZES) {
       const sectors = createSectors(size);
       const sectorAngle = TAU / size;
       for (let index = 0; index < size; index += 1) {
         expect(sectors.sectorAt(index * sectorAngle)).toBe(index);
       }
-      // 整圈那一处边界绕回第一格。
       expect(sectors.sectorAt(TAU)).toBe(0);
       expect(sectors.sectorAt(0)).toBe(0);
     }
   });
 
   it('负角度与超过一圈的累积角度答得对', () => {
-    // 动画传进来的是累积的旋转量：转过好几圈、或者反着转，都还得答对。
+    // 动画传进来的是累积旋转量。
     for (const size of SIZES) {
       const sectors = createSectors(size);
       const random = seededRandom(size + 7);
@@ -141,18 +128,17 @@ describe('指针底下是哪个扇区', () => {
 });
 
 describe('画到画布上的那段弧', () => {
-  /** 画布上指针所在的方向：12 点，也就是画布弧度 -π/2。 */
+  /** 指针在 12 点方向。 */
   const POINTER = -Math.PI / 2;
 
-  /** 从 `start` 出发顺时针走到 `angle` 要走多远，折回 `[0, 2π)`。 */
+  /** 从 `start` 顺时针到 `angle` 的距离，折回 `[0, 2π)`。 */
   function sweepFrom(start: number, angle: number): number {
     const wrapped = (angle - start) % TAU;
     return wrapped < 0 ? wrapped + TAU : wrapped;
   }
 
   it('压在指针底下的那段弧，正是 sectorAt 答的那一格', () => {
-    // 这条是画面与判定之间唯一的接缝：`-π/2` 与 `- rotation` 任一个符号写反，
-    // 转盘照样转、照样弹结果卡片，只是画面上停的那一格与判定的不是同一格——这里当场变红。
+    // 画面与判定之间的接缝：`-π/2` 或 `- rotation` 的符号写反，别处都看不出来。
     for (const size of SIZES) {
       const sectors = createSectors(size);
       const sectorAngle = TAU / size;
@@ -178,7 +164,7 @@ describe('画到画布上的那段弧', () => {
         for (let index = 0; index < size; index += 1) {
           const { start, end } = sectors.arc(index, rotation);
           expect(end - start).toBeCloseTo(sectorAngle, 12);
-          // 下一格从这一格的终点接上，中间不留缝、也不重叠；最后一格接回第一格，差一整圈。
+          // 最后一格接回第一格，差一整圈。
           const next = sectors.arc((index + 1) % size, rotation);
           const expectedStart = index === size - 1 ? next.start + TAU : next.start;
           expect(expectedStart).toBeCloseTo(end, 9);

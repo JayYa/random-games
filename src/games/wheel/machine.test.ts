@@ -1,17 +1,7 @@
 /**
- * 转盘机器的用例：按「转」之后的那一整段——开抽受不受理、角度怎么随时间走、走到
- * 终点揭晓在哪一格、收下之后停在哪儿、下一次从哪儿起转。
+ * 转盘机器的用例。机器经 `mountOnHost` 挂在真宿主上，随机源用种子随机源。
  *
- * 机器挂在真的玩法页宿主上跑（经 `testHelpers.ts` 的 `mountOnHost`）：挂上时用宿主
- * 给的真开抽句柄造一台真的机器，锁、受理、揭晓、收下、拆卸都由宿主按它真实的规则推。
- * 唯一的替身是宿主那道接缝上的假页面、假计时器与假最近中选，宿主是真的。机器的随机
- * 源给种子随机源：一次转因此是确定的，而用例不关心机器按什么顺序取几个随机数。
- *
- * 用例推的是 `spin()` 与 `tick`，收下中选就是按假页面上卡片的关掉按钮。看的只有四样：
- * 真句柄上的锁、`spin()` 交回的受没受理、`tick` 与 `view()` 交回的画面状态、卡片弹了几次。
- *
- * 两条时钟各推各的：机器的时间只经 `tick(now)` 进来（生产上只有 rAF 的时间戳这一个
- * 来源，所以只往前走），用例直接写「走到第几毫秒」；宿主揭晓那一拍只经假计时器走。
+ * 机器的时间只经 `tick(now)` 进来；宿主停的那一拍只经假计时器走。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -25,32 +15,27 @@ import {
 } from './machine';
 import { csv, mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
-/** 一帧的时长：60Hz 屏幕上 rAF 大致的间隔。 */
+/** 60Hz 下一帧。 */
 const FRAME_MS = 16;
 
-/** 第一次 `tick` 的时刻：只作基准。 */
+/** 第一次 `tick` 只作基准。 */
 const FIRST_TICK_MS = 0;
 
-/** `spin()` 之后下一次 `tick` 的时刻，也就是动画起点。 */
+/** `spin()` 后下一次 `tick`，即动画起点。 */
 const START_MS = 1_000;
 
 interface Harness extends HostedBoard {
-  /** 宿主挂上的那一台机器。 */
   readonly machine: WheelMachine;
 }
 
 interface SetupOptions {
-  /** 机器的种子随机源用的种子，默认 7。 */
+  /** 默认 7。 */
   readonly seed?: number;
-  /** 名单 CSV 的原文，默认用 `mountOnHost` 的那一份。 */
+  /** 默认用 `mountOnHost` 的名单。 */
   readonly csvText?: string;
 }
 
-/**
- * 在真宿主上挂一页转盘：盘面挂上时用宿主给的真句柄造一台真的机器（种子随机源），
- * 把机器本身当挂载结果交回——它的揭晓、抹掉与挂载结果同形。HTML、块名、按钮文字
- * 宿主只转手给假页面，随便给。
- */
+/** 在真宿主上挂一页转盘。机器本身就是挂载结果。 */
 function setup({ seed = 7, csvText }: SetupOptions = {}): Harness {
   const machines: WheelMachine[] = [];
   const board: Board = {
@@ -69,23 +54,20 @@ function setup({ seed = 7, csvText }: SetupOptions = {}): Harness {
   return { ...hosted, machine };
 }
 
-/**
- * 收下中选：让宿主揭晓那一拍走完、卡片弹出来，再按卡片上的关掉按钮。只推宿主的
- * 时钟，机器的时间不动。
- */
+/** 停完那一拍，按收下。机器的时间不动。 */
 function accept({ timer, page }: Harness): void {
   timer.advance(REVEAL_PAUSE_MS);
   page.pressClose();
 }
 
-/** 刚挂上的机器起转：第一次 `tick` 作基准，按「转」，在 `START_MS` 走出动画起点那一帧。 */
+/** 刚挂上的机器起转，走到动画起点那一帧。 */
 function startSpin(machine: WheelMachine): void {
   machine.tick(FIRST_TICK_MS);
   machine.spin();
   machine.tick(START_MS);
 }
 
-/** 从 `start` 那一刻起转一次，一步跨过终点，交回停下那一刻的画面。 */
+/** 从 `start` 起转一次，一步跨过终点，交回停下时的画面。 */
 function spinThrough(machine: WheelMachine, start: number): WheelView {
   machine.spin();
   machine.tick(start);
@@ -102,8 +84,7 @@ function stepEvery(machine: WheelMachine, from: number, stepMs: number, until: n
 }
 
 describe('指针底下就是揭晓的那一格（ADR-0003）', () => {
-  // 这一整套用例的意义所在。每页连转几次，起始角度因此各不相同，圈数也随种子变；
-  // 几十个种子过一遍，而不是钉几个碰巧成立的数。
+  // 每页连转几次，起始角度和圈数各不相同。
   it('几十个种子 × 每页连转多次：每次走过终点，指针底下的那一格就是名字写进的那一格', () => {
     const pointed: number[] = [];
     const revealed: (number | undefined)[] = [];
@@ -123,15 +104,11 @@ describe('指针底下就是揭晓的那一格（ADR-0003）', () => {
 });
 
 describe('一次开抽就是一次', () => {
-  /** 转动期间的一刻：离起转、离停下都还远。 */
   const MID_SPIN_MS = START_MS + SPIN_DURATION_MS / 2;
-  /** 停下之后很久的一刻：比哪一次转能转多久都远。 */
+  /** 远在停下之后。 */
   const LATER_MS = START_MS + 10 * SPIN_DURATION_MS;
 
-  /**
-   * 开抽锁着的三种情形，都按宿主造得出的顺序走到：先转起来、走到转动中途，再各往前推
-   * 到那一刻。
-   */
+  /** 锁着的三种情形，都从转动中途往前推到。 */
   const LOCKED_MOMENTS: readonly (readonly [string, (harness: Harness) => void])[] = [
     ['转动期间', (_harness) => {}],
     [
@@ -149,7 +126,7 @@ describe('一次开抽就是一次', () => {
     ],
   ];
 
-  /** 挂一页、按一次「转」、走到转动中途，再推到 `when` 那一刻。 */
+  /** 转到中途，再推到 `when`。 */
   function lockedBy(when: (harness: Harness) => void): Harness {
     const harness = setup();
     const { machine } = harness;
@@ -159,10 +136,7 @@ describe('一次开抽就是一次', () => {
     return harness;
   }
 
-  /**
-   * 两台同种子的机器走同一串 `tick`，只有一台在 `when` 那一步里多按了一次「转」。
-   * 交回两台在最后那一刻的角度：多按的那一下不受理，两条角度轨迹就分不开。
-   */
+  /** 两台同种子的机器，只有一台在 `when` 多按一次「转」，交回两台最后的角度。 */
   function pressedAgain(when: (harness: Harness) => void): {
     readonly pressed: number;
     readonly untouched: number;
@@ -182,7 +156,7 @@ describe('一次开抽就是一次', () => {
     expect(pressed).toBe(untouched);
   });
 
-  // 受没受理由 `spin()` 交回：渲染层照它决定起不起 rAF 循环，被退回的那一下不白跑一帧。
+  // 渲染层照 `spin()` 的返回值决定起不起 rAF 循环。
   it('开抽受理时 spin() 交回 true', () => {
     const { machine } = setup();
     machine.tick(FIRST_TICK_MS);
@@ -202,7 +176,6 @@ describe('一次开抽就是一次', () => {
 });
 
 describe('走到终点才揭晓', () => {
-  /** 卡片弹出过几次；玩法页还没写出来时算 0。 */
   function cardShows({ page }: Harness): number {
     return page.card?.showCount ?? 0;
   }
@@ -248,7 +221,7 @@ describe('走到终点才揭晓', () => {
     expect(started.spinning).toBe(true);
   });
 
-  // 终点前一帧还在转，由「时间」里那条「第一次 tick 只作基准」守着。
+  // 终点前一帧还在转，见「时间」里的第一条。
   it('走到终点那一帧起不再转', () => {
     const { machine } = setup();
     machine.tick(FIRST_TICK_MS);
@@ -314,7 +287,7 @@ describe('时间', () => {
     const coarse = setup().machine;
     const fine = setup().machine;
     for (const machine of [coarse, fine]) startSpin(machine);
-    // 两种步长都恰好走得到的一刻，离停下还远。
+    // 两种步长都走得到的一刻，离停下还远。
     const at = START_MS + 16 * 7 * 10;
 
     const every16 = stepEvery(coarse, START_MS, 16, at);
@@ -336,7 +309,7 @@ describe('补画不推进时间', () => {
   });
 
   it('揭晓后 view() 交回指针底下的那一格与中选的名字', () => {
-    // 名单只有一个候选：中选是谁不看宿主抽中选用的随机源。
+    // 只有一个候选，中选就确定了。
     const onlyCandidate = '甲';
     const { machine } = setup({ csvText: csv(`${onlyCandidate},true`) });
     machine.tick(FIRST_TICK_MS);
@@ -363,7 +336,7 @@ describe('补画不推进时间', () => {
 });
 
 describe('扇区', () => {
-  // 格数是固定的，不跟着候选数走（ADR-0010）；定扇区要等概率，哪一格都不能永远轮不到。
+  // 扇区数固定（ADR-0010），每一格都得停得到。
   it('扫一批种子，机器交出的每一个扇区都停得到', () => {
     const { count } = setup().machine.sectors;
     const stopped = new Set<number | undefined>();

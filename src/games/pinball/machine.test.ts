@@ -1,18 +1,7 @@
 /**
- * 弹球机机器的用例：柱塞怎么拖、什么时候作废，以及发射之后的那一整段——开抽受不
- * 受理、回放走到哪一帧揭晓、球摆在哪、揭晓亮在哪一格、风车怎么接着转、收下之后回到哪。
+ * 弹球机机器的用例。机器经 `mountOnHost` 挂在真宿主上，物理模拟也是真的，种子固定。
  *
- * 机器挂在真的玩法页宿主上跑（经 `testHelpers.ts` 的 `mountOnHost`）：挂上时用宿主
- * 给的真开抽句柄造一台真的机器，锁、受理、揭晓、收下、拆卸都由宿主按它真实的规则推。
- * 唯一的替身是宿主那道接缝上的假页面与假计时器，宿主是真的；物理模拟也是真的，
- * 随机源给固定的，轨迹因此是确定的。
- *
- * 用例推的是指针的按下、拖动、抬手、取消与 `tick`，收下中选就是按假页面上卡片的关掉
- * 按钮，页面拆掉就是调宿主交回的拆卸；指针样本是手写的普通数据。看的只有三样：真句柄
- * 上的锁、`tick` 交回的画面状态、卡片弹了几次。
- *
- * 两条时钟各推各的：机器的时间只经 `tick(now)` 进来，用例直接写「走到第几毫秒」；
- * 宿主揭晓那一拍只经假计时器走。
+ * 机器的时间只经 `tick(now)` 进来；宿主停的那一拍只经假计时器走。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -29,61 +18,46 @@ import {
 } from './machine';
 import { csv, mountOnHost, rollOf, seededRandom, type HostedBoard } from '../../testHelpers';
 
-/** 这一批用例打的那一发：中等力度。 */
 const POWER = 0.6;
 
-/** 一帧的时长：60Hz 屏幕上 rAF 大致的间隔。 */
+/** 60Hz 下一帧。 */
 const FRAME_MS = 16;
 
-/** 发射之后下一次 `tick` 的时刻，也就是回放起点。 */
+/** 发射后下一次 `tick`，即回放起点。 */
 const START_MS = 1_000;
 
-/** 回放起点之后「足够远」的时长：远远超过任何一条轨迹能播多久（步数上限约 12 秒）。 */
+/** 远超任何轨迹的时长（步数上限约 12 秒）。 */
 const FAR_MS = 60_000;
 
-/** 这一页的名单，按 CSV 里的书写顺序，全部启用。 */
 const NAMES = ['甲', '乙', '丙'] as const;
 
-/** 宿主抽中选总取还能抽的第一个（见 `mountOnHost`），所以第一次揭晓的是名单排头那个。 */
+/** `mountOnHost` 总抽第一个可抽的候选。 */
 const WINNER = NAMES[0];
 
-/**
- * 画布在屏幕上的矩形：随便挑一个，与盘面自己的坐标系无关——柱塞只看屏幕像素。
- * 高度故意比满行程高得多，好在盘面上半截与下半截分别起手。
- */
+/** 画布的屏幕矩形。柱塞只看屏幕像素；高度远大于满行程，好在上下半截分别起手。 */
 const RECT = { left: 100, top: 50, right: 460, bottom: 650 } as const;
 
-/** 盘面正中：按在这里起手，四周离边都远。 */
 const MID_X = (RECT.left + RECT.right) / 2;
 const MID_Y = (RECT.top + RECT.bottom) / 2;
 
-/** 把柱塞拉到 `POWER` 那么深时指针所在的高度。 */
 const PULLED_Y = MID_Y + POWER * FULL_PULL_PX;
 
-/** 远远出了有效区域：比任何作废余量都大。 */
+/** 大于任何作废余量。 */
 const FAR_OUT_PX = 1_000;
 
-/** 用例里的两根手指。 */
 const FINGER = 1;
 const OTHER_FINGER = 2;
 
-/** 一个指针样本：这根手指此刻在屏幕上的哪一点，画布矩形取当下这一个。 */
 function pointerAt(clientX: number, clientY: number, pointerId: number = FINGER): PointerSample {
   return { pointerId, clientX, clientY, rect: RECT };
 }
 
 interface Harness extends HostedBoard {
-  /** 宿主交给机器的真开抽句柄：用例只读它上面的锁。 */
   readonly roll: RollHandle;
-  /** 宿主挂上的那一台机器。 */
   readonly machine: PinballMachine;
 }
 
-/**
- * 在真宿主上挂一页弹球机：盘面挂上时用宿主给的真句柄造一台真的机器（真物理模拟、
- * 固定种子），把机器本身当挂载结果交回——它的揭晓、抹掉、复位与挂载结果同形。
- * HTML、块名、按钮文字宿主只转手给假页面，随便给。
- */
+/** 在真宿主上挂一页弹球机。机器本身就是挂载结果。 */
 function setup(): Harness {
   const machines: PinballMachine[] = [];
   const board: Board = {
@@ -108,16 +82,12 @@ function pull(machine: PinballMachine): void {
   machine.move(pointerAt(MID_X, PULLED_Y));
 }
 
-/** 某一刻，与机器在那一刻交回的画面。 */
 interface Frame {
   readonly at: number;
   readonly view: PinballView;
 }
 
-/**
- * 打出一发：第一次 `tick` 只作基准，拉柱塞、松手发射，下一次 `tick` 是回放起点。
- * 交回回放起点那一帧。
- */
+/** 打出一发，交回回放起点那一帧。 */
 function fire({ machine }: Harness): Frame {
   machine.tick(0);
   pull(machine);
@@ -125,24 +95,17 @@ function fire({ machine }: Harness): Frame {
   return { at: START_MS, view: machine.tick(START_MS) };
 }
 
-/**
- * 收下中选：让宿主揭晓那一拍走完、卡片弹出来，再按卡片上的关掉按钮。抹掉、解锁、
- * 复位的先后由宿主定。只推宿主的时钟，机器的时间不动。
- */
+/** 停完那一拍，按收下。机器的时间不动。 */
 function accept({ timer, page }: Harness): void {
   timer.advance(REVEAL_PAUSE_MS);
   page.pressClose();
 }
 
-/** 卡片弹出过几次；玩法页还没写出来时算 0。 */
 function cardShows({ page }: Harness): number {
   return page.card?.showCount ?? 0;
 }
 
-/**
- * 从 `from` 那一帧起一帧一帧往下走，直到 `done` 为真：交回等到的那一帧，和紧挨在
- * 它前面的那一帧（等到的就是下一帧时，前面那一帧就是 `from`）。
- */
+/** 逐帧走到 `done` 为真，交回那一帧和它的前一帧。 */
 function stepUntil(
   machine: PinballMachine,
   from: Frame,
@@ -157,7 +120,7 @@ function stepUntil(
   throw new Error('走了很远也没等到');
 }
 
-/** 这一帧的画面上亮着名字了没有：宿主在机器报停的当下揭晓，那一帧交回的画面里就带着。 */
+/** 宿主在报停当下揭晓，同一帧的画面里就带着名字。 */
 function isRevealed(view: PinballView): boolean {
   return view.revealed !== undefined;
 }
@@ -176,22 +139,20 @@ function stepEvery(
   return view;
 }
 
-/** 从 `from` 起一帧一帧往下走 `durationMs` 那么久，交回最后一刻的画面。 */
 function stepFor(machine: PinballMachine, from: number, durationMs: number): PinballView {
   return stepEvery(machine, from, FRAME_MS, from + durationMs);
 }
 
-/** 球摆在哪：只取球心，好拿来整个比较。 */
 function ballOf(view: PinballView): readonly [number, number] {
   return [view.ballX, view.ballY];
 }
 
-/** 球坐在柱塞上待发时的样子：一台新机器第一次 `tick` 交回的画面。 */
+/** 球坐在柱塞上待发时的画面。 */
 function restView(): PinballView {
   return setup().machine.tick(0);
 }
 
-/** 平时的一帧风车转多少：一台新机器从第一次 `tick` 起走一帧，各片转过的角度。 */
+/** 风车各片一帧转过的角度。 */
 function oneFrameTurn(): readonly number[] {
   const { machine } = setup();
   const before = machine.tick(0).windmillAngles;
@@ -201,7 +162,7 @@ function oneFrameTurn(): readonly number[] {
 
 describe('柱塞', () => {
   it('锁着时按下接不住，之后拖动、抬手都不改力度、不开抽', () => {
-    // 打出一发、落了格：名字已经亮着，那一拍还没走完，宿主锁着。
+    // 落格之后、卡片弹出之前，宿主锁着。
     const harness = setup();
     const { machine } = harness;
     fire(harness);
@@ -213,7 +174,7 @@ describe('柱塞', () => {
     machine.release(pointerAt(MID_X, MID_Y + 100));
     const after = machine.tick(START_MS + FAR_MS + 2 * FRAME_MS);
 
-    // 真接住了再抬手，发射不受理也会让柱塞弹回、球回到柱塞上：球还留在落格里才算没开抽。
+    // 要是接住了，抬手会让球回到柱塞上；球还在落格里才说明没接住。
     expect({ caught, power: dragged.power, ball: ballOf(after) }).toEqual({
       caught: false,
       power: 0,
@@ -268,7 +229,7 @@ describe('柱塞', () => {
     const { roll, machine } = setup();
     machine.tick(0);
     const startY = RECT.bottom - 20;
-    // 比满行程再多拉一截：早出了「画布底边加余量」，还没出「按下点加满行程加余量」。
+    // 超出画布底边加余量，但没超出按下点加满行程加余量。
     const endY = startY + FULL_PULL_PX + 40;
 
     machine.press(pointerAt(MID_X, startY));
@@ -334,7 +295,7 @@ describe('柱塞', () => {
 
 describe('发射', () => {
   it('开抽不受理就不发射：球仍坐在柱塞上', () => {
-    // 拖着柱塞的时候页面被拆掉，然后才抬手：宿主拆掉之后一直锁着，开抽不再受理。
+    // 拖着柱塞时页面被拆掉，宿主从此锁着。
     const harness = setup();
     const { machine } = harness;
     const atRest = machine.tick(0);
@@ -349,8 +310,7 @@ describe('发射', () => {
   });
 
   it('喂进物理的是松手那一刻的风车相位：同时按下、晚一帧松手，回放里的风车也差着那一帧', () => {
-    // 两台同时按下、拉到同样深、种子也一样，只差松手的时刻。比的是风车而不是球：
-    // 球这一发碰不碰得到风车看轨迹，风车在回放里指着哪边却只看喂进去的相位。
+    // 只差松手时刻。比风车而不比球：球碰不碰得到风车要看轨迹。
     const early = setup();
     const late = setup();
     const earlyAtRelease = early.machine.tick(0).windmillAngles;
@@ -428,7 +388,7 @@ describe('回放与揭晓的时刻', () => {
     const sparse = setup();
     fire(dense);
     fire(sparse);
-    // 两种步长都恰好走得到的一刻，离回放结束还远。
+    // 两种步长都走得到的一刻，离回放结束还远。
     const at = START_MS + 8 * 33 * 3;
 
     const denseView = stepEvery(dense.machine, START_MS, 8, at);
@@ -525,7 +485,7 @@ describe('风车', () => {
     const atRest = restView();
     const turn = oneFrameTurn();
     const launched = fire(harness);
-    // 刚揭晓：判定之后轨迹还要再播一段余韵，这一刻球还在落格里弹。
+    // 刚揭晓，球还在落格里弹。
     const { reached: revealed } = stepUntil(machine, launched, isRevealed);
 
     accept(harness);

@@ -1,10 +1,5 @@
 /**
- * 测试用的公共零件：可预测的随机源、拼名单 CSV 的小工具，几样记录调用的替身
- * ——假记忆、假存储、假结果卡片、假计时器、假页面适配器、假盘面，以及把一个盘面挂到真的
- * 玩法页宿主上的 `mountOnHost`。
- *
- * 几批用例都要用同一批零件，放在这里免得各写一份、日后悄悄写岔。
- * 只被 `*.test.ts` 引用，不进产物。
+ * 用例共用的替身与小工具。只被 `*.test.ts` 引用，不进产物。
  */
 
 import type { RecentMemory } from './cooldown';
@@ -23,17 +18,10 @@ import {
   type Schedule,
 } from './gamePageHost';
 
-/**
- * mulberry32：一个确定但各不相同的伪随机源。种子不同数列就不同，同一个种子
- * 永远给出同一串数——用来把一条性质放在几十个种子上过一遍，而不是只钉一个
- * 碰巧成立的种子。
- *
- * 它同时是弹球模拟的随机源，所以住在 `src/seededRandom.ts`，这里只转手一下：
- * 测试与产品代码用的必须是同一份，两边分叉了「同样入参必得同样结果」就没了。
- */
+/** 与弹球模拟用同一份，用来把一条性质放在多个种子上过一遍。 */
 export { seededRandom } from './seededRandom';
 
-/** 一个可预测的随机源：按顺序吐出给定的数，用完后从头循环。不碰全局 Math.random。 */
+/** 按顺序吐出给定的数，用完从头循环。 */
 export function scriptedRandom(values: number[]): () => number {
   let cursor = 0;
   return () => {
@@ -47,25 +35,19 @@ export function csv(...lines: string[]): string {
   return lines.join('\n');
 }
 
-/** 生成 n 个启用的候选。 */
+/** n 个启用的候选。 */
 export function roster(count: number): string {
   return Array.from({ length: count }, (_, i) => `候选${i + 1},true`).join('\n');
 }
 
-/** `roster(n)` 里那 n 个名字，按 CSV 里的书写顺序。 */
+/** `roster(n)` 里的名字，按书写顺序。 */
 export function rosterNames(count: number): string[] {
   return Array.from({ length: count }, (_, i) => `候选${i + 1}`);
 }
 
-/**
- * 一份放在内存里的假记忆：名单会话的用例用它当最近中选，抽玩法的用例用它当最近玩法。
- *
- * 与 `fakeResultCard` 同一性质——把浏览器存储换成可预测、可查问的替身。它不按 N
- * 截断（只留几个是存储适配的事，在那边测）、也不去重：预先放进去的和记下的一个不少，
- * 用例才能预置任意长的最近中选，也才看得到被测的一方到底记下了什么。
- */
+/** 内存里的最近中选 / 最近玩法。不截断、不去重，记下什么都看得到。 */
 export interface FakeRecentMemory extends RecentMemory {
-  /** 此刻记着的名字，按先后，最早的在前：预先放进去的在前，之后记下的依次跟上。 */
+  /** 最早的在前。 */
   readonly names: readonly string[];
 }
 
@@ -82,14 +64,9 @@ export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMem
   };
 }
 
-/**
- * 一份放在内存里的假浏览器存储：站内导航和存储适配的用例用它当 localStorage。
- *
- * 与 `fakeRecentMemory` 同一性质——把浏览器存储换成可预测、可查问的替身。它和
- * localStorage 一样只存字符串；同一份交给第二个站内导航，就是刷新了页面。
- */
+/** 内存里的 localStorage。同一份交给第二个站内导航，就是刷新了页面。 */
 export interface FakeStorage extends RecentStorage {
-  /** 此刻存着东西的键，按第一次写进去的先后。 */
+  /** 按第一次写入的先后。 */
   readonly keys: readonly string[];
 }
 
@@ -106,28 +83,14 @@ export function fakeStorage(): FakeStorage {
   };
 }
 
-/**
- * 一张记录调用的假结果卡片：假页面写玩法页时交回的就是它，只在假页面里造。
- *
- * 与 `scriptedRandom` 同一性质——把一个真实依赖换成可预测、
- * 可查问的替身，好让用例不必碰 DOM（真卡片要写节点、要撒花、要挪焦点）。
- *
- * 它照搬真卡片那一条口径：本来就没开时 `hide()` 什么都不做，所以 `hideCount`
- * 数的是真的收起来过几次，而不是被调用过几次。
- */
+/** 记录调用的结果卡片。与真卡片一样，没开时 `hide()` 什么都不做，也不计数。 */
 export interface FakeResultCard extends ResultCard {
-  /** 卡片此刻是不是挂着。 */
   readonly isOpen: boolean;
-  /** 最近一次被要求弹出时带的那个中选，从没弹过则为 undefined。 */
+  /** 最近一次弹出时的中选。 */
   readonly shownWinner: Candidate | undefined;
-  /** 被要求弹出过几次。 */
   readonly showCount: number;
-  /** 真的收起来过几次；本来就没开的那几次不计。 */
   readonly hideCount: number;
-  /**
-   * 每次真的收起来时收到的焦点去向，按先后；盘面不给焦点去向时那一项是 undefined。
-   * 本来就没开的那几次不计：真卡片那时也不挪焦点。
-   */
+  /** 每次收起时收到的焦点去向，按先后。 */
   readonly focusReturns: readonly (HTMLElement | undefined)[];
 }
 
@@ -160,7 +123,6 @@ function fakeResultCard(): FakeResultCard {
       showCount += 1;
     },
     hide(focusTo: HTMLElement | undefined) {
-      // 与真卡片一致：本来就没开就什么都不做。
       if (!isOpen) return;
       isOpen = false;
       hideCount += 1;
@@ -169,18 +131,12 @@ function fakeResultCard(): FakeResultCard {
   };
 }
 
-/**
- * 一个手动拨动的假计时器：玩法页宿主揭晓那一拍的测试替身。
- *
- * 与 `fakeResultCard` 同一性质——把真的 `setTimeout` 换成用例说走才走的时钟，
- * 用例不必真等那 0.8 秒，也不必动全局的计时器。
- */
+/** 手动拨动的计时器，替代 `setTimeout`。 */
 export interface FakeTimer {
-  /** 交给宿主的计时器。 */
   readonly schedule: Schedule;
-  /** 让时间往前走 `ms` 毫秒：这期间到点的回调按到点的先后依次叫。 */
+  /** 时间前进 `ms`，其间到点的回调按先后依次叫。 */
   advance(ms: number): void;
-  /** 还有几个回调没到点，被取消的不算。 */
+  /** 未到点、未取消的回调数。 */
   readonly pendingCount: number;
 }
 
@@ -193,7 +149,7 @@ export function fakeTimer(): FakeTimer {
       const task = { at: now + delayMs, callback };
       pending.push(task);
       return () => {
-        // 与 `clearTimeout` 一致：已经到点叫过了（不在队里了）再取消，什么都不发生。
+        // 与 `clearTimeout` 一致：已经叫过的再取消无事发生。
         const index = pending.indexOf(task);
         if (index !== -1) pending.splice(index, 1);
       };
@@ -217,37 +173,22 @@ export function fakeTimer(): FakeTimer {
   };
 }
 
-/** 假页面记下的一次名单错误页：画给哪个主题、名单是哪种毛病。 */
 export type RecordedRosterFailure = RosterFailureSource & {
   readonly theme: Theme;
 };
 
 /**
- * 一份记录调用的假页面适配器：玩法页宿主的用例用它当测试替身。
- *
- * 与 `fakeResultCard` 同一性质——把写 DOM 的那一层换成可预测、可查问的替身，
- * 宿主的用例才能在 node 里跑。它记下被叫去画了什么，写玩法页之后交回的卡片是
- * 一张 `fakeResultCard`，卡片上的按钮用 `pressClose()` 按。
- *
- * 给了 `log` 就把每一下往里记一行（`page …`），与 `fakeBoard` 共用同一份，
- * 用例就看得到页面和盘面被叫到的先后。
+ * 记录调用的页面适配器。给了 `log` 就每次记一行 `page …`，与 `fakeBoard` 共用，
+ * 看得到页面和盘面被叫的先后。
  */
 export interface FakeGamePage extends PageAdapter {
-  /** 画过的名单错误页，按先后。 */
   readonly rosterFailures: readonly RecordedRosterFailure[];
-  /** 写过的玩法页，按先后。 */
   readonly gamePages: readonly GamePageView[];
-  /** 写玩法页时交回的那张卡片；还没写过玩法页则为 undefined。 */
+  /** 写玩法页时交回的卡片。 */
   readonly card: FakeResultCard | undefined;
-  /**
-   * 写玩法页时交回的盘面挂载点：一块可辨认的假元素，每份假页面一块，用例拿它比对
-   * 盘面挂在了哪里。宿主不碰 DOM，它只需认得出、不需要真能用。
-   */
+  /** 盘面挂载点，只用来比对身份。 */
   readonly boardRoot: HTMLElement;
-  /**
-   * 按一下卡片上的关掉按钮。卡片没挂着时按不到——真按钮藏着的时候点不着，
-   * 所以这时什么都不发生。
-   */
+  /** 按收下按钮。卡片没挂着时按不到。 */
   pressClose(): void;
 }
 
@@ -292,41 +233,27 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
   };
 }
 
-/** 假盘面可以不给的那几项：用例靠它验证宿主在盘面不给时照常工作。 */
 export interface FakeBoardOptions {
-  /** 给不给「收下之后复位」，默认给。 */
+  /** 给不给复位，默认给。 */
   readonly reset?: boolean;
-  /** 给不给自己的拆卸，默认给。 */
+  /** 给不给拆卸，默认给。 */
   readonly teardown?: boolean;
-  /** 卡片收起来之后焦点交给谁，默认不给。 */
   readonly returnFocusTo?: HTMLElement;
-  /** 与 `fakeGamePage` 共用的调用记录，每一下记一行（`board …`）。 */
+  /** 与 `fakeGamePage` 共用的调用记录，每次记一行 `board …`。 */
   readonly log?: string[];
-  /** 挂上的那一刻、拿到句柄之后再做点什么：用例借它看挂上那一刻的句柄。 */
+  /** 下面三个钩子让用例在挂上、复位、拆卸那一刻摆弄句柄。 */
   readonly onMount?: (roll: RollHandle) => void;
-  /** 复位里再做点什么：用例借它看收下之后那一刻的句柄。不给复位时不会被叫。 */
   readonly onReset?: (roll: RollHandle) => void;
-  /** 自己的拆卸里再做点什么：用例借它看拆卸那一刻的句柄。不给拆卸时不会被叫。 */
   readonly onTeardown?: (roll: RollHandle) => void;
 }
 
-/**
- * 一个记录调用的假盘面：玩法页宿主的用例用它当测试替身。
- *
- * 与 `fakeResultCard` 同一性质——不画画布、不跑动画，只记下被叫到了什么。
- * 盘面上此刻亮着哪个名字看 `revealed`。它自己不交出宿主给它的开抽句柄：用例经
- * `mountOnHost` 把它挂上，从那里拿句柄开抽、报停，就像真盘面在按「转」、转完报一声。
- */
+/** 记录调用的盘面。不画画布，经 `mountOnHost` 挂上后从那里拿句柄开抽、报停。 */
 export interface FakeBoard extends Board {
-  /** 被挂上过几次。 */
   readonly mountCount: number;
-  /** 最近一次被挂在哪块元素上；还没挂上过为 undefined。 */
   readonly mountedOn: HTMLElement | undefined;
-  /** 盘面上此刻亮着的中选；没在揭晓时为 undefined，盘面是匿名的。 */
+  /** 此刻亮着的中选；不在揭晓时为 undefined。 */
   readonly revealed: Candidate | undefined;
-  /** 被叫去揭晓过的中选，按先后。 */
   readonly reveals: readonly Candidate[];
-  /** 自己的拆卸被调过几次。 */
   readonly teardownCount: number;
 }
 
@@ -392,7 +319,6 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
   };
 }
 
-/** `mountOnHost` 挂的那一页属于的主题：页头、错误页都带着它，用例拿它比对。 */
 export const hostTheme: Theme = {
   slug: 'eat',
   rosterFile: 'eat.csv',
@@ -400,43 +326,31 @@ export const hostTheme: Theme = {
   entryLabel: '吃什么',
 };
 
-/** `mountOnHost` 可以不给的那几项。 */
 export interface MountOnHostOptions {
-  /** 名单 CSV 的原文，默认 `roster(3)`。 */
+  /** 默认 `roster(3)`。 */
   readonly csvText?: string;
-  /** 挂上之前就记着的最近中选，最早的在前，默认没有。 */
+  /** 已有的最近中选，最早的在前。 */
   readonly recent?: readonly string[];
-  /** 与 `fakeBoard` 共用的调用记录：给了，假页面也往里记（`page …`）。 */
   readonly log?: string[];
-  /**
-   * 为真时不注入假计时器，宿主用它默认的真实计时器（`setTimeout`），用例自己装上
-   * 测试框架的假时钟；默认为假，注入交回的 `timer`。
-   */
+  /** 为真时用宿主默认的 `setTimeout`，用例自己装假时钟。 */
   readonly realSchedule?: boolean;
 }
 
-/** 挂在真宿主上的一页：宿主交回的拆卸，宿主那道接缝上的几样替身，和宿主给盘面的句柄。 */
 export interface HostedBoard {
-  /** 宿主交回的拆卸，就是站内导航换页前调的那一个。 */
+  /** 宿主交回的拆卸。 */
   readonly teardown: () => void;
   readonly page: FakeGamePage;
-  /** 揭晓那一拍的假计时器；`realSchedule` 时宿主不用它。 */
   readonly timer: FakeTimer;
   readonly recentWinners: FakeRecentMemory;
-  /** 宿主交给盘面的真开抽句柄；名单开不了抽、盘面没挂上时为 undefined。 */
+  /** 宿主交给盘面的开抽句柄；名单开不了抽时为 undefined。 */
   readonly roll: RollHandle | undefined;
 }
 
 /**
- * 把一个已经造好的盘面挂到真的玩法页宿主上：宿主自己的用例配假盘面，盘面的用例
- * 配真盘面，挂盘面的测试接缝只有这一道。
+ * 把盘面挂到真的玩法页宿主上，宿主和盘面的用例共用这道接缝。只替换页面、计时器和
+ * 最近中选；开抽句柄在交给盘面时截下。
  *
- * 替身只有宿主那道接缝上现成的几样：假页面、假计时器、假最近中选，宿主本身是
- * 真的，锁、受理、揭晓、收下、拆卸都按它真实的规则走。开抽句柄由这里在盘面的挂载
- * 外面包一层截下——宿主把句柄交给盘面之前就截好，盘面在挂载期间用它也拿得到同一个。
- *
- * 抽中选的随机源恒给 0：在还能抽的候选里总取第一个，于是 `roster(3)` 第一次抽出
- * 的是「候选1」，冷却之后的第二次是「候选2」，揭晓的名字是确定的。
+ * 随机源恒为 0，总抽可抽候选里的第一个：`roster(3)` 先抽出「候选1」，冷却后是「候选2」。
  */
 export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {
   const { csvText = roster(3), recent = [], log, realSchedule = false } = options;
@@ -463,7 +377,7 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
   return { teardown, page, timer, recentWinners, roll };
 }
 
-/** 句柄一定在：名单正常时盘面必然挂上了，用例从挂上的那一页取出宿主给盘面的真句柄。 */
+/** 取出开抽句柄，没挂上就抛错。 */
 export function rollOf(hosted: HostedBoard): RollHandle {
   const { roll } = hosted;
   if (!roll) throw new Error('盘面应当已经挂上');
