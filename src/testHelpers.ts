@@ -327,6 +327,12 @@ export const hostTheme: Theme = {
   entryLabel: '吃什么',
 };
 
+/** 一对假主题，用例不因 `public/` 下加减 CSV 而变（ADR-0009）。 */
+export const fakeThemes: readonly [Theme, Theme] = [
+  hostTheme,
+  { slug: 'play', rosterFile: 'play.csv', title: '今天玩什么', entryLabel: '玩什么' },
+];
+
 export interface MountOnHostOptions {
   /** 默认 `roster(3)`。 */
   readonly csvText?: string;

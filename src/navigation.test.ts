@@ -6,19 +6,21 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { THEME_PICKER_HASH, gameHash, themeHash } from './address';
 import type { RollHandle } from './gamePageHost';
-import { gameHash, type Game } from './games';
+import type { Game } from './games';
 import { createNavigation, type NavigationPage, type PickerLinkClick } from './navigation';
 import {
   fakeBoard,
   fakeGamePage,
   fakeStorage,
+  fakeThemes,
   roster,
   scriptedRandom,
   type FakeBoard,
   type FakeStorage,
 } from './testHelpers';
-import { THEMES, THEME_PICKER_HASH, themeHash, type Theme } from './themes';
+import type { Theme } from './themes';
 
 interface FakeEntry {
   readonly hash: string;
@@ -243,6 +245,7 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
     fetchRoster: fetch.fetchRoster,
     storage,
     random: scriptedRandom([0]),
+    themes: fakeThemes,
     games,
     page: fakeNavigationPage(log),
   });
@@ -251,7 +254,7 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
   return { browser, navigation, fetch, log, boards };
 }
 
-const [theme, otherTheme] = THEMES as readonly [Theme, Theme, ...Theme[]];
+const [theme, otherTheme] = fakeThemes;
 
 describe('选主题页', () => {
   it('空 hash 画选主题页', () => {
@@ -262,18 +265,16 @@ describe('选主题页', () => {
     expect(open('').browser.location.hash).toBe('');
   });
 
-  const unknownAddresses = [
-    ['不认识的主题', '#/foo'],
-    ['不认识的玩法', `#/${theme.slug}/xyz`],
-    ['多余的路径段', `${gameAddress(theme, firstSlug)}/detail`],
-  ];
-
-  it.each(unknownAddresses)('%s画选主题页', (_case, hash) => {
-    expect(open(hash).log).toEqual(['picker']);
+  it('选主题页的地址不改地址', () => {
+    expect(open(THEME_PICKER_HASH).browser.location.hash).toBe(THEME_PICKER_HASH);
   });
 
-  it.each(unknownAddresses)('%s把地址换成选主题页的地址', (_case, hash) => {
-    expect(open(hash).browser.location.hash).toBe(THEME_PICKER_HASH);
+  it('认不出的地址画选主题页', () => {
+    expect(open('#/foo').log).toEqual(['picker']);
+  });
+
+  it('认不出的地址把地址换成选主题页的地址', () => {
+    expect(open('#/foo').browser.location.hash).toBe(THEME_PICKER_HASH);
   });
 });
 

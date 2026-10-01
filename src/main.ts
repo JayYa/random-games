@@ -4,6 +4,7 @@ import { GAMES } from './games/allGames';
 import { fetchRosterCsv } from './loadRoster';
 import { createNavigation } from './navigation';
 import type { RecentStorage } from './recentStorage';
+import { THEMES } from './themes';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('缺少 #app 挂载点');
@@ -24,6 +25,7 @@ const navigation = createNavigation({
   fetchRoster: fetchRosterCsv,
   storage: browserStorage(),
   random: Math.random,
+  themes: THEMES,
   games: GAMES,
   page: browserPage(root),
 });

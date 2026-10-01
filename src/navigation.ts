@@ -7,11 +7,12 @@
  * 不碰 DOM、不碰全局，依赖全部注入。
  */
 
+import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
-import { gameHash, resolveRoute, rollGame, type Game } from './games';
+import { rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
 import type { RandomSource } from './rosterSession';
-import { THEME_PICKER_HASH, type Theme } from './themes';
+import type { Theme } from './themes';
 
 /**
  * 站内导航的页面适配器，在宿主的 `PageAdapter` 之上多三屏。名单回来之后原样交给宿主。
@@ -44,7 +45,9 @@ export interface NavigationOptions {
   readonly storage: RecentStorage | undefined;
   /** 抽玩法和抽中选共用。 */
   readonly random: RandomSource;
-  /** 地址解析和抽玩法读同一份。 */
+  /** 认地址用。 */
+  readonly themes: readonly Theme[];
+  /** 认地址和抽玩法读同一份。 */
   readonly games: readonly Game[];
   readonly page: NavigationPage;
 }
@@ -82,7 +85,7 @@ function isPlainClick(click: PickerLinkClick): boolean {
 }
 
 export function createNavigation(options: NavigationOptions): Navigation {
-  const { history, location, fetchRoster, storage, random, games, page } = options;
+  const { history, location, fetchRoster, storage, random, themes, games, page } = options;
 
   /** 每次 render 领一张号，晚回来的名单不是最新那张就作废。 */
   let latestTicket = 0;
@@ -101,16 +104,13 @@ export function createNavigation(options: NavigationOptions): Navigation {
     teardown?.();
     teardown = undefined;
 
-    const hash = location.hash;
-    const route = resolveRoute(hash, games);
+    const address = resolveAddress(location.hash, themes, games);
     const cameFromPicker = lastPageWasPicker;
-    lastPageWasPicker = !route;
+    lastPageWasPicker = address.kind === 'picker';
 
-    if (!route) {
+    if (address.kind === 'picker') {
       // 认不出的地址改写成首页，免得被收藏或分享出去。
-      if (hash !== '' && hash !== THEME_PICKER_HASH) {
-        history.replaceState(null, '', THEME_PICKER_HASH);
-      }
+      if (!address.canonical) history.replaceState(null, '', THEME_PICKER_HASH);
       page.showThemePicker();
       return;
     }
@@ -121,9 +121,9 @@ export function createNavigation(options: NavigationOptions): Navigation {
       history.replaceState(entry, '');
     }
 
-    const { theme, game } = route;
+    const { theme } = address;
 
-    if (!game) {
+    if (address.kind === 'pending-roll') {
       // 抽玩法后用 replaceState 换地址，不进历史（ADR-0007）。replaceState 不触发
       // hashchange，所以自己再画一次。只有这里算抽玩法，记进最近玩法（ADR-0011）。
       const rolled = rollGame(random, games, { recentGames: recentGamesMemory(storage) });
@@ -141,7 +141,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
           theme,
           csvText,
           recentWinners: recentWinnersMemory(storage, theme.slug),
-          board: game.createBoard(),
+          board: address.game.createBoard(),
           page,
           random,
         });

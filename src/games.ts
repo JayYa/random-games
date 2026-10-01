@@ -1,11 +1,9 @@
 /**
- * 玩法的类型、抽玩法与 `#/<主题>/<玩法>` 的地址解析。不引任何盘面：玩法清单在
- * `games/allGames.ts`，由 `main.ts` 注入。
+ * 玩法的类型与抽玩法。不引任何盘面：玩法清单在 `games/allGames.ts`，由 `main.ts` 注入。
  */
 
 import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';
 import type { RandomSource } from './rosterSession';
-import { resolveTheme, type Theme } from './themes';
 import type { Board } from './gamePageHost';
 
 /** 一个玩法：地址里的一段，加一个盘面工厂。 */
@@ -36,43 +34,4 @@ export function rollGame(
     memory: recentGames,
     random,
   });
-}
-
-export function gameHash(theme: Theme, game: Game): string {
-  return `#/${theme.slug}/${game.slug}`;
-}
-
-/** `#/eat/wheel`：玩法已定，直接进。 */
-export interface SettledRoute {
-  readonly theme: Theme;
-  readonly game: Game;
-}
-
-/** `#/eat`：进来先抽玩法（ADR-0007）。 */
-export interface PendingRollRoute {
-  readonly theme: Theme;
-  readonly game?: undefined;
-}
-
-export type Route = SettledRoute | PendingRollRoute;
-
-/**
- * 把 hash 解析成玩法已定、待抽玩法，或认不出（`undefined`，回落到选主题页）。
- * 严格程度与 `resolveTheme` 一致，玩法只在传入的清单里认。
- */
-export function resolveRoute(hash: string, games: readonly Game[]): Route | undefined {
-  if (!hash.startsWith('#/')) return undefined;
-
-  const segments = hash.slice(2).split('/');
-  if (segments.length > 2) return undefined;
-
-  const theme = resolveTheme(`#/${segments[0] ?? ''}`);
-  if (!theme) return undefined;
-
-  const gameSlug = segments[1];
-  if (gameSlug === undefined) return { theme };
-
-  const game = games.find((candidate) => candidate.slug === gameSlug);
-  if (!game) return undefined;
-  return { theme, game };
 }
