@@ -239,6 +239,39 @@ describe('抽一个中选', () => {
   });
 });
 
+describe('写重的名字', () => {
+  it('同名的几行是一个候选，中选机会与只写一次的相等', () => {
+    // 把 [0, 1) 等分成 k 个点依次喂进去，每个候选应各中 k / 2 次。
+    const k = 6;
+    const session = makeSession({
+      csvText: csv('沙县小吃,true', '兰州拉面,true', '沙县小吃,true'),
+      random: scriptedRandom(Array.from({ length: k }, (_, i) => (i + 0.5) / k)),
+    });
+    const counts = new Map<string, number>();
+    for (let i = 0; i < k; i += 1) {
+      const name = session.drawWinner().name;
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    expect(Object.fromEntries(counts)).toEqual({ 沙县小吃: 3, 兰州拉面: 3 });
+  });
+
+  it.each([
+    ['启用的在前', ['沙县小吃,true', '沙县小吃,false']],
+    ['停用的在前', ['沙县小吃,false', '沙县小吃,']],
+  ])('同名的几行任一行停用，这个候选就永不中选（%s）', (_, rows) => {
+    const session = makeSession({
+      csvText: csv(...rows, '兰州拉面,true'),
+      random: scriptedRandom(Array.from({ length: 50 }, (_, i) => i / 50)),
+    });
+    const drawn = new Set(Array.from({ length: 50 }, () => session.drawWinner().name));
+    expect([...drawn]).toEqual(['兰州拉面']);
+  });
+
+  it('同名的几行全部停用、又没有别的候选时，全部停用的个数按候选数计', () => {
+    expect(rosterErrorOf(csv('沙县小吃,false', '沙县小吃,no'))).toEqual({ kind: 'all-disabled', disabledCount: 1 });
+  });
+});
+
 describe('最近中选冷却', () => {
   it('冷却中的候选抽不出来，其余启用的候选都抽得到', () => {
     const recent = rosterNames(7);

@@ -137,10 +137,11 @@ function parseLine(line: string): string[] | undefined {
  *
  * - 跳过空行与 `#` 开头的注释行；
  * - 行号按文件原始行计数，不因跳过空行/注释而错位；
- * - 遇到第一个坏行即停止，交回带原始行号的读不懂。
+ * - 遇到第一个坏行即停止，交回带原始行号的读不懂；
+ * - 同名（去掉首尾空白后逐字相等）的几行合成一个候选，静默合并，任一行停用即停用。
  */
 function parseRoster(csvText: string): RosterParseResult {
-  const candidates: Candidate[] = [];
+  const candidates = new Map<string, Candidate>();
   const lines = csvText.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -166,8 +167,10 @@ function parseRoster(csvText: string): RosterParseResult {
     }
 
     const enabledField = (fields[1] ?? '').trim().toLowerCase();
-    candidates.push({ name, enabled: !DISABLED_MARKERS.has(enabledField) });
+    // 同名的几行是同一个候选，先后取首次出现的位置；其中任一行停用即算停用。
+    const enabled = !DISABLED_MARKERS.has(enabledField) && (candidates.get(name)?.enabled ?? true);
+    candidates.set(name, { name, enabled });
   }
 
-  return { ok: true, candidates };
+  return { ok: true, candidates: [...candidates.values()] };
 }
