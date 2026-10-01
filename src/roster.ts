@@ -167,7 +167,7 @@ function parseRoster(csvText: string): RosterParseResult {
     }
 
     const enabledField = (fields[1] ?? '').trim().toLowerCase();
-    // 同名的几行是同一个候选，先后取首次出现的位置；其中任一行停用即算停用。
+    // Map 按首次放入的先后排，所以合并后的候选排在这个名字第一次出现的位置。
     const enabled = !DISABLED_MARKERS.has(enabledField) && (candidates.get(name)?.enabled ?? true);
     candidates.set(name, { name, enabled });
   }

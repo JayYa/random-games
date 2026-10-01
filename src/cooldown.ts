@@ -34,9 +34,8 @@ export interface CooldownDraw<T> {
 }
 
 /**
- * 按冷却规则取一个并记下。池子为空、或池子里有 key 重复的成员时抛错：「什么算一个」
- * 由调用方定（名单合并同名，玩法 slug 本就不重），重复只能是程序写错，悄悄放过会把
- * 概率抽偏。
+ * 按冷却规则取一个并记下。违反 `pool` 的要求时抛错：重复的 key 只能是程序写错，
+ * 悄悄放过会把概率抽偏。
  */
 export function drawWithCooldown<T>({ pool, keyOf, memory, random }: CooldownDraw<T>): T {
   if (pool.length === 0) throw new Error('池子是空的，抽不出来');
