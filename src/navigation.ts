@@ -134,8 +134,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
 
     page.showRosterLoading(theme);
 
-    // 成败分两路：只有取不到才是「没取到」。挂玩法页抛的错是程序写错，在链尾接住报到
-    // 控制台，不画成名单错误，页面停在加载中。
+    // 分两路：只有取不到才是「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
     fetchRoster(theme.rosterFile)
       .then(
         (csvText) => {

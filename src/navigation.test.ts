@@ -186,7 +186,7 @@ const [firstGame, secondGame] = fakeGames(['spin', 'drop']) as [Game, Game];
  * 每个盘面；挂上、拆掉时往 `log` 记 `board mount <玩法>`、`board teardown <玩法>`。
  * 每个标签页造一份新的。`mountThrows` 时盘面挂载当下抛错，模拟程序写错。
  */
-function trackedGames(log: string[], mountThrows = false) {
+function trackedGames(log: string[], mountThrows: boolean) {
   const boards: BoardRecord[] = [];
   const games: readonly Game[] = [firstGame, secondGame].map(({ slug }) => ({
     slug,
@@ -318,7 +318,7 @@ describe('带玩法的地址', () => {
     ]);
   });
 
-  // 挂盘面抛错是程序写错，名单文件没问题。修复前这里还会留下未处理的 rejection，vitest 判失败。
+  // 留下未处理的 rejection 时 vitest 判整轮失败。
   it('名单回来后挂盘面抛错，不当成没取到', async () => {
     const { fetch, page } = open(gameHash(theme, firstGame), { mountThrows: true });
     await fetch.succeed(theme.rosterFile);
