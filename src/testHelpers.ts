@@ -353,8 +353,8 @@ export interface HostedBoard {
   readonly page: FakeGamePage;
   readonly timer: FakeTimer;
   readonly recentWinners: FakeRecentMemory;
-  /** 宿主交给盘面的开抽句柄，在 `board.mount` 里截下；经 `rollOf` 取。 */
-  readonly roll: RollHandle | undefined;
+  /** 宿主交给盘面的开抽句柄，在 `board.mount` 里截下。 */
+  readonly roll: RollHandle;
 }
 
 /**
@@ -386,12 +386,12 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
     page,
     ...(!realSchedule && { schedule: timer.schedule }),
   });
+  // 宿主当场挂盘面；没截到句柄是宿主写错了。
+  if (!roll) throw new Error('宿主应当当场挂上盘面');
   return { teardown, page, timer, recentWinners, roll };
 }
 
-/** 取出开抽句柄，没挂上就抛错。 */
+/** 取出开抽句柄。 */
 export function rollOf(hosted: HostedBoard): RollHandle {
-  const { roll } = hosted;
-  if (!roll) throw new Error('盘面应当已经挂上');
-  return roll;
+  return hosted.roll;
 }

@@ -317,8 +317,9 @@ describe('带玩法的地址', () => {
       { kind: 'all-disabled', disabledCount: 3 },
     ],
   ])('%s：名单错误原样交给页面，不写玩法页，不挂盘面', async (_case, csvText, error) => {
-    const { fetch, page, boards } = open(gameHash(theme, firstGame));
+    const { fetch, log, page, boards } = open(gameHash(theme, firstGame));
     await fetch.succeed(theme.rosterFile, csvText);
+    expect(log).toEqual([`loading ${theme.slug}`, `page roster-error ${error.kind}`]);
     expect(page.rosterErrors).toEqual([{ theme, error }]);
     expect(page.gamePages).toEqual([]);
     expect(mountedGames(boards)).toEqual([]);
