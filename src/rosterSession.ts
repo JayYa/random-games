@@ -5,13 +5,11 @@
  */
 
 import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';
+import type { RandomSource } from './randomIndex';
 import { parseRoster, type Candidate } from './roster';
 import type { RosterError } from './rosterError';
 
 export type { Candidate };
-
-/** 返回 [0, 1) 的随机源。 */
-export type RandomSource = () => number;
 
 export interface RosterSessionOptions {
   readonly csvText: string;

@@ -8,9 +8,10 @@
  */
 
 import type { RecentMemory } from './cooldown';
+import type { RandomSource } from './randomIndex';
 import type { ResultCard } from './resultCard';
 import type { RosterError } from './rosterError';
-import { createRosterSession, type Candidate, type RandomSource } from './rosterSession';
+import { createRosterSession, type Candidate } from './rosterSession';
 import type { Theme } from './themes';
 
 /** 揭晓后过多久弹结果卡片。卡片是全屏遮罩，没有这一拍名字刚亮就被盖住（ADR-0010）。 */

@@ -3,7 +3,7 @@
  */
 
 import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';
-import type { RandomSource } from './rosterSession';
+import type { RandomSource } from './randomIndex';
 import type { Board } from './gamePageHost';
 
 /** 一个玩法：地址里的一段，加一个盘面工厂。 */
