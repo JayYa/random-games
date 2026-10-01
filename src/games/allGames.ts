@@ -5,7 +5,7 @@
 
 import type { Game } from '../games';
 import { createWheelBoard } from './wheel/board';
-import { createPinballBoard } from './pinball/ui';
+import { createPinballBoard } from './pinball/pinballBoard';
 
 /** 全部玩法。顺序不影响概率。 */
 export const GAMES: readonly Game[] = [

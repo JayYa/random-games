@@ -108,7 +108,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 锁着时用 aria-disabled，按钮留在 tab 序里（见 games/wheel/ui.ts）。 */
+/* 锁着时用 aria-disabled，按钮留在 tab 序里（见 games/wheel/domSurface.ts）。 */
 .wheel__spin[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
@@ -175,7 +175,7 @@ body {
 
 .pinball__board {
   display: block;
-  /* 宽度取容器宽度和首屏剩余高度换算的宽度的小者。宽高比与 ui.ts 的可视区域一致（360×540）。 */
+  /* 宽度取容器宽度和首屏剩余高度换算的宽度的小者。宽高比与 games/pinball/domSurface.ts 的可视区域一致（360×540）。 */
   width: min(100%, max(160px, calc((100vh - var(--pinball-chrome)) * 360 / 540)));
   width: min(100%, max(160px, calc((100svh - var(--pinball-chrome)) * 360 / 540)));
   height: auto;

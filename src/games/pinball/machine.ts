@@ -1,5 +1,6 @@
 /**
- * 弹球机机器 (Pinball Machine)：弹球机的全部状态，不碰 DOM。
+ * 弹球机机器 (Pinball Machine)：弹球机的全部状态，不碰 DOM。是弹球机盘面（`./pinballBoard.ts`）的
+ * 内部实现，只被它引用，用例经盘面测（ADR-0014）。
  *
  * 管柱塞拖拽、发射、回放轨迹、风车相位与揭晓的落格。指针只以普通数据的样本进来，
  * 时间只经 `tick(now)` 进来。
@@ -22,7 +23,7 @@ export const MAX_FRAME_MS = 100;
 /** 球底与柱塞头之间留的缝。 */
 const BALL_SEAT_GAP_PX = 2;
 
-/** 柱塞头静止时的上沿，与拉满时往下走的距离。机器摆球、渲染层画柱塞共用。 */
+/** 柱塞头静止时的上沿，与拉满时往下走的距离。机器摆球、DOM 表面画柱塞共用。 */
 export const PLUNGER_REST_TOP = BOARD.launchY + BOARD.ballRadius + BALL_SEAT_GAP_PX;
 export const PLUNGER_TRAVEL = 18;
 
