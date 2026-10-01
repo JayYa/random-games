@@ -3,10 +3,9 @@
  * DOM 表面，用例用假表面。与转盘表面不共用类型（ADR-0013）。
  */
 
-import type { PinballView, PointerSample } from './machine';
+import type { PinballPicture, PointerSample } from './machine';
 
-/** 交给表面画的一帧画面。 */
-export type PinballPicture = PinballView;
+export type { PinballPicture, PointerSample };
 
 /**
  * 表面报给盘面的指针事件，只有这四种。表面只转交已经捕获的指针；"系统取消指针"和
@@ -24,9 +23,7 @@ export interface PinballSurface {
   draw(picture: PinballPicture): void;
   /** 向浏览器要一帧，`now` 是帧时间戳。叠不叠帧归盘面管。 */
   requestFrame(onFrame: (now: number) => void): void;
-  /** 取消在等的帧；没有在等的什么都不做。 */
-  cancelFrame(): void;
-  /** 解开全部监听。 */
+  /** 取消在等的帧，解开全部监听。 */
   teardown(): void;
 }
 

@@ -2,7 +2,7 @@
  * 弹球机的 DOM 表面：把弹球机盘面的调用转给画布、rAF 和指针事件，钉阵、风车、柱塞与揭晓
  * 标签的绘制也在这里。薄，不测（ADR-0014）。元素靠盘面写进页面的那份 HTML 找。
  *
- * 几何全照 `./board.ts`。没有键盘操作（ADR-0006）。
+ * 几何全照 `./geometry.ts`。没有键盘操作（ADR-0006）。
  */
 
 import { createById } from '../../byId';
@@ -15,12 +15,12 @@ import {
   pegPositions,
   slotCenterX,
   slotWidth,
-} from './board';
+} from './geometry';
 import {
   PLUNGER_REST_TOP,
   PLUNGER_TRAVEL,
+  type PinballPicture,
   type PinballReveal,
-  type PinballView,
   type PointerSample,
 } from './machine';
 import type { CreatePinballSurface } from './surface';
@@ -193,8 +193,8 @@ function drawRevealLabel(ctx: CanvasRenderingContext2D, reveal: PinballReveal): 
   });
 }
 
-/** 几何全照 `board.ts`，画的和物理算的才是同一个盘面。 */
-function drawBoard(ctx: CanvasRenderingContext2D, view: PinballView): void {
+/** 几何全照 `geometry.ts`，画的和物理算的才是同一个盘面。 */
+function drawBoard(ctx: CanvasRenderingContext2D, view: PinballPicture): void {
   ctx.clearRect(0, VIEW_TOP, BOARD.width, VIEW_HEIGHT);
 
   // 台面与机身外框。
@@ -411,7 +411,14 @@ export const createDomPinballSurface: CreatePinballSurface = (root, events) => {
     },
     listen,
   );
-  canvas.addEventListener('pointercancel', (event) => events.cancelled(event.pointerId), listen);
+  // pointercancel 派发完才丢捕获，此时还查得到。
+  canvas.addEventListener(
+    'pointercancel',
+    (event) => {
+      if (canvas.hasPointerCapture(event.pointerId)) events.cancelled(event.pointerId);
+    },
+    listen,
+  );
   // 捕获没等到抬手就丢了，这一发会卡在拖着，当作被系统抢走作废。正常抬手之后再报作废，
   // 盘面什么都不做（有用例钉住）。
   canvas.addEventListener(
@@ -438,11 +445,9 @@ export const createDomPinballSurface: CreatePinballSurface = (root, events) => {
         onFrame(now);
       });
     },
-    cancelFrame() {
+    teardown() {
       if (rafId !== undefined) cancelAnimationFrame(rafId);
       rafId = undefined;
-    },
-    teardown() {
       controller.abort();
     },
   };

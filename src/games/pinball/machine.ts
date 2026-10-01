@@ -1,5 +1,5 @@
 /**
- * 弹球机机器 (Pinball Machine)：弹球机的全部状态，不碰 DOM。是弹球机盘面（`./pinballBoard.ts`）的
+ * 弹球机机器 (Pinball Machine)：弹球机的全部状态，不碰 DOM。是弹球机盘面（`./board.ts`）的
  * 内部实现，只被它引用，用例经盘面测（ADR-0014）。
  *
  * 管柱塞拖拽、发射、回放轨迹、风车相位与揭晓的落格。指针只以普通数据的样本进来，
@@ -11,7 +11,7 @@
 
 import type { MountedBoard, RollHandle } from '../../gamePageHost';
 import type { RandomSource } from '../../randomIndex';
-import { BOARD, LANE_CENTER_X } from './board';
+import { BOARD, LANE_CENTER_X } from './geometry';
 import { simulateShot, type PinballShot } from './simulate';
 
 /** matter.js 的角速度按 16.67ms 基准步计，换算成每毫秒。 */
@@ -45,7 +45,8 @@ export interface PinballReveal {
   readonly name: string;
 }
 
-export interface PinballView {
+/** 一帧画面，盘面交给弹球机表面画。 */
+export interface PinballPicture {
   readonly ballX: number;
   readonly ballY: number;
   /** 顺序同 `BOARD.windmillPivots`。 */
@@ -82,7 +83,7 @@ export interface PinballMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
   /** 系统抢走了指针：这一发作废。 */
   cancel(pointerId: number): void;
   /** 推进到 `now`（毫秒，rAF 口径），交回画面。第一次只作基准。 */
-  tick(now: number): PinballView;
+  tick(now: number): PinballPicture;
   /** 收下之后回到待发：球回柱塞、力度归零，没播完的余韵就地掐掉。不自动发射。 */
   reset(): void;
 }

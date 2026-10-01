@@ -10,8 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import { REVEAL_PAUSE_MS } from '../../gamePageHost';
 import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
-import { createWheelBoard } from './board';
-import { SPIN_DURATION_MS } from './machine';
+import { SPIN_DURATION_MS, createWheelBoard } from './board';
 import type { CreateWheelSurface, WheelPicture, WheelSurfaceEvents } from './surface';
 
 /** 60Hz 下一帧。 */
@@ -61,14 +60,13 @@ function fakeWheelSurface(): FakeWheelSurface {
         requestFrame(onFrame) {
           frames.push(onFrame);
         },
-        cancelFrame() {
-          frames = [];
-        },
         setSpinEnabled(enabled) {
           spinEnabled = enabled;
         },
         focusTarget: spinButton,
+        // 与 DOM 表面一致：拆卸时掐掉在等的帧。
         teardown() {
+          frames = [];
           tornDown = true;
         },
       };
