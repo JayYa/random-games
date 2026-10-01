@@ -40,7 +40,10 @@ Code can change entirely; tests shouldn't break unless behavior changed.
 Mock at **system boundaries** only. Here those are randomness (`Math.random`),
 time (`setTimeout`), browser storage (`localStorage`) and the page/DOM. Code
 takes each as an injected dependency (`random`, `Schedule`, `RecentStorage`,
-`PageAdapter`, `ResultCard`, `Board`), and tests pass a fake — reuse the ones in
+`PageAdapter`, `ResultCard`, `Board`, and each game's board surface —
+`WheelSurface`, `PinballSurface` — per
+[ADR-0014](docs/adr/0014-boards-touch-dom-through-their-surface.md)), and
+tests pass a fake — reuse the ones in
 [`src/testHelpers.ts`](src/testHelpers.ts) before writing a new one. Everything
 inside the boundary goes in real: never mock your own classes, modules or
 internal collaborators. When something is hard to test without mocking an

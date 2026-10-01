@@ -16,7 +16,7 @@ import {
   pegPositions,
   slotCenterX,
   slotIndexAtX,
-} from './board';
+} from './geometry';
 import { seededRandom } from '../../seededRandom';
 
 export interface PinballFrame {

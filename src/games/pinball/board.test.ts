@@ -10,10 +10,14 @@ import { describe, expect, it } from 'vitest';
 
 import { REVEAL_PAUSE_MS } from '../../gamePageHost';
 import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
-import { BOARD, slotIndexAtX } from './board';
-import { FULL_PULL_PX, MAX_FRAME_MS, type PointerSample } from './machine';
-import { createPinballBoard } from './pinballBoard';
-import type { CreatePinballSurface, PinballPicture, PinballSurfaceEvents } from './surface';
+import { FULL_PULL_PX, MAX_FRAME_MS, createPinballBoard } from './board';
+import { BOARD, slotIndexAtX } from './geometry';
+import type {
+  CreatePinballSurface,
+  PinballPicture,
+  PinballSurfaceEvents,
+  PointerSample,
+} from './surface';
 
 const POWER = 0.6;
 
@@ -86,10 +90,9 @@ function fakePinballSurface(): FakePinballSurface {
         requestFrame(onFrame) {
           frames.push(onFrame);
         },
-        cancelFrame() {
-          frames = [];
-        },
+        // 与 DOM 表面一致：拆卸时掐掉在等的帧。
         teardown() {
+          frames = [];
           tornDown = true;
         },
       };

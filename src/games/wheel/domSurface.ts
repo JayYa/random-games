@@ -42,16 +42,14 @@ export const createDomWheelSurface: CreateWheelSurface = (root, events) => {
         onFrame(now);
       });
     },
-    cancelFrame() {
-      if (rafId !== undefined) cancelAnimationFrame(rafId);
-      rafId = undefined;
-    },
     // 用 `aria-disabled` 而不用 `disabled`，焦点才不会在按下的瞬间掉回 `<body>`。
     setSpinEnabled(enabled) {
       spinButton.setAttribute('aria-disabled', String(!enabled));
     },
     focusTarget: spinButton,
     teardown() {
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
+      rafId = undefined;
       controller.abort();
       resizeObserver?.disconnect();
     },

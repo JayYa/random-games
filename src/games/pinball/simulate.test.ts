@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOARD, slotCenterX, slotIndexAtX } from './board';
+import { BOARD, slotCenterX, slotIndexAtX } from './geometry';
 import { simulateShot, type PinballShot } from './simulate';
 
 const SLOT_COUNT = BOARD.slotCount;

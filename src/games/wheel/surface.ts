@@ -27,12 +27,10 @@ export interface WheelSurface {
   draw(picture: WheelPicture): void;
   /** 向浏览器要一帧，`now` 是帧时间戳。叠不叠帧归盘面管。 */
   requestFrame(onFrame: (now: number) => void): void;
-  /** 取消在等的帧；没有在等的什么都不做。 */
-  cancelFrame(): void;
   setSpinEnabled(enabled: boolean): void;
   /** 结果卡片收起后焦点交给它：「转」按钮。 */
   readonly focusTarget: HTMLElement;
-  /** 解开全部监听。 */
+  /** 取消在等的帧，解开全部监听。 */
   teardown(): void;
 }
 

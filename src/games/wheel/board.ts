@@ -9,6 +9,9 @@
 import type { Board, MountedBoard, RollHandle } from '../../gamePageHost';
 import type { RandomSource } from '../../randomIndex';
 import { createWheelMachine } from './machine';
+
+/** 一次转多久。用例按它跑过终点。 */
+export { SPIN_DURATION_MS } from './machine';
 import { WHEEL_CANVAS_ID, WHEEL_SPIN_ID, createDomWheelSurface } from './domSurface';
 import type { CreateWheelSurface } from './surface';
 
@@ -50,8 +53,9 @@ function mountWheelBoard(
   let tornDown = false;
 
   const surface = createSurface(root, {
+    // 拆掉之后不受理，不靠宿主一直锁着。
     spinPressed() {
-      if (machine.spin()) requestFrame();
+      if (!tornDown && machine.spin()) requestFrame();
     },
     resized() {
       requestFrame();
@@ -90,7 +94,6 @@ function mountWheelBoard(
     returnFocusTo: surface.focusTarget,
     teardown() {
       tornDown = true;
-      surface.cancelFrame();
       surface.teardown();
     },
   };
