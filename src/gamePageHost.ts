@@ -9,8 +9,7 @@
  */
 
 import type { ResultCard } from './resultCard';
-import type { Candidate } from './roster';
-import type { Theme } from './themes';
+import type { Candidate, Theme } from './theme';
 
 /** 揭晓后过多久弹结果卡片。卡片是全屏遮罩，没有这一拍名字刚亮就被盖住（ADR-0010）。 */
 export const REVEAL_PAUSE_MS = 800;

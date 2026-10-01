@@ -2,7 +2,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Plugin, type ViteDevServer, defineConfig } from 'vite';
-import { collectThemes } from './src/collectThemes.ts';
+import { collectThemes } from './src/theme/index.ts';
 import { readRosterFiles } from './src/rosterFiles.ts';
 
 /** 类型声明在 `src/vite-env.d.ts`。 */

@@ -1,8 +1,8 @@
 /** 名单错误的文案：四种名单错误各写成什么标题、说明、提示。 */
 
 import { describe, expect, it } from 'vitest';
-import { describeRosterError } from './rosterError';
-import { hostTheme as theme } from './testHelpers';
+import { describeRosterError } from './index';
+import { hostTheme as theme } from '../testHelpers';
 
 describe('名单错误写成文案', () => {
   it('没取到：说得出是哪份文件、为什么没取到，提示去确认 public/ 下的文件', () => {

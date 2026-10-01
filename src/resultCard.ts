@@ -8,7 +8,7 @@
 import { createById } from './byId';
 import { burstConfetti } from './confetti';
 import { escapeHtml } from './escapeHtml';
-import type { Candidate } from './roster';
+import type { Candidate } from './theme';
 
 /** @param closeLabel 收下按钮上的字，由盘面给：转盘「再来一次」，弹球机「再打一发」。 */
 export function resultCardMarkup(closeLabel: string): string {

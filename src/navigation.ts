@@ -12,9 +12,7 @@ import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
 import { rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
-import { createRosterSession, type RosterSession } from './roster';
-import type { RosterError } from './rosterError';
-import type { Theme } from './themes';
+import { createRosterSession, type RosterError, type RosterSession, type Theme } from './theme';
 
 /** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上补齐站内导航自己画的几屏。 */
 export interface NavigationPage extends PageAdapter {

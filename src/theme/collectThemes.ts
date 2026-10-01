@@ -2,7 +2,7 @@
  * 从一组名单文件得出主题清单（ADR-0009）。无头：跳过的原因作为返回值交出，由调用方打印。
  */
 
-import type { Theme } from './themes.ts';
+import type { Theme } from './index.ts';
 
 export interface SkippedRoster {
   /** 例如 `Eat.csv`。 */

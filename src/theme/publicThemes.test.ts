@@ -1,12 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { collectThemes } from './collectThemes';
-import { describeRosterError } from './rosterError';
-import { readRosterFiles } from './rosterFiles';
-import { createRosterSession } from './roster';
+import { readRosterFiles } from '../rosterFiles';
+import { collectThemes, createRosterSession, describeRosterError } from './index';
 
 /** 构建时插件扫的同一个目录。 */
-const publicDir = fileURLToPath(new URL('../public', import.meta.url));
+const publicDir = fileURLToPath(new URL('../../public', import.meta.url));
 
 const rosterFiles = readRosterFiles(publicDir);
 

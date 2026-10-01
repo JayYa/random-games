@@ -4,9 +4,9 @@
  * 中选从启用且不在冷却中的候选里等概率抽，抽完当场记进最近中选（ADR-0010、ADR-0011）。
  */
 
-import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';
-import type { RandomSource } from './randomIndex';
-import type { RosterError } from './rosterError';
+import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from '../cooldown.ts';
+import type { RandomSource } from '../randomIndex.ts';
+import type { RosterError } from './rosterError.ts';
 
 export interface Candidate {
   readonly name: string;
