@@ -24,7 +24,7 @@ export const NO_RECENT_MEMORY: RecentMemory = {
 };
 
 export interface CooldownDraw<T> {
-  /** 不能为空。 */
+  /** 不能为空，各成员的 key 互不重复。 */
   readonly pool: readonly T[];
   /** 成员在记忆里的名字：候选按名字，玩法按 slug。 */
   readonly keyOf: (member: T) => string;
@@ -33,14 +33,16 @@ export interface CooldownDraw<T> {
   readonly random: () => number;
 }
 
-/** 按冷却规则取一个并记下。池子为空时抛错。 */
+/**
+ * 按冷却规则取一个并记下。违反 `pool` 的要求时抛错：重复的 key 只能是程序写错，
+ * 悄悄放过会把概率抽偏。
+ */
 export function drawWithCooldown<T>({ pool, keyOf, memory, random }: CooldownDraw<T>): T {
   if (pool.length === 0) throw new Error('池子是空的，抽不出来');
+  if (new Set(pool.map(keyOf)).size !== pool.length) throw new Error('池子里有 key 重复的成员');
 
   const recent = memory.read();
-  // 按不同的名字数：名单里写重的名字是同一个候选，否则可能一个都不剩。
-  const poolSize = new Set(pool.map(keyOf)).size;
-  const coolingCount = Math.min(recent.length, poolSize - 1);
+  const coolingCount = Math.min(recent.length, pool.length - 1);
   // 不用 `slice(-coolingCount)`：`slice(-0)` 会给出整份。
   const cooling = new Set(recent.slice(recent.length - coolingCount));
   const drawable = pool.filter((member) => !cooling.has(keyOf(member)));

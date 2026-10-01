@@ -44,17 +44,18 @@ function sorted(names: Iterable<string>): string[] {
   return [...names].sort();
 }
 
+/** 把 [0, 1) 等分成 `count` 段，依次取各段正中：没有冷却时逐个落在下标 0 到 `count` − 1。 */
+function evenSweep(count: number): number[] {
+  return Array.from({ length: count }, (_, i) => (i + 0.5) / count);
+}
+
 /**
  * 全部启用的候选，按书写顺序。会话不交出候选列表，只能让随机值扫过每个下标逐个抽出；
  * `count` 是用例造名单时写下的启用个数。
  */
 function enabledNames(csvText: string, count: number): string[] {
-  let index = 0;
-  const session = makeSession({ csvText, random: () => (index + 0.5) / count });
-  return Array.from({ length: count }, (_, i) => {
-    index = i;
-    return session.drawWinner().name;
-  });
+  const session = makeSession({ csvText, random: scriptedRandom(evenSweep(count)) });
+  return Array.from({ length: count }, () => session.drawWinner().name);
 }
 
 describe('解析名单', () => {
@@ -222,7 +223,7 @@ describe('抽一个中选', () => {
     const count = 40;
     const session = makeSession({
       csvText: roster(count),
-      random: scriptedRandom(Array.from({ length: count }, (_, i) => (i + 0.5) / count)),
+      random: scriptedRandom(evenSweep(count)),
     });
     const drawn = Array.from({ length: count }, () => session.drawWinner().name);
     expect(drawn).toEqual(rosterNames(count));
@@ -236,6 +237,42 @@ describe('抽一个中选', () => {
     for (let i = 0; i < 4; i += 1) {
       expect(session.drawWinner().name).toBe('沙县小吃');
     }
+  });
+});
+
+describe('写重的名字', () => {
+  it('同名的几行是一个候选，中选机会与只写一次的相等', () => {
+    // 等分的 k 个点依次喂进去，每个候选应各中 k / 2 次。
+    const k = 6;
+    const session = makeSession({
+      csvText: csv('沙县小吃,true', '兰州拉面,true', '沙县小吃,true'),
+      random: scriptedRandom(evenSweep(k)),
+    });
+    const counts = new Map<string, number>();
+    for (let i = 0; i < k; i += 1) {
+      const name = session.drawWinner().name;
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    expect(Object.fromEntries(counts)).toEqual({ 沙县小吃: 3, 兰州拉面: 3 });
+  });
+
+  it.each([
+    ['启用的在前', ['沙县小吃,true', '沙县小吃,false']],
+    ['停用的在前', ['沙县小吃,false', '沙县小吃,']],
+  ])('同名的几行任一行停用，这个候选就永不中选（%s）', (_, rows) => {
+    expect(sorted(drawableNames(csv(...rows, '兰州拉面,true'), []))).toEqual(['兰州拉面']);
+  });
+
+  it('大小写不同的名字是两个候选', () => {
+    expect(enabledNames(csv('KFC,true', 'kfc,true'), 2)).toEqual(['KFC', 'kfc']);
+  });
+
+  it('名字首尾的空白不算，带空白的与不带的是同一个候选', () => {
+    expect(enabledNames(csv('  沙县小吃 ,true', '兰州拉面,true', '沙县小吃,true'), 2)).toEqual(['沙县小吃', '兰州拉面']);
+  });
+
+  it('同名的几行全部停用、又没有别的候选时，全部停用的个数按候选数计', () => {
+    expect(rosterErrorOf(csv('沙县小吃,false', '沙县小吃,no'))).toEqual({ kind: 'all-disabled', disabledCount: 1 });
   });
 });
 
