@@ -1,5 +1,6 @@
 /**
- * 转盘机器 (Wheel Machine)：转盘的全部状态，不碰 DOM。
+ * 转盘机器 (Wheel Machine)：转盘的全部状态，不碰 DOM。是转盘盘面（`./board.ts`）的内部实现，
+ * 只被它引用，用例经盘面测（ADR-0014）。
  *
  * 转一次时先定停在哪个扇区，再反算要转到的角度（ADR-0003），按时间推进，停下时报
  * `boardStopped()`。时间只经 `tick(now)` 进来，随机只来自注入的随机源。
@@ -30,19 +31,17 @@ export interface WheelView {
   readonly rotation: number;
   /** 只在揭晓到收下之间有值。 */
   readonly reveal: Reveal | undefined;
-  /** 还在转，渲染层据此决定要不要下一帧。 */
+  /** 还在转，盘面据此决定要不要续要下一帧。 */
   readonly spinning: boolean;
 }
 
 export interface WheelMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
-  /** 机器自己用的扇区换算，画布和用例照它算。 */
+  /** 机器自己用的扇区换算，随画面交给表面。 */
   readonly sectors: Sectors;
   /** 按下「转」：`roll.begin()` 受理了才定扇区、起转，返回受没受理。 */
   spin(): boolean;
-  /** 推进到 `now`（rAF 时间戳），交回画面；走到终点那次报盘面停下。 */
+  /** 推进到 `now`（帧时间戳），交回画面；走到终点那次报盘面停下。 */
   tick(now: number): WheelView;
-  /** 交回当下画面，不推进。 */
-  view(): WheelView;
 }
 
 interface Spin {
@@ -124,8 +123,6 @@ export function createWheelMachine(
       if (current) advance(now, current);
       return view();
     },
-
-    view,
 
     reveal(winner) {
       reveal = { sector: stoppedSector, name: winner.name };

@@ -4,7 +4,7 @@
  */
 
 import type { Game } from '../games';
-import { createWheelBoard } from './wheel/ui';
+import { createWheelBoard } from './wheel/board';
 import { createPinballBoard } from './pinball/ui';
 
 /** 全部玩法。顺序不影响概率。 */
