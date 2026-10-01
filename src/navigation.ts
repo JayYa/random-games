@@ -2,7 +2,8 @@
  * 站内导航 (Navigation)：按 hash 地址画选主题页或玩法页（ADR-0005、ADR-0007）。
  *
  * `#/<主题>/<玩法>` 直接进；`#/<主题>` 先抽玩法再换成带玩法的地址；其余回落到选主题页，
- * 地址栏也改成 `#/`。名单取回之后交给玩法页宿主（ADR-0012）。
+ * 地址栏也改成 `#/`。名单取回之后当场打开，名单错误由这里交给页面，能开抽才把「抽一个中选」
+ * 交给玩法页宿主（ADR-0012）。
  *
  * 不碰 DOM、不碰全局，依赖全部注入。
  */
@@ -11,19 +12,22 @@ import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
 import { rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
+import { createRosterSession, type RosterSession } from './roster';
 import type { RosterError } from './rosterError';
 import type { Theme } from './themes';
 
-/**
- * 站内导航的页面适配器，在宿主的 `PageAdapter` 之上多两屏。名单回来之后原样交给宿主；
- * 名单文件取不到时，站内导航自己造一个 `load` 名单错误，与宿主交上来的走同一个入口。
- */
+/** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上多三屏。 */
 export interface NavigationPage extends PageAdapter {
   /** 列出的主题就是认地址用的那一份。 */
   showThemePicker(themes: readonly Theme[]): void;
   /** 名单在路上。 */
   showRosterLoading(theme: Theme): void;
+  /** 名单开不了抽时替掉整页。四种名单错误都只从站内导航这一处画。 */
+  showRosterError(theme: Theme, error: RosterError): void;
 }
+
+/** 取名单、打开名单的结果：能开抽，或四种名单错误之一。 */
+type OpenedRoster = RosterSession | { readonly ok: false; readonly error: RosterError };
 
 /** 处理「换个主题」点击要用到的那几样，生产直接交 `MouseEvent`。 */
 export interface PickerLinkClick {
@@ -134,26 +138,33 @@ export function createNavigation(options: NavigationOptions): Navigation {
 
     page.showRosterLoading(theme);
 
-    // 分两路：只有取不到才是「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
+    // 取到就当场打开名单，取不到就是「没取到」，两路汇合成同一种结果。只有取不到才是
+    // 「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
     fetchRoster(theme.rosterFile)
       .then(
-        (csvText) => {
-          if (!isCurrent()) return;
-          teardown = mountGamePage({
-            theme,
+        (csvText): OpenedRoster =>
+          createRosterSession({
             csvText,
-            recentWinners: recentWinnersMemory(storage, theme.slug),
-            board: address.game.createBoard(),
-            page,
             random,
-          });
-        },
-        (cause: unknown) => {
-          if (!isCurrent()) return;
-          const error: RosterError = { kind: 'load', cause };
-          page.showRosterError(theme, error);
-        },
+            recentWinners: recentWinnersMemory(storage, theme.slug),
+          }),
+        (cause: unknown): OpenedRoster => ({ ok: false, error: { kind: 'load', cause } }),
       )
+      .then((roster) => {
+        // 打开名单没有副作用，晚回来的结果不论哪种都在这里作废。
+        if (!isCurrent()) return;
+        // 开不了抽时不挂盘面：空盘面看着像程序坏了。
+        if (!roster.ok) {
+          page.showRosterError(theme, roster.error);
+          return;
+        }
+        teardown = mountGamePage({
+          theme,
+          drawWinner: roster.drawWinner,
+          board: address.game.createBoard(),
+          page,
+        });
+      })
       .catch((cause: unknown) => {
         console.error('挂玩法页时出错', cause);
       });
