@@ -134,24 +134,29 @@ export function createNavigation(options: NavigationOptions): Navigation {
 
     page.showRosterLoading(theme);
 
-    fetchRoster(theme.rosterFile).then(
-      (csvText) => {
-        if (!isCurrent()) return;
-        teardown = mountGamePage({
-          theme,
-          csvText,
-          recentWinners: recentWinnersMemory(storage, theme.slug),
-          board: address.game.createBoard(),
-          page,
-          random,
-        });
-      },
-      (cause: unknown) => {
-        if (!isCurrent()) return;
-        const error: RosterError = { kind: 'load', cause };
-        page.showRosterError(theme, error);
-      },
-    );
+    // 分两路：只有取不到才是「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
+    fetchRoster(theme.rosterFile)
+      .then(
+        (csvText) => {
+          if (!isCurrent()) return;
+          teardown = mountGamePage({
+            theme,
+            csvText,
+            recentWinners: recentWinnersMemory(storage, theme.slug),
+            board: address.game.createBoard(),
+            page,
+            random,
+          });
+        },
+        (cause: unknown) => {
+          if (!isCurrent()) return;
+          const error: RosterError = { kind: 'load', cause };
+          page.showRosterError(theme, error);
+        },
+      )
+      .catch((cause: unknown) => {
+        console.error('挂玩法页时出错', cause);
+      });
   }
 
   function handlePickerLinkClick(click: PickerLinkClick): void {

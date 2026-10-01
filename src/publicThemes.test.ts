@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { collectThemes } from './collectThemes';
 import { describeRosterError } from './rosterError';
 import { readRosterFiles } from './rosterFiles';
-import { createRosterSession } from './rosterSession';
+import { createRosterSession } from './roster';
 
 /** 构建时插件扫的同一个目录。 */
 const publicDir = fileURLToPath(new URL('../public', import.meta.url));
