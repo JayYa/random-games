@@ -11,15 +11,17 @@ export type Address =
   | { readonly kind: 'pending-roll'; readonly theme: Theme }
   | { readonly kind: 'settled'; readonly theme: Theme; readonly game: Game };
 
+const PREFIX = '#/';
+
 /** 站点不记住上次选的主题，根地址永远落在选主题页（ADR-0005）。 */
-export const THEME_PICKER_HASH = '#/';
+export const THEME_PICKER_HASH = PREFIX;
 
 export function themeHash(theme: Theme): string {
-  return `#/${theme.slug}`;
+  return `${PREFIX}${theme.slug}`;
 }
 
 export function gameHash(theme: Theme, game: Game): string {
-  return `#/${theme.slug}/${game.slug}`;
+  return `${PREFIX}${theme.slug}/${game.slug}`;
 }
 
 /** 认不出的回落首页，并由调用方改写成标准写法。 */
@@ -31,9 +33,9 @@ export function resolveAddress(
   games: readonly Game[],
 ): Address {
   if (hash === '' || hash === THEME_PICKER_HASH) return { kind: 'picker', canonical: true };
-  if (!hash.startsWith('#/')) return UNRECOGNIZED;
+  if (!hash.startsWith(PREFIX)) return UNRECOGNIZED;
 
-  const segments = hash.slice(2).split('/');
+  const segments = hash.slice(PREFIX.length).split('/');
   if (segments.length > 2) return UNRECOGNIZED;
   const [themeSlug, gameSlug] = segments;
 

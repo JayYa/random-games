@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameHash, resolveAddress, themeHash } from './address';
-import type { Game } from './games';
-import { fakeBoard, fakeThemes } from './testHelpers';
-
-/** 假玩法，用例不因加减真实玩法而变，也不载入盘面。 */
-function fakeGames(slugs: readonly string[]): Game[] {
-  return slugs.map((slug) => ({ slug, createBoard: () => fakeBoard() }));
-}
+import { fakeGames, fakeThemes } from './testHelpers';
 
 const games = fakeGames(['spin', 'drop']);
 

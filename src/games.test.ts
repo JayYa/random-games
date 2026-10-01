@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rollGame, type Game } from './games';
-import { fakeBoard, fakeRecentMemory, scriptedRandom, seededRandom } from './testHelpers';
+import { fakeGames, fakeRecentMemory, scriptedRandom, seededRandom } from './testHelpers';
 
 describe('rollGame', () => {
   it('随机数落在哪一格就抽出哪一条', () => {
@@ -76,11 +76,6 @@ describe('rollGame 的最近玩法', () => {
     expect([...seen].sort()).toEqual(['a', 'c']);
   });
 });
-
-/** 假玩法，盘面是 `fakeBoard`：用例不因加减真实玩法而变，也不载入盘面。 */
-function fakeGames(slugs: readonly string[]): Game[] {
-  return slugs.map((slug) => ({ slug, createBoard: () => fakeBoard() }));
-}
 
 function twoGames(): Game[] {
   return fakeGames(['a', 'b']);

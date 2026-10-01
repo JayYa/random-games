@@ -3,6 +3,7 @@
  */
 
 import type { RecentMemory } from './cooldown';
+import type { Game } from './games';
 import type { RecentStorage } from './recentStorage';
 import type { ResultCard } from './resultCard';
 import type { RosterFailureSource } from './rosterFailure';
@@ -332,6 +333,11 @@ export const fakeThemes: readonly [Theme, Theme] = [
   hostTheme,
   { slug: 'play', rosterFile: 'play.csv', title: '今天玩什么', entryLabel: '玩什么' },
 ];
+
+/** 假玩法，盘面是 `fakeBoard`：用例不因加减真实玩法而变，也不载入盘面。 */
+export function fakeGames(slugs: readonly string[]): Game[] {
+  return slugs.map((slug) => ({ slug, createBoard: () => fakeBoard() }));
+}
 
 export interface MountOnHostOptions {
   /** 默认 `roster(3)`。 */
