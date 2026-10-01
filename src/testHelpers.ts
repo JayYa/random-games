@@ -340,8 +340,6 @@ export function fakeGames(slugs: readonly string[]): Game[] {
 export interface MountOnHostOptions {
   /** 默认 `roster(3)`。 */
   readonly csvText?: string;
-  /** 已有的最近中选，最早的在前。 */
-  readonly recent?: readonly string[];
   readonly log?: string[];
   /** 为真时用宿主默认的 `setTimeout`，用例自己装假时钟。 */
   readonly realSchedule?: boolean;
@@ -365,10 +363,10 @@ export interface HostedBoard {
  * 名单开不了抽就抛错：那归站内导航的用例。
  */
 export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {
-  const { csvText = roster(3), recent = [], log, realSchedule = false } = options;
+  const { csvText = roster(3), log, realSchedule = false } = options;
   const page = fakeGamePage(log);
   const timer = fakeTimer();
-  const recentWinners = fakeRecentMemory(recent);
+  const recentWinners = fakeRecentMemory();
   let roll: RollHandle | undefined;
   const intercepted: Board = {
     ...board,
@@ -389,9 +387,4 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
   // 宿主当场挂盘面；没截到句柄是宿主写错了。
   if (!roll) throw new Error('宿主应当当场挂上盘面');
   return { teardown, page, timer, recentWinners, roll };
-}
-
-/** 取出开抽句柄。 */
-export function rollOf(hosted: HostedBoard): RollHandle {
-  return hosted.roll;
 }
