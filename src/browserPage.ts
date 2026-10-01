@@ -22,10 +22,6 @@ export function browserPage(root: HTMLElement): NavigationPage {
       document.title = theme.title;
       showRosterLoading(root, theme);
     },
-    showRosterLoadFailure(theme, cause) {
-      document.title = theme.title;
-      showRosterError(root, theme, 'load', describeRosterError(theme, { kind: 'load', cause }));
-    },
     showRosterError(theme, error) {
       document.title = theme.title;
       showRosterError(root, theme, error.kind, describeRosterError(theme, error));

@@ -19,6 +19,7 @@ import {
   roster,
   scriptedRandom,
   type FakeBoard,
+  type FakeGamePage,
   type FakeStorage,
 } from './testHelpers';
 import type { Theme } from './themes';
@@ -149,14 +150,20 @@ function settle(): Promise<void> {
 }
 
 /**
- * 在 `fakeGamePage` 上补齐站内导航多出的三项，都记进 `log`；选主题页每次收到的主题清单
- * 记进 `pickerThemes`。
+ * 在 `fakeGamePage` 上补齐站内导航多出的两项，都记进 `log`；选主题页每次收到的主题清单
+ * 记进 `pickerThemes`。交给页面的名单错误照旧记在 `fakeGamePage` 上。
  *
  * 逐个转交而不用对象展开：展开会把取值器求成定值。
  */
-function fakeNavigationPage(log: string[], pickerThemes: (readonly Theme[])[]): NavigationPage {
+function fakeNavigationPage(
+  log: string[],
+  pickerThemes: (readonly Theme[])[],
+): NavigationPage & Pick<FakeGamePage, 'rosterErrors'> {
   const hostPage = fakeGamePage(log);
   return {
+    get rosterErrors() {
+      return hostPage.rosterErrors;
+    },
     showRosterError: (theme, error) => hostPage.showRosterError(theme, error),
     showGamePage: (view, onClose) => hostPage.showGamePage(view, onClose),
     showThemePicker(themes) {
@@ -165,9 +172,6 @@ function fakeNavigationPage(log: string[], pickerThemes: (readonly Theme[])[]): 
     },
     showRosterLoading(theme) {
       log.push(`loading ${theme.slug}`);
-    },
-    showRosterLoadFailure(theme) {
-      log.push(`load-failure ${theme.slug}`);
     },
   };
 }
@@ -239,6 +243,7 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
   const log: string[] = [];
   const pickerThemes: (readonly Theme[])[] = [];
   const { games, boards } = trackedGames(log);
+  const page = fakeNavigationPage(log, pickerThemes);
   const navigation = createNavigation({
     history: browser.history,
     location: browser.location,
@@ -247,11 +252,11 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
     random: scriptedRandom([0]),
     themes: fakeThemes,
     games,
-    page: fakeNavigationPage(log, pickerThemes),
+    page,
   });
   browser.listen(() => navigation.render());
   navigation.render();
-  return { browser, navigation, fetch, log, boards, pickerThemes };
+  return { browser, navigation, fetch, log, boards, pickerThemes, page };
 }
 
 const [theme, otherTheme] = fakeThemes;
@@ -307,10 +312,13 @@ describe('带玩法的地址', () => {
     expect(log).toEqual([`loading ${theme.slug}`, 'page roster-error parse-error']);
   });
 
-  it('取不到文件时画取不到文件的错误页', async () => {
-    const { fetch, log } = open(gameHash(theme, firstGame));
+  it('取不到文件时交出没取到的名单错误，带上取不到的原因', async () => {
+    const { fetch, log, page } = open(gameHash(theme, firstGame));
     await fetch.fail(theme.rosterFile);
-    expect(log).toEqual([`loading ${theme.slug}`, `load-failure ${theme.slug}`]);
+    expect(log).toEqual([`loading ${theme.slug}`, 'page roster-error load']);
+    expect(page.rosterErrors).toEqual([
+      { theme, error: { kind: 'load', cause: new Error('HTTP 404') } },
+    ]);
   });
 });
 
