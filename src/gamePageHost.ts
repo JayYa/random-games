@@ -9,7 +9,7 @@
 
 import type { RecentMemory } from './cooldown';
 import type { ResultCard } from './resultCard';
-import type { RosterFailureSource } from './rosterFailure';
+import type { RosterError } from './rosterError';
 import { createRosterSession, type Candidate, type RandomSource } from './rosterSession';
 import type { Theme } from './themes';
 
@@ -86,7 +86,7 @@ export interface WrittenGamePage {
 /** 宿主碰 DOM 的唯一出口，挂载点已经绑在里面。生产用 `browserPage.ts`，用例用假页面。 */
 export interface PageAdapter {
   /** 名单开不了抽时替掉整页。 */
-  showRosterFailure(theme: Theme, roster: RosterFailureSource): void;
+  showRosterError(theme: Theme, error: RosterError): void;
   /**
    * 一次写完页头、盘面和结果卡片，交回卡片和盘面的挂载点。
    *
@@ -138,8 +138,8 @@ export function mountGamePage(options: GamePageHostOptions): () => void {
   });
 
   // 开不了抽时不挂盘面：空盘面看着像程序坏了。
-  if (roster.status !== 'ok') {
-    page.showRosterFailure(theme, roster);
+  if (!roster.ok) {
+    page.showRosterError(theme, roster.error);
     return () => {};
   }
 

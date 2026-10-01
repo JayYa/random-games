@@ -157,7 +157,7 @@ function settle(): Promise<void> {
 function fakeNavigationPage(log: string[], pickerThemes: (readonly Theme[])[]): NavigationPage {
   const hostPage = fakeGamePage(log);
   return {
-    showRosterFailure: (theme, roster) => hostPage.showRosterFailure(theme, roster),
+    showRosterError: (theme, error) => hostPage.showRosterError(theme, error),
     showGamePage: (view, onClose) => hostPage.showGamePage(view, onClose),
     showThemePicker(themes) {
       log.push('picker');
@@ -304,7 +304,7 @@ describe('带玩法的地址', () => {
   it('名单写坏时画名单错误页，不挂盘面', async () => {
     const { fetch, log } = open(gameHash(theme, firstGame));
     await fetch.succeed(theme.rosterFile, '"没关引号,true');
-    expect(log).toEqual([`loading ${theme.slug}`, 'page roster-failure parse-error']);
+    expect(log).toEqual([`loading ${theme.slug}`, 'page roster-error parse-error']);
   });
 
   it('取不到文件时画取不到文件的错误页', async () => {
