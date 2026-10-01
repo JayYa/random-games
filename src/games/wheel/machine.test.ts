@@ -13,7 +13,7 @@ import {
   type WheelMachine,
   type WheelView,
 } from './machine';
-import { csv, mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
 /** 60Hz 下一帧。 */
 const FRAME_MS = 16;
@@ -31,12 +31,12 @@ interface Harness extends HostedBoard {
 interface SetupOptions {
   /** 默认 7。 */
   readonly seed?: number;
-  /** 默认用 `mountOnHost` 的名单。 */
-  readonly csvText?: string;
+  /** 「抽一个中选」交出的名字，默认用 `mountOnHost` 的。 */
+  readonly winners?: readonly string[];
 }
 
 /** 在真宿主上挂一页转盘。机器本身就是挂载结果。 */
-function setup({ seed = 7, csvText }: SetupOptions = {}): Harness {
+function setup({ seed = 7, winners }: SetupOptions = {}): Harness {
   const machines: WheelMachine[] = [];
   const board: Board = {
     html: '<canvas class="wheel__canvas"></canvas>',
@@ -48,7 +48,7 @@ function setup({ seed = 7, csvText }: SetupOptions = {}): Harness {
       return machine;
     },
   };
-  const hosted = mountOnHost(board, { csvText });
+  const hosted = mountOnHost(board, { winners });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
   return { ...hosted, machine };
@@ -309,9 +309,8 @@ describe('补画不推进时间', () => {
   });
 
   it('揭晓后 view() 交回指针底下的那一格与中选的名字', () => {
-    // 只有一个候选，中选就确定了。
     const onlyCandidate = '甲';
-    const { machine } = setup({ csvText: csv(`${onlyCandidate},true`) });
+    const { machine } = setup({ winners: [onlyCandidate] });
     machine.tick(FIRST_TICK_MS);
     const stopped = spinThrough(machine, START_MS);
 

@@ -1,6 +1,6 @@
 /**
  * 玩法页宿主的用例。经开抽句柄和假页面上的收下按钮驱动，只看页面、盘面、卡片、
- * 最近中选和锁上看得到的行为。冷却细节归名单会话的用例。
+ * 「抽一个中选」交出过的中选和锁上看得到的行为。名单怎么抽、记了什么归名单会话的用例。
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -58,11 +58,11 @@ describe('写出玩法页', () => {
 
   it('挂上之后没锁，也还什么都没抽、没揭晓', () => {
     const harness = mountPage();
-    const { board, page, recentWinners } = harness;
+    const { board, page } = harness;
     expect(harness.roll.locked).toBe(false);
     expect(board.reveals).toEqual([]);
     expect(page.card?.showCount).toBe(0);
-    expect(recentWinners.names).toEqual([]);
+    expect(harness.drawnWinners).toEqual([]);
   });
 });
 
@@ -134,14 +134,15 @@ describe('一整次开抽', () => {
   });
 
   it('收下之后再开一次抽照常受理，抽出下一个中选', () => {
-    const harness = mountPage();
+    const harness = mountPage({ winners: ['甲', '乙'] });
     const { board, page } = harness;
     rollOnce(harness);
     page.pressClose();
 
     rollOnce(harness);
-    expect(board.reveals.map((winner) => winner.name)).toEqual(['候选1', '候选2']);
-    expect(page.card?.shownWinner?.name).toBe('候选2');
+    expect(harness.drawnWinners).toEqual(['甲', '乙']);
+    expect(board.reveals.map((winner) => winner.name)).toEqual(['甲', '乙']);
+    expect(page.card?.shownWinner?.name).toBe('乙');
   });
 
   it('收下之后在盘面的复位里立刻开抽，照常受理', () => {
@@ -165,11 +166,11 @@ describe('一整次开抽', () => {
 describe('报停与收下只在对的时候受理', () => {
   it('还没开抽就报停下：不抽，盘面上也没有名字亮出来', () => {
     const harness = mountPage();
-    const { board, recentWinners } = harness;
+    const { board } = harness;
 
     harness.roll.boardStopped();
 
-    expect(recentWinners.names).toEqual([]);
+    expect(harness.drawnWinners).toEqual([]);
     expect(board.reveals).toEqual([]);
   });
 
@@ -190,7 +191,7 @@ describe('报停与收下只在对的时候受理', () => {
     roll.boardStopped();
     roll.boardStopped();
 
-    expect(harness.recentWinners.names).toEqual(['候选1']);
+    expect(harness.drawnWinners).toEqual(['候选1']);
   });
 
   it('揭晓那一拍里再报一次停下：只弹一张卡片，带的是头一个中选', () => {
@@ -228,7 +229,7 @@ describe('报停与收下只在对的时候受理', () => {
       },
     });
 
-    expect(harness.recentWinners.names).toEqual([]);
+    expect(harness.drawnWinners).toEqual([]);
     expect(harness.board.reveals).toEqual([]);
   });
 
@@ -315,17 +316,17 @@ describe('锁', () => {
   });
 });
 
-describe('最近中选', () => {
-  it('中选在揭晓那一刻就记下，不等卡片弹出、也不等收下', () => {
+describe('抽中选的时刻', () => {
+  it('报停当下就抽中选，不等卡片弹出、也不等收下', () => {
     const harness = mountPage();
-    const { recentWinners, page } = harness;
+    const { page } = harness;
     const roll = harness.roll;
 
     roll.begin();
-    expect(recentWinners.names).toEqual([]);
+    expect(harness.drawnWinners).toEqual([]);
 
     roll.boardStopped();
-    expect(recentWinners.names).toEqual(['候选1']);
+    expect(harness.drawnWinners).toEqual(['候选1']);
     expect(page.card?.showCount).toBe(0);
   });
 });
@@ -381,7 +382,7 @@ describe('换页拆卸', () => {
   it('拆卸之后盘面再报停：不抽、不揭晓、不记、不弹卡片', () => {
     // 宿主不指望盘面拆卸时一定停了动画。
     const harness = mountPage();
-    const { teardown, timer, board, page, recentWinners } = harness;
+    const { teardown, timer, board, page } = harness;
     const roll = harness.roll;
     roll.begin();
     teardown();
@@ -389,7 +390,7 @@ describe('换页拆卸', () => {
     roll.boardStopped();
     timer.advance(REVEAL_PAUSE_MS * 2);
     expect(board.reveals).toEqual([]);
-    expect(recentWinners.names).toEqual([]);
+    expect(harness.drawnWinners).toEqual([]);
     expect(page.card?.showCount).toBe(0);
     expect(timer.pendingCount).toBe(0);
   });

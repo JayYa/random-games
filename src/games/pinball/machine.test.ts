@@ -16,7 +16,7 @@ import {
   type PinballView,
   type PointerSample,
 } from './machine';
-import { csv, mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
 const POWER = 0.6;
 
@@ -31,7 +31,7 @@ const FAR_MS = 60_000;
 
 const NAMES = ['甲', '乙', '丙'] as const;
 
-/** `mountOnHost` 总抽第一个可抽的候选。 */
+/** 「抽一个中选」按顺序交出 `NAMES`，头一次是第一个。 */
 const WINNER = NAMES[0];
 
 /** 画布的屏幕矩形。柱塞只看屏幕像素；高度远大于满行程，好在上下半截分别起手。 */
@@ -69,7 +69,7 @@ function setup(): Harness {
       return machine;
     },
   };
-  const hosted = mountOnHost(board, { csvText: csv(...NAMES.map((name) => `${name},true`)) });
+  const hosted = mountOnHost(board, { winners: NAMES });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
   return { ...hosted, machine };
