@@ -5,8 +5,11 @@
 //     .claude/skills/verify-random-games/scenarios/roster-errors.mjs
 const CASES = [
   { kind: 'parse-error', title: '名单里有一行读不懂', body: '肠粉,true\n"没闭合的引号,true\n' },
+  { kind: 'parse-error', label: 'text after quote', title: '名单里有一行读不懂', body: '"肠粉"x,true\n' },
+  { kind: 'parse-error', label: 'no name', title: '第 1 行没有名字', body: ',true\n' },
   { kind: 'empty-file', title: '名单是空的', body: '# 只有注释\n\n' },
   { kind: 'all-disabled', title: '名单里的候选全部停用', body: '肠粉,false\n面包,no\n' },
+  { kind: 'all-disabled', label: 'any case', title: '名单里的候选全部停用', body: '肠粉,FALSE\n面包, No \n' },
   { kind: 'load', title: '名单文件没取到', status: 404, body: '' },
 ];
 
@@ -22,7 +25,8 @@ export default async function ({ page, expect, baseURL, step, shot, aria }) {
 
   for (const game of ['wheel', 'pinball']) {
     for (const c of CASES) {
-      await step(`[route] ${game}: ${c.kind}`, async () => {
+      const name = c.label ? `${c.kind}-${c.label.replace(/ /g, '-')}` : c.kind;
+      await step(`[route] ${game}: ${name}`, async () => {
         current = c;
         await page.goto('about:blank');
         await page.goto(`${baseURL}#/breakfast/${game}`);
@@ -33,8 +37,8 @@ export default async function ({ page, expect, baseURL, step, shot, aria }) {
         await expect(page.getByRole('heading', { level: 1, name: '早餐吃什么' })).toBeVisible();
         await expect(page.locator('canvas')).toHaveCount(0);
         await expect(page.locator('#card')).toHaveCount(0);
-        await aria(`${game}-${c.kind}`, 'main');
-        await shot(`${game}-${c.kind}`);
+        await aria(`${game}-${name}`, 'main');
+        await shot(`${game}-${name}`);
         return (await panel.innerText()).replace(/\s+/g, ' ');
       });
     }

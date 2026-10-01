@@ -38,5 +38,6 @@ Preconditions:
 - The landing sector is random; never assert a sector or a specific winner name.
 - The ARIA snapshot shows `button "转" [disabled]` while locked — that is `aria-disabled`, not the attribute.
 - A long name is cut short with `…` on the sector while the card shows it in full; compare the two only by their start.
+- The theme's last 7 winners can't be drawn again ([cooldown](./cooldown.md)), so the keyboard draw's winner always differs from the first; the scenario asserts that.
 - Escape does not close the card; only `再来一次` does (click, or Enter/Space while it has focus).
 - The card appears ≈4.3 s after `转` (3.5 s spin + 0.8 s reveal beat), close to Playwright's 5 s default; always pass `{timeout: 20_000}`.
