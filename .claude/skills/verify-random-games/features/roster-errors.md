@@ -7,7 +7,7 @@ When a theme's roster can't be used, the game page shows an error panel in the n
 - `err-load` fetch fails (e.g. 404): `[data-error-kind="load"]`, title `名单文件没取到`.
 - `err-parse` an unclosed quote, text after a closing quote (`"肠粉"x,true`), or a row with no name (`,true`): `[data-error-kind="parse-error"]`, title `名单里有一行读不懂`; the detail names the line number.
 - `err-empty` only comments/blank lines: `[data-error-kind="empty-file"]`, title `名单是空的`.
-- `err-disabled` every row disabled (`false`, `0` or `no`, in any case and with surrounding spaces, e.g. `FALSE`, ` No `): `[data-error-kind="all-disabled"]`, title `名单里的候选全部停用`.
+- `err-disabled` every candidate disabled (`false`, `0` or `no`, in any case and with surrounding spaces, e.g. `FALSE`, ` No `): `[data-error-kind="all-disabled"]`, title `名单里的候选全部停用`; the detail gives the candidate count. A name listed twice is one candidate, disabled if any of its rows is, so `肠粉,true` plus `肠粉,false` is all-disabled.
 - `err-shell` the header link `← 换个主题` works from an error page.
 
 ## How to get to it (user POV)
@@ -24,8 +24,8 @@ Preconditions:
 
 - **Parse error.** Route body `'肠粉,true\n"没闭合的引号,true\n'`; `page.goto(baseURL + '#/breakfast/wheel')`. `[data-error-kind="parse-error"]` visible with role `alert`; `page.locator('canvas')` count 0; `#card` count 0. Bodies `'"肠粉"x,true\n'` and `',true\n'` give the same kind (the latter's detail starts `第 1 行没有名字`).
 - **Empty file.** Route body `'# 只有注释\n\n'`. `[data-error-kind="empty-file"]`, no canvas.
-- **All disabled.** Route body `'肠粉,false\n面包,no\n'`. `[data-error-kind="all-disabled"]`, no canvas. `'肠粉,FALSE\n面包, No \n'` gives the same.
-- **Load failure.** `route.fulfill({status: 404, body: ''})`. `[data-error-kind="load"]`, no canvas.
+- **All disabled.** Route body `'肠粉,false\n面包,no\n'`. `[data-error-kind="all-disabled"]`, no canvas. `'肠粉,FALSE\n面包, No \n'` gives the same, and so does `'肠粉,true\n肠粉,false\n'` (detail says `1 个候选`).
+- **Load failure.** `route.fulfill({status: 404, body: ''})`, and for a dropped request `route.abort()`. `[data-error-kind="load"]`, no canvas.
 - **Both games.** Repeat each case with `#/breakfast/pinball`; same kinds.
 - **Escape.** On any error page click `getByRole('link', {name: '← 换个主题'})`. The picker shows. On an error page opened directly the URL ends `#/`; on one reached from the picker the link goes Back, so the URL is the picker's own (bare `baseURL` if that is where the picker was opened).
 - **Evidence.** `aria('error', 'main')` and a screenshot per case; `browser.log` should show no page errors.
