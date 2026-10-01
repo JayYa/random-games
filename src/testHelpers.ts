@@ -338,7 +338,7 @@ export function fakeGames(slugs: readonly string[]): Game[] {
 }
 
 export interface MountOnHostOptions {
-  /** 「抽一个中选」依次交出的名字，用完从头循环。默认 `rosterNames(3)`。 */
+  /** 「抽一个中选」依次交出的名字，不能为空，用完从头循环。默认 `rosterNames(3)`。 */
   readonly winners?: readonly string[];
   readonly log?: string[];
   /** 为真时用宿主默认的 `setTimeout`，用例自己装假时钟。 */
@@ -360,13 +360,15 @@ export interface HostedBoard {
  * 把盘面挂到真的玩法页宿主上，宿主和盘面的用例共用这道接缝。只替换宿主注入的依赖：
  * 页面、计时器和「抽一个中选」。开抽句柄在交给盘面时截下。
  *
- * 「抽一个中选」是宿主注入的依赖，也就是宿主在这里的系统边界（ADR-0012）；在这里换替身
- * 是在宿主的边界上替换，不是 mock 内部模块。替身按顺序交出 `winners` 里的名字（启用的
- * 候选），用完从头循环，并记进 `drawnWinners`。「抽了就记」和冷却归名单会话的用例，
+ * 宿主只收「抽一个中选」（ADR-0012），所以它在这里算宿主的边界；在这里换替身是在边界上
+ * 替换，不是 mock 内部模块。替身按顺序交出 `winners` 里的名字（启用的候选），用完从头
+ * 循环，并记进 `drawnWinners`；`winners` 为空时挂载当场抛错。「抽了就记」和冷却归名单会话的用例，
  * 真宿主加真名单的路径归站内导航的用例。
  */
 export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {
   const { winners = rosterNames(3), log, realSchedule = false } = options;
+  // 空的 `winners` 会交出没名字的中选；用例写错了，当场说出来。
+  if (winners.length === 0) throw new Error('mountOnHost 的 winners 不能为空');
   const page = fakeGamePage(log);
   const timer = fakeTimer();
   const drawnWinners: string[] = [];

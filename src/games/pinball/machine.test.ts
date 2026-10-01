@@ -29,10 +29,8 @@ const START_MS = 1_000;
 /** 远超任何轨迹的时长（步数上限约 12 秒）。 */
 const FAR_MS = 60_000;
 
-const NAMES = ['甲', '乙', '丙'] as const;
-
-/** 「抽一个中选」按顺序交出 `NAMES`，头一次是第一个。 */
-const WINNER = NAMES[0];
+/** 「抽一个中选」交出的名字。 */
+const WINNER = '甲';
 
 /** 画布的屏幕矩形。柱塞只看屏幕像素；高度远大于满行程，好在上下半截分别起手。 */
 const RECT = { left: 100, top: 50, right: 460, bottom: 650 } as const;
@@ -69,7 +67,7 @@ function setup(): Harness {
       return machine;
     },
   };
-  const hosted = mountOnHost(board, { winners: NAMES });
+  const hosted = mountOnHost(board, { winners: [WINNER] });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
   return { ...hosted, machine };

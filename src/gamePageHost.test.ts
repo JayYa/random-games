@@ -69,8 +69,7 @@ describe('写出玩法页', () => {
 describe('一整次开抽', () => {
   it('开抽受理并锁住 → 报停后立即揭晓、卡片未弹、仍锁 → 一拍之后卡片带同一个中选弹出', () => {
     const harness = mountPage();
-    const { board, page, timer } = harness;
-    const roll = harness.roll;
+    const { board, page, timer, roll } = harness;
 
     expect(roll.begin()).toBe(true);
     expect(roll.locked).toBe(true);
@@ -92,8 +91,7 @@ describe('一整次开抽', () => {
 
   it('收下时先抹掉再复位，然后解锁；盘面回到匿名', () => {
     const harness = mountPage();
-    const { board, page, log } = harness;
-    const roll = harness.roll;
+    const { board, page, log, roll } = harness;
     rollOnce(harness);
 
     log.length = 0;
@@ -196,8 +194,7 @@ describe('报停与收下只在对的时候受理', () => {
 
   it('揭晓那一拍里再报一次停下：只弹一张卡片，带的是头一个中选', () => {
     const harness = mountPage();
-    const { page, timer } = harness;
-    const roll = harness.roll;
+    const { page, timer, roll } = harness;
     roll.begin();
     roll.boardStopped();
     roll.boardStopped();
@@ -251,8 +248,7 @@ describe('报停与收下只在对的时候受理', () => {
 describe('锁', () => {
   it('锁着时开抽返回 false：正在抽、揭晓那一拍、卡片挂着', () => {
     const harness = mountPage();
-    const { timer, board } = harness;
-    const roll = harness.roll;
+    const { timer, board, roll } = harness;
 
     roll.begin();
     expect(roll.begin()).toBe(false);
@@ -269,8 +265,7 @@ describe('锁', () => {
 
   it('锁每变一次通知订阅者一次；正在抽到卡片弹出不算变化', () => {
     const harness = mountPage();
-    const { timer, page } = harness;
-    const roll = harness.roll;
+    const { timer, page, roll } = harness;
     const seen: boolean[] = [];
     roll.subscribe(() => seen.push(roll.locked));
     // 订阅当下先给一次初值。
@@ -319,8 +314,7 @@ describe('锁', () => {
 describe('抽中选的时刻', () => {
   it('报停当下就抽中选，不等卡片弹出、也不等收下', () => {
     const harness = mountPage();
-    const { page } = harness;
-    const roll = harness.roll;
+    const { page, roll } = harness;
 
     roll.begin();
     expect(harness.drawnWinners).toEqual([]);
@@ -334,8 +328,7 @@ describe('抽中选的时刻', () => {
 describe('换页拆卸', () => {
   it('揭晓那一拍里拆卸：那一拍被掐掉，卡片不会在下一页上弹出来', () => {
     const harness = mountPage();
-    const { teardown, timer, page } = harness;
-    const roll = harness.roll;
+    const { teardown, timer, page, roll } = harness;
     roll.begin();
     roll.boardStopped();
 
@@ -382,8 +375,7 @@ describe('换页拆卸', () => {
   it('拆卸之后盘面再报停：不抽、不揭晓、不记、不弹卡片', () => {
     // 宿主不指望盘面拆卸时一定停了动画。
     const harness = mountPage();
-    const { teardown, timer, board, page } = harness;
-    const roll = harness.roll;
+    const { teardown, timer, board, page, roll } = harness;
     roll.begin();
     teardown();
 

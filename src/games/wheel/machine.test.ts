@@ -309,8 +309,8 @@ describe('补画不推进时间', () => {
   });
 
   it('揭晓后 view() 交回指针底下的那一格与中选的名字', () => {
-    const onlyCandidate = '甲';
-    const { machine } = setup({ winners: [onlyCandidate] });
+    const onlyWinner = '甲';
+    const { machine } = setup({ winners: [onlyWinner] });
     machine.tick(FIRST_TICK_MS);
     const stopped = spinThrough(machine, START_MS);
 
@@ -318,7 +318,7 @@ describe('补画不推进时间', () => {
 
     expect(viewed.reveal).toEqual({
       sector: machine.sectors.sectorAt(stopped.rotation),
-      name: onlyCandidate,
+      name: onlyWinner,
     });
   });
 
