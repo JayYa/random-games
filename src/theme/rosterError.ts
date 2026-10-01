@@ -4,11 +4,13 @@
  *
  * 名单错误是普通的数据值，不是异常，不会被抛出：它带着种类和画错误页要用的结构化数据，
  * 不带现成的句子。把它写成标题、说明、提示的只有这里的 `describeRosterError`，文案与玩法
- * 无关，一律说「候选」。
+ * 无关，一律说「候选」。文案里复述名单写法的部分（停用标记、示例行、注释符号）由
+ * `rosterFormat.ts` 的常量拼出，不手写第二遍。
  */
 
 import type { Theme } from './index.ts';
 import { rosterFileName, rosterRepoPath } from './rosterFile.ts';
+import { COMMENT_PREFIX, DISABLED_MARKERS, ENABLED_MARKER, SAMPLE_ROW } from './rosterFormat.ts';
 
 /** 种类取值就是错误页上的 `data-error-kind`。 */
 export type RosterError =
@@ -53,20 +55,20 @@ export function describeRosterError(theme: Theme, error: RosterError): RosterErr
           error.reason === 'bad-quote'
             ? `第 ${error.line} 行格式有误：引号未闭合或引号外有多余内容`
             : `第 ${error.line} 行没有名字：这一行是「${error.text}」，第一个逗号前面是空的。` +
-              `把名字补在这一行开头（写成「名字,true」的样子），或者把整行删掉。`,
+              `把名字补在这一行开头（写成「${SAMPLE_ROW}」的样子），或者把整行删掉。`,
         hint: `打开 ${rosterRepoPath(theme)}，按上面说的行号改掉那一行，再刷新页面。`,
       };
     case 'empty-file':
       return {
         title: '名单是空的',
-        detail: `${rosterRepoPath(theme)} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
-        hint: '在文件里加上几行「名字,true」再刷新页面。',
+        detail: `${rosterRepoPath(theme)} 里一条候选记录都没有——文件是空的，或者只剩空行和 ${COMMENT_PREFIX} 注释。`,
+        hint: `在文件里加上几行「${SAMPLE_ROW}」再刷新页面。`,
       };
     case 'all-disabled':
       return {
         title: '名单里的候选全部停用',
-        detail: `名单里的 ${error.disabledCount} 个候选全都写了 false / 0 / no，一个都没启用，盘面上没东西可放。`,
-        hint: '把想要的那几个的 enabled 列改成 true，再刷新页面。',
+        detail: `名单里的 ${error.disabledCount} 个候选全都写了 ${DISABLED_MARKERS.join(' / ')}，一个都没启用，盘面上没东西可放。`,
+        hint: `把想要的那几个的 enabled 列改成 ${ENABLED_MARKER}，再刷新页面。`,
       };
   }
 }

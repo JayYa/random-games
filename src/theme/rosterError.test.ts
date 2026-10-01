@@ -1,7 +1,7 @@
 /** 名单错误的文案：四种名单错误各写成什么标题、说明、提示。 */
 
 import { describe, expect, it } from 'vitest';
-import { describeRosterError } from './index';
+import { createRosterSession, describeRosterError } from './index';
 import { hostTheme as theme } from '../testHelpers';
 
 describe('名单错误写成文案', () => {
@@ -53,5 +53,29 @@ describe('名单错误写成文案', () => {
       detail: '名单里的 3 个候选全都写了 false / 0 / no，一个都没启用，盘面上没东西可放。',
       hint: '把想要的那几个的 enabled 列改成 true，再刷新页面。',
     });
+  });
+});
+
+describe('名单错误文案与名单的写法一致', () => {
+  /** 全部停用的说明里列出的停用标记，按书写顺序。 */
+  function disabledMarkersInText(): string[] {
+    const { detail } = describeRosterError(theme, { kind: 'all-disabled', disabledCount: 1 });
+    const listed = /全都写了 (.+?)，/.exec(detail)?.[1];
+    if (listed === undefined) throw new Error(`说明里找不到停用标记：${detail}`);
+    return listed.split(' / ');
+  }
+
+  it('全部停用的说明里列出了停用标记', () => {
+    expect(disabledMarkersInText().length).toBeGreaterThan(0);
+  });
+
+  it('全部停用的说明里列出的每个停用标记，写进名单后那一行确实算停用', () => {
+    for (const marker of disabledMarkersInText()) {
+      const session = createRosterSession({ csvText: `沙县小吃,${marker}` });
+      expect(session.ok ? undefined : session.error, `写了 ${marker} 的那一行`).toEqual({
+        kind: 'all-disabled',
+        disabledCount: 1,
+      });
+    }
   });
 });

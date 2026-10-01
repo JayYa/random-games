@@ -7,6 +7,7 @@
 import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from '../cooldown.ts';
 import type { RandomSource } from '../randomIndex.ts';
 import type { RosterError } from './rosterError.ts';
+import { DISABLED_MARKERS, FIELD_SEPARATOR, rosterLines } from './rosterFormat.ts';
 
 export interface Candidate {
   readonly name: string;
@@ -67,9 +68,6 @@ type RosterParseResult =
   | { readonly ok: true; readonly candidates: readonly Candidate[] }
   | { readonly ok: false; readonly error: RosterParseError };
 
-/** 只有这几个取值算停用；其余一切取值（含空值与缺失的列）都算启用。 */
-const DISABLED_MARKERS = new Set(['false', '0', 'no']);
-
 /**
  * 解析一行 CSV，返回字段数组。
  * 支持双引号包裹（容纳名字中的逗号）与双写引号转义 `""`。
@@ -110,7 +108,7 @@ function parseLine(line: string): string[] | undefined {
       if (!closed) return undefined; // 引号未闭合
       // 闭合引号之后只允许空白，然后必须是逗号或行尾
       while (index < line.length && (line[index] === ' ' || line[index] === '\t')) index += 1;
-      if (index < line.length && line[index] !== ',') return undefined;
+      if (index < line.length && line[index] !== FIELD_SEPARATOR) return undefined;
       fields.push(value);
       if (index === line.length) return fields;
       index += 1; // 跳过逗号
@@ -118,7 +116,7 @@ function parseLine(line: string): string[] | undefined {
       continue;
     }
 
-    if (char === ',') {
+    if (char === FIELD_SEPARATOR) {
       fields.push(field);
       field = '';
       index += 1;
@@ -135,22 +133,16 @@ function parseLine(line: string): string[] | undefined {
 /**
  * 把 CSV 原文解析成名单。只管认，不管说。
  *
- * - 跳过空行与 `#` 开头的注释行；
- * - 行号按文件原始行计数，不因跳过空行/注释而错位；
+ * - 只读数据行，空行与注释行跳过（见 `rosterLines`）；
  * - 遇到第一个坏行即停止，交回带原始行号的读不懂；
  * - 同名（去掉首尾空白后逐字相等）的几行合成一个候选，静默合并，任一行停用即停用。
  */
 function parseRoster(csvText: string): RosterParseResult {
   const candidates = new Map<string, Candidate>();
-  const lines = csvText.split(/\r?\n/);
 
-  for (let i = 0; i < lines.length; i += 1) {
-    const lineNumber = i + 1;
-    const raw = lines[i] ?? '';
-    const trimmed = raw.trim();
-
-    if (trimmed === '') continue;
-    if (trimmed.startsWith('#')) continue;
+  for (const line of rosterLines(csvText)) {
+    if (line.kind !== 'data') continue;
+    const { lineNumber, raw, text } = line;
 
     const fields = parseLine(raw);
     if (fields === undefined) {
@@ -162,13 +154,13 @@ function parseRoster(csvText: string): RosterParseResult {
     if (name === '') {
       return {
         ok: false,
-        error: { kind: 'parse-error', line: lineNumber, reason: 'missing-name', text: trimmed },
+        error: { kind: 'parse-error', line: lineNumber, reason: 'missing-name', text },
       };
     }
 
     const enabledField = (fields[1] ?? '').trim().toLowerCase();
     // Map 按首次放入的先后排，所以合并后的候选排在这个名字第一次出现的位置。
-    const enabled = !DISABLED_MARKERS.has(enabledField) && (candidates.get(name)?.enabled ?? true);
+    const enabled = !DISABLED_MARKERS.includes(enabledField) && (candidates.get(name)?.enabled ?? true);
     candidates.set(name, { name, enabled });
   }
 

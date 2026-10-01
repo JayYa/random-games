@@ -4,6 +4,7 @@
 
 import type { Theme } from './index.ts';
 import { ROSTER_FILE_EXTENSION } from './rosterFile.ts';
+import { rosterLines } from './rosterFormat.ts';
 
 export interface SkippedRoster {
   /** 例如 `Eat.csv`。 */
@@ -57,11 +58,11 @@ function isMetadataKey(key: string): key is MetadataKey {
 function readMetadata(csvText: string): RosterMetadata {
   const metadata: RosterMetadata = {};
 
-  for (const line of csvText.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith('#')) continue;
+  // 只看注释行，数据行不读（ADR-0009）。
+  for (const line of rosterLines(csvText)) {
+    if (line.kind !== 'comment') continue;
 
-    const match = METADATA_PATTERN.exec(trimmed.slice(1).trim());
+    const match = METADATA_PATTERN.exec(line.body);
     if (match === null) continue;
 
     const key = match[1] ?? '';
