@@ -6,9 +6,7 @@ import type { RecentMemory } from './cooldown';
 import type { Game } from './games';
 import type { RecentStorage } from './recentStorage';
 import type { ResultCard } from './resultCard';
-import type { RosterError } from './rosterError';
-import type { Candidate } from './roster';
-import type { Theme } from './themes';
+import type { Candidate, RosterError, Theme } from './theme';
 import {
   mountGamePage,
   type Board,

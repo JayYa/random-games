@@ -6,10 +6,9 @@
 import { gamePage, showRosterLoading } from './gamePage';
 import type { NavigationPage } from './navigation';
 import { createResultCard, resultCardMarkup } from './resultCard';
-import { describeRosterError } from './rosterError';
 import { showRosterError } from './rosterErrorPage';
-import { renderThemePicker } from './themePicker';
-import { SITE_TITLE } from './themes';
+import { describeRosterError } from './theme';
+import { SITE_TITLE, renderThemePicker } from './themePicker';
 
 /** 整页都画在 `root` 里的页面适配器，盘面也挂在它上面。每一屏自己设标签标题。 */
 export function browserPage(root: HTMLElement): NavigationPage {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectThemes } from './collectThemes';
+import { collectThemes } from './index';
 
 /**
  * 名单头部的说明文字。前半段照搬 `public/` 下名单的头部；后半段补几行宽松实现会误认的：

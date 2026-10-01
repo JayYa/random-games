@@ -4,7 +4,7 @@
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
-import type { RosterFile } from './collectThemes.ts';
+import type { RosterFile } from './theme/index.ts';
 
 /**
  * 不做判断，合不合规归 `collectThemes`。大小写不敏感地收 `.csv`，`Drink.CSV` 才会被报出来。

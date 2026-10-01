@@ -23,7 +23,7 @@ import {
   type FakeGamePage,
   type FakeStorage,
 } from './testHelpers';
-import type { Theme } from './themes';
+import type { Theme } from './theme';
 
 interface FakeEntry {
   readonly hash: string;

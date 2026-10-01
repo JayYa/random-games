@@ -7,7 +7,7 @@
  * 无关，一律说「候选」。
  */
 
-import type { Theme } from './themes';
+import type { Theme } from './index.ts';
 
 /** 种类取值就是错误页上的 `data-error-kind`。 */
 export type RosterError =
