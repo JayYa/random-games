@@ -2,8 +2,9 @@
  * 渲染层：玩法页共用的外壳（页头）和加载态。薄，不测。
  */
 
+import { THEME_PICKER_HASH } from './address';
 import { escapeHtml } from './escapeHtml';
-import { THEME_PICKER_HASH, type Theme } from './themes';
+import type { Theme } from './themes';
 
 export interface GamePageOptions {
   /** 这一页的 BEM 块名（如 `wheel`），挂玩法自己的样式。加载态和错误页没有盘面，不需要。 */

@@ -2,11 +2,12 @@
  * 选主题页。不发网络请求；入口是真链接，能中键新开、能收藏。
  */
 
+import { themeHash } from './address';
 import { escapeHtml } from './escapeHtml';
-import { SITE_TITLE, THEMES, themeHash } from './themes';
+import { SITE_TITLE, type Theme } from './themes';
 
-export function renderThemePicker(root: HTMLElement): void {
-  const entries = THEMES.map(
+export function renderThemePicker(root: HTMLElement, themes: readonly Theme[]): void {
+  const entries = themes.map(
     (theme) =>
       `<li class="picker__item">
         <a class="picker__entry" href="${escapeHtml(themeHash(theme))}">${escapeHtml(theme.entryLabel)}</a>

@@ -22,11 +22,12 @@ it('最近中选里的候选不会再中', () => {
   expect(session.drawWinner().name).toBe('乙');
 });
 
-// GOOD: Pins the property callers rely on — an address resolves back to
-// its theme — not the address format
-it('把每个主题的地址解析成它自己的记录', () => {
-  for (const theme of THEMES) {
-    expect(resolveTheme(themeHash(theme))).toBe(theme);
+// GOOD: Pins the property callers rely on — a written address resolves back
+// to its theme — not the address format
+it('写出来的主题地址认回同一个主题', () => {
+  const games = fakeGames(['spin', 'drop']);
+  for (const theme of fakeThemes) {
+    expect(resolveAddress(themeHash(theme), fakeThemes, games)).toEqual({ kind: 'pending-roll', theme });
   }
 });
 ```
