@@ -7,7 +7,7 @@ import type { Game } from './games';
 import type { RecentStorage } from './recentStorage';
 import type { ResultCard } from './resultCard';
 import type { RosterError } from './rosterError';
-import type { Candidate } from './roster';
+import { createRosterSession, type Candidate } from './roster';
 import type { Theme } from './themes';
 import {
   mountGamePage,
@@ -185,6 +185,8 @@ export interface RecordedRosterError {
  * 看得到页面和盘面被叫的先后。
  */
 export interface FakeGamePage extends PageAdapter {
+  /** 名单错误归站内导航的页面适配器，宿主用不到；站内导航的用例在这里看画了哪些。 */
+  showRosterError(theme: Theme, error: RosterError): void;
   readonly rosterErrors: readonly RecordedRosterError[];
   readonly gamePages: readonly GamePageView[];
   /** 写玩法页时交回的卡片。 */
@@ -351,15 +353,16 @@ export interface HostedBoard {
   readonly page: FakeGamePage;
   readonly timer: FakeTimer;
   readonly recentWinners: FakeRecentMemory;
-  /** 宿主交给盘面的开抽句柄；名单开不了抽时为 undefined。 */
-  readonly roll: RollHandle | undefined;
+  /** 宿主交给盘面的开抽句柄，在 `board.mount` 里截下。 */
+  readonly roll: RollHandle;
 }
 
 /**
  * 把盘面挂到真的玩法页宿主上，宿主和盘面的用例共用这道接缝。只替换页面、计时器和
- * 最近中选；开抽句柄在交给盘面时截下。
+ * 最近中选；名单用真的名单会话打开，能开抽才把抽中选交给宿主。开抽句柄在交给盘面时截下。
  *
  * 随机源恒为 0，总抽可抽候选里的第一个：`roster(3)` 先抽出「候选1」，冷却后是「候选2」。
+ * 名单开不了抽就抛错：那归站内导航的用例。
  */
 export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {
   const { csvText = roster(3), recent = [], log, realSchedule = false } = options;
@@ -374,21 +377,21 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
       return board.mount(root, handle);
     },
   };
+  const session = createRosterSession({ csvText, recentWinners, random: scriptedRandom([0]) });
+  if (!session.ok) throw new Error(`名单应当能开抽，却是 ${session.error.kind}`);
   const teardown = mountGamePage({
     theme: hostTheme,
-    csvText,
-    recentWinners,
+    drawWinner: session.drawWinner,
     board: intercepted,
     page,
-    random: scriptedRandom([0]),
     ...(!realSchedule && { schedule: timer.schedule }),
   });
+  // 宿主当场挂盘面；没截到句柄是宿主写错了。
+  if (!roll) throw new Error('宿主应当当场挂上盘面');
   return { teardown, page, timer, recentWinners, roll };
 }
 
-/** 取出开抽句柄，没挂上就抛错。 */
+/** 取出开抽句柄。 */
 export function rollOf(hosted: HostedBoard): RollHandle {
-  const { roll } = hosted;
-  if (!roll) throw new Error('盘面应当已经挂上');
-  return roll;
+  return hosted.roll;
 }
