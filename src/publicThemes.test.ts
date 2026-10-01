@@ -24,21 +24,23 @@ describe('public/ 下的名单文件', () => {
     );
   });
 
-  // 「能不能开抽」只认名单会话；失败信息就是错误页上会说的那段话。
+  // 「能不能开抽」只认名单会话；记下的就是错误页上会说的那段话。
   it('每一份名单都能开抽', () => {
     const { themes } = collectThemes(rosterFiles);
-    const failures: string[] = [];
+    const csvByFile = new Map(rosterFiles.map((file) => [file.fileName, file.csvText]));
+    const rosterErrors: string[] = [];
 
     for (const theme of themes) {
-      const csvText = rosterFiles.find((file) => file.fileName === theme.rosterFile)?.csvText ?? '';
+      const csvText = csvByFile.get(theme.rosterFile);
+      if (csvText === undefined) throw new Error(`扫到的名单文件里没有 ${theme.rosterFile}`);
       const session = createRosterSession({ csvText });
       if (session.ok) continue;
 
       const { title, detail, hint } = describeRosterError(theme, session.error);
-      failures.push(`${theme.rosterFile}：${title} / ${detail} / ${hint}`);
+      rosterErrors.push(`${theme.rosterFile}：${title} / ${detail} / ${hint}`);
     }
 
-    expect(failures).toEqual([]);
+    expect(rosterErrors).toEqual([]);
   });
 
   // 没有名单时上面两条会空转通过。

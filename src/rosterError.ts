@@ -39,7 +39,6 @@ function rosterPath(theme: Theme): string {
   return `public/${theme.rosterFile}`;
 }
 
-/** 把名单错误写成标题、说明、提示。 */
 export function describeRosterError(theme: Theme, error: RosterError): RosterErrorText {
   switch (error.kind) {
     case 'load': {

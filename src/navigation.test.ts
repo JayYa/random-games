@@ -150,30 +150,24 @@ function settle(): Promise<void> {
 }
 
 /**
- * 在 `fakeGamePage` 上补齐站内导航多出的两项，都记进 `log`；选主题页每次收到的主题清单
- * 记进 `pickerThemes`。交给页面的名单错误照旧记在 `fakeGamePage` 上。
+ * 在共用的 `fakeGamePage` 上补齐站内导航多出的两项，都记进 `log`；选主题页每次收到的主题清单
+ * 记进 `pickerThemes`。
  *
- * 逐个转交而不用对象展开：展开会把取值器求成定值。
+ * 往共用的假页面上加方法而不用对象展开：展开会把取值器求成定值。
  */
 function fakeNavigationPage(
   log: string[],
   pickerThemes: (readonly Theme[])[],
-): NavigationPage & Pick<FakeGamePage, 'rosterErrors'> {
-  const hostPage = fakeGamePage(log);
-  return {
-    get rosterErrors() {
-      return hostPage.rosterErrors;
-    },
-    showRosterError: (theme, error) => hostPage.showRosterError(theme, error),
-    showGamePage: (view, onClose) => hostPage.showGamePage(view, onClose),
-    showThemePicker(themes) {
+): NavigationPage & FakeGamePage {
+  return Object.assign(fakeGamePage(log), {
+    showThemePicker(themes: readonly Theme[]) {
       log.push('picker');
       pickerThemes.push(themes);
     },
-    showRosterLoading(theme) {
+    showRosterLoading(theme: Theme) {
       log.push(`loading ${theme.slug}`);
     },
-  };
+  });
 }
 
 interface BoardRecord {

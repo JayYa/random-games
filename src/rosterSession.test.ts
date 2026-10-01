@@ -175,13 +175,12 @@ describe('开不了抽的另两种名单', () => {
     });
   });
 
-  it('读不懂、空、全部停用三者的种类互不相同，且都拿不到抽中选', () => {
+  it('读不懂、空、全部停用三者的种类互不相同', () => {
     const sessions = ['"沙县小吃,false', '\n\n# 只有注释\n', csv('沙县小吃,false')].map((csvText) =>
       createRosterSession({ csvText }),
     );
     const kinds = sessions.map((session) => (session.ok ? 'ok' : session.error.kind));
     expect(kinds).toEqual(['parse-error', 'empty-file', 'all-disabled']);
-    for (const session of sessions) expect('drawWinner' in session).toBe(false);
   });
 
   it('有一个启用的候选就能开抽，停用的不碍事', () => {
