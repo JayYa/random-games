@@ -16,7 +16,7 @@ import { createRosterSession, type RosterSession } from './roster';
 import type { RosterError } from './rosterError';
 import type { Theme } from './themes';
 
-/** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上多三屏。 */
+/** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上补齐站内导航自己画的几屏。 */
 export interface NavigationPage extends PageAdapter {
   /** 列出的主题就是认地址用的那一份。 */
   showThemePicker(themes: readonly Theme[]): void;
@@ -138,8 +138,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
 
     page.showRosterLoading(theme);
 
-    // 取到就当场打开名单，取不到就是「没取到」，两路汇合成同一种结果。只有取不到才是
-    // 「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
+    // 只有取不到才是「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
     fetchRoster(theme.rosterFile)
       .then(
         (csvText): OpenedRoster =>
