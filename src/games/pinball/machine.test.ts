@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { REVEAL_PAUSE_MS, type Board, type RollHandle } from '../../gamePageHost';
+import { REVEAL_PAUSE_MS, type Board } from '../../gamePageHost';
 import { BOARD, slotIndexAtX } from './board';
 import {
   FULL_PULL_PX,
@@ -16,7 +16,7 @@ import {
   type PinballView,
   type PointerSample,
 } from './machine';
-import { csv, mountOnHost, rollOf, seededRandom, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
 const POWER = 0.6;
 
@@ -31,7 +31,7 @@ const FAR_MS = 60_000;
 
 const NAMES = ['甲', '乙', '丙'] as const;
 
-/** `mountOnHost` 总抽第一个可抽的候选。 */
+/** 「抽一个中选」按顺序交出 `NAMES`，头一次是第一个。 */
 const WINNER = NAMES[0];
 
 /** 画布的屏幕矩形。柱塞只看屏幕像素；高度远大于满行程，好在上下半截分别起手。 */
@@ -53,7 +53,6 @@ function pointerAt(clientX: number, clientY: number, pointerId: number = FINGER)
 }
 
 interface Harness extends HostedBoard {
-  readonly roll: RollHandle;
   readonly machine: PinballMachine;
 }
 
@@ -70,10 +69,10 @@ function setup(): Harness {
       return machine;
     },
   };
-  const hosted = mountOnHost(board, { csvText: csv(...NAMES.map((name) => `${name},true`)) });
+  const hosted = mountOnHost(board, { winners: NAMES });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
-  return { ...hosted, roll: rollOf(hosted), machine };
+  return { ...hosted, machine };
 }
 
 /** 从盘面正中按下，把柱塞拉到 `POWER` 那么深。 */

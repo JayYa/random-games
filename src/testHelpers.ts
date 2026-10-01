@@ -7,7 +7,7 @@ import type { Game } from './games';
 import type { RecentStorage } from './recentStorage';
 import type { ResultCard } from './resultCard';
 import type { RosterError } from './rosterError';
-import { createRosterSession, type Candidate } from './roster';
+import type { Candidate } from './roster';
 import type { Theme } from './themes';
 import {
   mountGamePage,
@@ -338,10 +338,8 @@ export function fakeGames(slugs: readonly string[]): Game[] {
 }
 
 export interface MountOnHostOptions {
-  /** 默认 `roster(3)`。 */
-  readonly csvText?: string;
-  /** 已有的最近中选，最早的在前。 */
-  readonly recent?: readonly string[];
+  /** 「抽一个中选」依次交出的名字，不能为空，用完从头循环。默认 `rosterNames(3)`。 */
+  readonly winners?: readonly string[];
   readonly log?: string[];
   /** 为真时用宿主默认的 `setTimeout`，用例自己装假时钟。 */
   readonly realSchedule?: boolean;
@@ -352,23 +350,33 @@ export interface HostedBoard {
   readonly teardown: () => void;
   readonly page: FakeGamePage;
   readonly timer: FakeTimer;
-  readonly recentWinners: FakeRecentMemory;
+  /** 「抽一个中选」交出过的中选名字，按先后。 */
+  readonly drawnWinners: readonly string[];
   /** 宿主交给盘面的开抽句柄，在 `board.mount` 里截下。 */
   readonly roll: RollHandle;
 }
 
 /**
- * 把盘面挂到真的玩法页宿主上，宿主和盘面的用例共用这道接缝。只替换页面、计时器和
- * 最近中选；名单用真的名单会话打开，能开抽才把抽中选交给宿主。开抽句柄在交给盘面时截下。
+ * 把盘面挂到真的玩法页宿主上，宿主和盘面的用例共用这道接缝。只替换宿主注入的依赖：
+ * 页面、计时器和「抽一个中选」。开抽句柄在交给盘面时截下。
  *
- * 随机源恒为 0，总抽可抽候选里的第一个：`roster(3)` 先抽出「候选1」，冷却后是「候选2」。
- * 名单开不了抽就抛错：那归站内导航的用例。
+ * 宿主只收「抽一个中选」（ADR-0012），所以它在这里算宿主的边界；在这里换替身是在边界上
+ * 替换，不是 mock 内部模块。替身按顺序交出 `winners` 里的名字（启用的候选），用完从头
+ * 循环，并记进 `drawnWinners`；`winners` 为空时挂载当场抛错。「抽了就记」和冷却归名单会话的用例，
+ * 真宿主加真名单的路径归站内导航的用例。
  */
 export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {
-  const { csvText = roster(3), recent = [], log, realSchedule = false } = options;
+  const { winners = rosterNames(3), log, realSchedule = false } = options;
+  // 空的 `winners` 会交出没名字的中选；用例写错了，当场说出来。
+  if (winners.length === 0) throw new Error('mountOnHost 的 winners 不能为空');
   const page = fakeGamePage(log);
   const timer = fakeTimer();
-  const recentWinners = fakeRecentMemory(recent);
+  const drawnWinners: string[] = [];
+  const drawWinner = (): Candidate => {
+    const name = winners[drawnWinners.length % winners.length]!;
+    drawnWinners.push(name);
+    return { name, enabled: true };
+  };
   let roll: RollHandle | undefined;
   const intercepted: Board = {
     ...board,
@@ -377,21 +385,15 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
       return board.mount(root, handle);
     },
   };
-  const session = createRosterSession({ csvText, recentWinners, random: scriptedRandom([0]) });
-  if (!session.ok) throw new Error(`名单应当能开抽，却是 ${session.error.kind}`);
   const teardown = mountGamePage({
     theme: hostTheme,
-    drawWinner: session.drawWinner,
+    drawWinner,
     board: intercepted,
     page,
     ...(!realSchedule && { schedule: timer.schedule }),
   });
   // 宿主当场挂盘面；没截到句柄是宿主写错了。
   if (!roll) throw new Error('宿主应当当场挂上盘面');
-  return { teardown, page, timer, recentWinners, roll };
-}
-
-/** 取出开抽句柄。 */
-export function rollOf(hosted: HostedBoard): RollHandle {
-  return hosted.roll;
+  // 交出活的数组而不是 getter：用例常把挂载结果展开进自己的 harness。
+  return { teardown, page, timer, drawnWinners, roll };
 }
