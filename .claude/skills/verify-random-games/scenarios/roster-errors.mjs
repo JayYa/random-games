@@ -6,7 +6,7 @@
 const CASES = [
   { kind: 'parse-error', title: '名单里有一行读不懂', body: '肠粉,true\n"没闭合的引号,true\n' },
   { kind: 'parse-error', label: 'text after quote', title: '名单里有一行读不懂', body: '"肠粉"x,true\n' },
-  { kind: 'parse-error', label: 'no name', title: '第 1 行没有名字', body: ',true\n' },
+  { kind: 'parse-error', label: 'no name', title: '名单里有一行读不懂', detail: '第 1 行没有名字', body: ',true\n' },
   { kind: 'empty-file', title: '名单是空的', body: '# 只有注释\n\n' },
   { kind: 'all-disabled', title: '名单里的候选全部停用', body: '肠粉,false\n面包,no\n' },
   { kind: 'all-disabled', label: 'any case', title: '名单里的候选全部停用', body: '肠粉,FALSE\n面包, No \n' },
@@ -34,6 +34,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria }) {
         await expect(panel).toBeVisible();
         await expect(panel).toHaveRole('alert');
         await expect(panel).toContainText(c.title);
+        if (c.detail) await expect(panel).toContainText(c.detail);
         await expect(page.getByRole('heading', { level: 1, name: '早餐吃什么' })).toBeVisible();
         await expect(page.locator('canvas')).toHaveCount(0);
         await expect(page.locator('#card')).toHaveCount(0);

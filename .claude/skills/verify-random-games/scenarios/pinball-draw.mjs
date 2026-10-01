@@ -1,5 +1,6 @@
 // Feature: pinball-draw (features/pinball-draw.md). From the theme picker, through the
-// game roll, pull the plunger, reveal, 再打一发, and a second shot; checks stored winners.
+// game roll, pull the plunger, reveal, 再打一发, a sideways drag that must not fire, and a
+// second shot with a mid-flight pull that must be ignored; checks stored winners.
 // Ends with a direct-link shot.
 //
 //   node .claude/skills/verify-random-games/verify.mjs drive --run <RUN> --feature pinball-draw \
@@ -9,14 +10,14 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
   const card = page.locator('#card');
 
   /** Press on the board, drag down, release: the only way to fire (no keyboard, ADR-0006). */
-  async function pullPlunger() {
+  async function pullPlunger(dx = 0, dy = 120) {
     const box = await board.boundingBox();
     if (!box) throw new Error('pinball board not rendered');
     const x = box.x + box.width / 2;
     const y = box.y + box.height / 2;
     await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x, y + 120, { steps: 8 });
+    await page.mouse.move(x + dx, y + dy, { steps: 8 });
     await page.mouse.up();
   }
 
@@ -71,7 +72,17 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     await shot('after-close');
   });
 
-  const second = await step('second shot reveals again', async () => {
+  await step('sideways drag does not fire', async () => {
+    await pullPlunger(120, 0);
+    await page.waitForTimeout(3_000);
+    await expect(card).toBeHidden();
+    expect((await recentMemory())['random-games:recent-winners:breakfast']).toEqual([first]);
+  });
+
+  // A second pull mid-flight must be ignored: still exactly one more winner stored below.
+  const second = await step('second shot reveals again; a pull mid-flight is ignored', async () => {
+    await pullPlunger();
+    await page.waitForTimeout(300);
     await pullPlunger();
     await expect(card).toBeVisible({ timeout: 20_000 });
     const name = (await page.locator('#card-name').textContent())?.trim();
@@ -82,6 +93,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
   });
 
   await step('both winners stored, newest last', async () => {
+    await page.waitForTimeout(1_500);
     const mem = await recentMemory();
     expect(mem['random-games:recent-winners:breakfast']).toEqual([first, second]);
     return mem;
