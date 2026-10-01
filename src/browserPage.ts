@@ -13,9 +13,9 @@ import { SITE_TITLE } from './themes';
 /** 整页都画在 `root` 里的页面适配器，盘面也挂在它上面。每一屏自己设标签标题。 */
 export function browserPage(root: HTMLElement): NavigationPage {
   return {
-    showThemePicker() {
+    showThemePicker(themes) {
       document.title = SITE_TITLE;
-      renderThemePicker(root);
+      renderThemePicker(root, themes);
     },
     showRosterLoading(theme) {
       document.title = theme.title;

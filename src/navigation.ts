@@ -18,7 +18,8 @@ import type { Theme } from './themes';
  * 站内导航的页面适配器，在宿主的 `PageAdapter` 之上多三屏。名单回来之后原样交给宿主。
  */
 export interface NavigationPage extends PageAdapter {
-  showThemePicker(): void;
+  /** 列出的主题就是认地址用的那一份。 */
+  showThemePicker(themes: readonly Theme[]): void;
   /** 名单在路上。 */
   showRosterLoading(theme: Theme): void;
   /** 名单文件取不到。 */
@@ -45,7 +46,7 @@ export interface NavigationOptions {
   readonly storage: RecentStorage | undefined;
   /** 抽玩法和抽中选共用。 */
   readonly random: RandomSource;
-  /** 认地址用。 */
+  /** 认地址和画选主题页读同一份。 */
   readonly themes: readonly Theme[];
   /** 认地址和抽玩法读同一份。 */
   readonly games: readonly Game[];
@@ -111,7 +112,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
     if (address.kind === 'picker') {
       // 认不出的地址改写成首页，免得被收藏或分享出去。
       if (!address.canonical) history.replaceState(null, '', THEME_PICKER_HASH);
-      page.showThemePicker();
+      page.showThemePicker(themes);
       return;
     }
 

@@ -148,17 +148,19 @@ function settle(): Promise<void> {
 }
 
 /**
- * 在 `fakeGamePage` 上补齐站内导航多出的三项，都记进 `log`。
+ * 在 `fakeGamePage` 上补齐站内导航多出的三项，都记进 `log`；选主题页每次收到的主题清单
+ * 记进 `pickerThemes`。
  *
  * 逐个转交而不用对象展开：展开会把取值器求成定值。
  */
-function fakeNavigationPage(log: string[]): NavigationPage {
+function fakeNavigationPage(log: string[], pickerThemes: (readonly Theme[])[]): NavigationPage {
   const hostPage = fakeGamePage(log);
   return {
     showRosterFailure: (theme, roster) => hostPage.showRosterFailure(theme, roster),
     showGamePage: (view, onClose) => hostPage.showGamePage(view, onClose),
-    showThemePicker() {
+    showThemePicker(themes) {
       log.push('picker');
+      pickerThemes.push(themes);
     },
     showRosterLoading(theme) {
       log.push(`loading ${theme.slug}`);
@@ -238,6 +240,7 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
   const browser = fakeBrowser(hash);
   const fetch = fakeFetch();
   const log: string[] = [];
+  const pickerThemes: (readonly Theme[])[] = [];
   const { games, boards } = fakeGames(log);
   const navigation = createNavigation({
     history: browser.history,
@@ -247,11 +250,11 @@ function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
     random: scriptedRandom([0]),
     themes: fakeThemes,
     games,
-    page: fakeNavigationPage(log),
+    page: fakeNavigationPage(log, pickerThemes),
   });
   browser.listen(() => navigation.render());
   navigation.render();
-  return { browser, navigation, fetch, log, boards };
+  return { browser, navigation, fetch, log, boards, pickerThemes };
 }
 
 const [theme, otherTheme] = fakeThemes;
@@ -275,6 +278,11 @@ describe('选主题页', () => {
 
   it('认不出的地址把地址换成选主题页的地址', () => {
     expect(open('#/foo').browser.location.hash).toBe(THEME_PICKER_HASH);
+  });
+
+  // 列出的与认得的是同一份，不会有点进去却回落首页的入口。
+  it('选主题页收到的主题清单就是注入的那一份', () => {
+    expect(open('').pickerThemes).toEqual([fakeThemes]);
   });
 });
 
