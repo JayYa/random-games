@@ -7,7 +7,7 @@ import type { Game } from './games';
 import type { RecentStorage } from './recentStorage';
 import type { ResultCard } from './resultCard';
 import type { RosterError } from './rosterError';
-import type { Candidate } from './rosterSession';
+import type { Candidate } from './roster';
 import type { Theme } from './themes';
 import {
   mountGamePage,
