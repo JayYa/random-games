@@ -1,12 +1,11 @@
 /**
- * 渲染层：弹球机的盘面——指针事件、rAF 循环与绘制。薄，不测。
+ * 弹球机的 DOM 表面：把弹球机盘面的调用转给画布、rAF 和指针事件，钉阵、风车、柱塞与揭晓
+ * 标签的绘制也在这里。薄，不测（ADR-0014）。元素靠盘面写进页面的那份 HTML 找。
  *
- * 状态全在弹球机机器（`./machine.ts`），几何全照 `./board.ts`。风车一直在转，rAF 常转
- * （ADR-0013）。没有键盘操作（ADR-0006）。
+ * 几何全照 `./board.ts`。没有键盘操作（ADR-0006）。
  */
 
 import { createById } from '../../byId';
-import type { Board, MountedBoard, RollHandle } from '../../gamePageHost';
 import { fitCanvas } from '../../fitCanvas';
 import { PALETTE } from '../../palette';
 import {
@@ -20,14 +19,13 @@ import {
 import {
   PLUNGER_REST_TOP,
   PLUNGER_TRAVEL,
-  createPinballMachine,
   type PinballReveal,
   type PinballView,
   type PointerSample,
 } from './machine';
+import type { CreatePinballSurface } from './surface';
 
-/** 收下之后球退回柱塞，真的能再打一发。 */
-const CLOSE_LABEL = '再打一发';
+export const PINBALL_CANVAS_ID = 'pinball-board';
 
 /** 落格用共用调色板，其余是中性的机身色。 */
 const INK = '#2b2b33';
@@ -59,12 +57,6 @@ const LABEL_LINE_HEIGHT = 1.25;
 const LABEL_POINTER = 7;
 /** 标签可以比落格宽，但不出盘面。 */
 const LABEL_EDGE_MARGIN = 6;
-
-const BOARD_HTML = `
-      <div class="pinball__stage">
-        <canvas class="pinball__board" id="pinball-board"></canvas>
-      </div>
-    `;
 
 /** 落格首尾不相邻，不需要转盘那样的接缝处理。 */
 function slotColor(index: number): string {
@@ -374,38 +366,14 @@ function drawPlunger(ctx: CanvasRenderingContext2D, power: number): void {
   ctx.stroke();
 }
 
-export function createPinballBoard(): Board {
-  return {
-    html: BOARD_HTML,
-    block: 'pinball',
-    closeLabel: CLOSE_LABEL,
-    mount: mountPinballBoard,
-  };
-}
+export const createDomPinballSurface: CreatePinballSurface = (root, events) => {
+  const canvas = createById(root)<HTMLCanvasElement>(PINBALL_CANVAS_ID);
 
-function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
-  const canvas = createById(root)<HTMLCanvasElement>('pinball-board');
-  const machine = createPinballMachine(roll);
+  /** 没有帧在等时为空。 */
+  let rafId: number | undefined;
+
   const controller = new AbortController();
   const listen = { signal: controller.signal } as const;
-  let rafId = 0;
-
-  function draw(view: PinballView): void {
-    // 宽度由 CSS 决定（.pinball__board）。rAF 常转，不必观察尺寸变化。
-    const fitted = fitCanvas(canvas, VIEW_HEIGHT / BOARD.width);
-    if (!fitted) return;
-    const { context, width } = fitted;
-    // 缩放到盘面坐标，再上移 VIEW_TOP。
-    const scale = width / BOARD.width;
-    context.scale(scale, scale);
-    context.translate(0, -VIEW_TOP);
-    drawBoard(context, view);
-  }
-
-  function frame(now: number): void {
-    rafId = requestAnimationFrame(frame);
-    draw(machine.tick(now));
-  }
 
   /** 画布矩形每次现量，页面滚动或改了尺寸时有效区域跟着走。 */
   function sampleOf(event: PointerEvent): PointerSample {
@@ -418,11 +386,11 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     };
   }
 
-  // 鼠标和触屏走同一条路；机器接住了才捕获指针。
+  // 鼠标和触屏走同一条路；盘面接住了才捕获指针。
   canvas.addEventListener(
     'pointerdown',
     (event: PointerEvent) => {
-      if (!machine.press(sampleOf(event))) return;
+      if (!events.pressed(sampleOf(event))) return;
       event.preventDefault();
       canvas.setPointerCapture(event.pointerId);
     },
@@ -432,36 +400,51 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   canvas.addEventListener(
     'pointermove',
     (event) => {
-      if (canvas.hasPointerCapture(event.pointerId)) machine.move(sampleOf(event));
+      if (canvas.hasPointerCapture(event.pointerId)) events.moved(sampleOf(event));
     },
     listen,
   );
   canvas.addEventListener(
     'pointerup',
     (event) => {
-      if (canvas.hasPointerCapture(event.pointerId)) machine.release(sampleOf(event));
+      if (canvas.hasPointerCapture(event.pointerId)) events.released(sampleOf(event));
     },
     listen,
   );
-  canvas.addEventListener('pointercancel', (event) => machine.cancel(event.pointerId), listen);
-  // 捕获没等到抬手就丢了，这一发会卡在拖着，当作被系统抢走作废。正常抬手后机器已不认这根手指。
+  canvas.addEventListener('pointercancel', (event) => events.cancelled(event.pointerId), listen);
+  // 捕获没等到抬手就丢了，这一发会卡在拖着，当作被系统抢走作废。正常抬手之后再报作废，
+  // 盘面什么都不做（有用例钉住）。
   canvas.addEventListener(
     'lostpointercapture',
-    (event) => machine.cancel(event.pointerId),
+    (event) => events.cancelled(event.pointerId),
     listen,
   );
 
-  rafId = requestAnimationFrame(frame);
-
   return {
-    // rAF 常转，下一帧自然画上。
-    reveal: machine.reveal,
-    erase: machine.erase,
-    reset: machine.reset,
-    // 没有可聚焦的操作（ADR-0006），不给 returnFocusTo。
-    teardown: () => {
-      cancelAnimationFrame(rafId);
+    draw(picture) {
+      // 宽度由 CSS 决定（.pinball__board）。帧常转，不必观察尺寸变化。
+      const fitted = fitCanvas(canvas, VIEW_HEIGHT / BOARD.width);
+      if (!fitted) return;
+      const { context, width } = fitted;
+      // 缩放到盘面坐标，再上移 VIEW_TOP。
+      const scale = width / BOARD.width;
+      context.scale(scale, scale);
+      context.translate(0, -VIEW_TOP);
+      drawBoard(context, picture);
+    },
+    requestFrame(onFrame) {
+      rafId = requestAnimationFrame((now) => {
+        rafId = undefined;
+        onFrame(now);
+      });
+    },
+    cancelFrame() {
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
+      rafId = undefined;
+    },
+    teardown() {
       controller.abort();
     },
   };
-}
+};
+
