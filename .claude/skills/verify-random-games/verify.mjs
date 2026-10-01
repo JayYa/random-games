@@ -79,7 +79,18 @@ function pidAlive(pid) {
   }
 }
 
-function freePort() {
+// The e2e suite's fixed port and `pnpm dev`'s default. Windows can hand out low ephemeral
+// ports (its dynamic range may start near 1025), so an OS-picked port can land on these.
+const RESERVED_PORTS = new Set([4173, 5173]);
+
+async function freePort() {
+  for (;;) {
+    const port = await osPort();
+    if (!RESERVED_PORTS.has(port)) return port;
+  }
+}
+
+function osPort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
     srv.unref();
@@ -349,7 +360,9 @@ async function stop(flags) {
 
 function list() {
   if (!fs.existsSync(ROOT)) return console.log('no runs');
-  for (const run of fs.readdirSync(ROOT)) {
+  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const run = entry.name;
     const d = runDirs(run);
     if (!fs.existsSync(d.state)) {
       console.log(`${run}  (stopped; evidence ${d.evidence})`);

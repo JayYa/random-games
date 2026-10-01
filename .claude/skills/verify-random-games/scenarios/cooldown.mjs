@@ -1,7 +1,8 @@
 // Feature: cooldown (features/cooldown.md). Recent winners cool, the oldest thaws (repeated
-// roster names count once), the list caps at 7 on write and on read, games alternate (picker
-// and shared theme link), and a direct link neither checks nor records a game.
-// The cool, thaw, duplicate and read-cap cases serve a roster via page.route (roster fetch boundary).
+// roster names count once), padded roster names match trimmed, the list caps at 7 on write
+// and on read, games alternate (picker and shared theme link), and a direct link neither
+// checks nor records a game.
+// The cool, thaw, duplicate, trim and read-cap cases serve a roster via page.route (roster fetch boundary).
 //
 //   node .claude/skills/verify-random-games/verify.mjs drive --run <RUN> --feature cooldown \
 //     .claude/skills/verify-random-games/scenarios/cooldown.mjs
@@ -67,6 +68,18 @@ export default async function ({ page, expect, baseURL, step, shot, recentMemory
     }
     await page.unroute('**/breakfast.csv', dupRoster);
     return winners;
+  });
+
+  await step('[route: names padded with spaces] stored names match the trimmed roster name', async () => {
+    const paddedRoster = (route) =>
+      route.fulfill({ body: ' 肠粉 ,true\n面包 ,true\n', contentType: 'text/csv; charset=utf-8' });
+    await page.route('**/breakfast.csv', paddedRoster);
+    await seed({ [WINNERS_KEY]: ['肠粉'] });
+    const winner = await drawOnWheel();
+    expect(winner).toBe('面包');
+    expect((await recentMemory())[WINNERS_KEY]).toEqual(['肠粉', '面包']);
+    await page.unroute('**/breakfast.csv', paddedRoster);
+    return winner;
   });
 
   await step('real roster: list caps at 7, winner not among the 7 cooling', async () => {

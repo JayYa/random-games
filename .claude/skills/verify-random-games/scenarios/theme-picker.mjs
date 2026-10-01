@@ -1,6 +1,7 @@
 // Feature: theme-picker (features/theme-picker.md). Picker list, game roll from #/<slug>,
-// Back after a roll, ← 换个主题 (back vs replace), #/ and a shared #/<slug> opened
-// directly, bookmarked #/<slug>/<game>, middle-click new tabs, and unknown-route fallback.
+// Back after a roll, ← 换个主题 (back vs replace, back after a reload), #/ and a shared
+// #/<slug> opened directly, bookmarked #/<slug>/<game>, middle-/Ctrl-click new tabs, and
+// unknown-route fallback.
 //
 //   node .claude/skills/verify-random-games/verify.mjs drive --run <RUN> --feature theme-picker \
 //     .claude/skills/verify-random-games/scenarios/theme-picker.mjs
@@ -109,6 +110,33 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
     await popup.close();
     expect(urls.opener).toBe(baseURL + '#/go-out/pinball');
     return urls;
+  });
+
+  await step('Ctrl+click ← 换个主题 also opens the picker in a new tab', async () => {
+    const [popup] = await Promise.all([
+      context.waitForEvent('page'),
+      toPicker.click({ modifiers: ['Control'] }),
+    ]);
+    await expect(popup).toHaveURL(baseURL + '#/');
+    const urls = { opener: page.url(), popup: popup.url() };
+    await popup.close();
+    expect(urls.opener).toBe(baseURL + '#/go-out/pinball');
+    return urls;
+  });
+
+  await step('reload after arriving from picker: ← 换个主题 still goes back', async () => {
+    await page.goto('about:blank');
+    await page.goto(baseURL);
+    await page.getByRole('link', { name: '早餐吃什么' }).click();
+    await expect(page).toHaveURL(/#\/breakfast\/(wheel|pinball)$/);
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 1, name: '早餐吃什么' })).toBeVisible();
+    const before = await historyLength();
+    await toPicker.click();
+    await expect(page).toHaveURL(baseURL);
+    await expect(pickerHeading).toBeVisible();
+    expect(await historyLength()).toBe(before);
+    return { url: page.url(), historyLength: before };
   });
 
   for (const [hash, board] of [

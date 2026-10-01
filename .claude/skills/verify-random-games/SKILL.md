@@ -20,7 +20,7 @@ $V = '.claude/skills/verify-random-games/verify.mjs'   # PowerShell
 node $V start [--run <id>] [--port <n>]
 ```
 
-- Runs `vite build` (no `tsc`) into `<tmp>/random-games-verify/<run>/scratch/dist`, never touching the repo's `dist/`, then spawns `vite preview` on `127.0.0.1` at a free port (or `--port`, strict), detached, and records the pid.
+- Runs `vite build` (no `tsc`) into `<tmp>/random-games-verify/<run>/scratch/dist`, never touching the repo's `dist/`, then spawns `vite preview` on `127.0.0.1` at a free port other than 4173 and 5173 (or `--port`, strict), detached, and records the pid. On Windows the free port is often a low one like 1897; that's normal.
 - **Ready** when it prints `READY run=<id> url=http://127.0.0.1:<port>/random-games/ pid=<pid>`. It also echoes any `[themes] 跳过 public/...` build warning (a CSV skipped by theme discovery).
 - The site lives under `/random-games/` (Vite `base`); the bare port root is not the app.
 - The build is a snapshot. After changing `src/`, `public/` or `vite.config.ts`, `stop` and `start` again — doctor flags a stale build.

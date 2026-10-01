@@ -26,6 +26,7 @@ Preconditions:
 - **Winner cools.** `page.goto(baseURL)`, `page.evaluate(() => localStorage.setItem('random-games:recent-winners:breakfast', '["肠粉","面包"]'))`, install the route, `page.goto(baseURL + '#/breakfast/wheel')`, spin. `#card-name` is `胡辣汤`; `recentMemory()` shows `["肠粉","面包","胡辣汤"]`.
 - **Oldest thaws.** Seed `'["肠粉","面包","胡辣汤"]'`, same route, spin. `#card-name` is `肠粉` (only the newest 2 of 3 cool).
 - **Duplicates count once.** Route body `'肠粉,true\n肠粉,true\n面包,true\n'`, seed `'["面包","肠粉"]'`, spin. `#card-name` is `面包` every time (2 distinct names, so only the newest 1 cools); storage becomes `["面包","肠粉","面包"]` (the list keeps repeats).
+- **Trimmed names.** Route body `' 肠粉 ,true\n面包 ,true\n'`, seed `'["肠粉"]'`, spin. `#card-name` is `面包`; storage becomes `["肠粉","面包"]`.
 - **Cap at 7.** Without a route, seed 7 real breakfast names, draw once. Stored list has length 7, the first seeded name dropped, the winner last and not one of the other 6.
 - **Read cap.** Route `breakfast.csv` to 9 candidates `甲…壬` (`甲,true\n乙,true\n…`), seed all 9 in that order, draw until `乙` wins (at most 10 draws, reseeding each time). Every winner is `甲` or `乙`, and after each draw storage is `["丁","戊","己","庚","辛","壬",<winner>]`. `乙` winning proves the cap: without it the newest 8 would cool and only `甲` could win.
 - **Game alternates.** `page.goto(baseURL)`, click `早餐吃什么`, note the game from the URL, then `page.goto(baseURL)` again and click `做点什么呢`. The second URL has the other game; `random-games:recent-games` = `[<second game>]`.
@@ -36,6 +37,6 @@ Preconditions:
 
 - Seed storage on the same origin first (`page.goto(baseURL)`), then navigate; `localStorage` access on `about:blank` throws.
 - The recent-winners key is per theme slug; seeding `breakfast` does nothing for `go-out`.
-- Names must match the roster exactly (including full-width characters) to cool. A seeded name that isn't in the roster still takes one of the cooling slots, so fewer real candidates cool.
+- Names must match the roster exactly (including full-width characters) to cool. Roster names are trimmed first, so `' 肠粉 ,true'` matches a stored `肠粉`, and the winner is stored trimmed. A seeded name that isn't in the roster still takes one of the cooling slots, so fewer real candidates cool.
 - Seed values must be JSON arrays of strings (`JSON.stringify`); anything else silently reads as no memory.
 - The winner is written at reveal time; read storage after the card is visible.
