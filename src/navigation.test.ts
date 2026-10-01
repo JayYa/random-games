@@ -11,6 +11,7 @@ import type { RollHandle } from './gamePageHost';
 import type { Game } from './games';
 import { createNavigation, type NavigationPage, type PickerLinkClick } from './navigation';
 import {
+  csv,
   fakeBoard,
   fakeGamePage,
   fakeGames,
@@ -303,10 +304,24 @@ describe('带玩法的地址', () => {
     expect(revealOn(boards[0])).toBe('沙县小吃');
   });
 
-  it('名单写坏时画名单错误页，不挂盘面', async () => {
-    const { fetch, log } = open(gameHash(theme, firstGame));
-    await fetch.succeed(theme.rosterFile, '"没关引号,true');
-    expect(log).toEqual([`loading ${theme.slug}`, 'page roster-error parse-error']);
+  it.each([
+    [
+      '某一行读不懂',
+      csv('沙县小吃,true', '"没关引号,true'),
+      { kind: 'parse-error', line: 2, reason: 'bad-quote' },
+    ],
+    ['文件里一条候选都没有', '', { kind: 'empty-file' }],
+    [
+      '候选全部停用',
+      csv('沙县小吃,false', '兰州拉面,0', '黄焖鸡,no'),
+      { kind: 'all-disabled', disabledCount: 3 },
+    ],
+  ])('%s：名单错误原样交给页面，不写玩法页，不挂盘面', async (_case, csvText, error) => {
+    const { fetch, page, boards } = open(gameHash(theme, firstGame));
+    await fetch.succeed(theme.rosterFile, csvText);
+    expect(page.rosterErrors).toEqual([{ theme, error }]);
+    expect(page.gamePages).toEqual([]);
+    expect(mountedGames(boards)).toEqual([]);
   });
 
   it('取不到文件时交出没取到的名单错误，带上取不到的原因', async () => {
