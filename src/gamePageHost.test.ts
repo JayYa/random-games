@@ -6,12 +6,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { REVEAL_PAUSE_MS } from './gamePageHost';
 import {
-  csv,
   fakeBoard,
   hostTheme as theme,
   mountOnHost,
   rollOf,
-  roster,
   type FakeBoard,
   type FakeBoardOptions,
   type HostedBoard,
@@ -45,49 +43,10 @@ function rollOnce(harness: Harness): void {
   harness.timer.advance(REVEAL_PAUSE_MS);
 }
 
-describe('名单开不了抽', () => {
-  it.each([
-    ['某一行读不懂', csv('沙县小吃,true', '"没关引号,true'), 'parse-error'],
-    ['文件里一条候选都没有', '', 'empty-file'],
-    ['候选全部停用', csv('沙县小吃,false', '兰州拉面,0', '黄焖鸡,no'), 'all-disabled'],
-  ])('%s：只画名单错误，不写玩法页，不挂盘面', (_case, csvText, kind) => {
-    const { page, board, timer, log } = mountPage({ csvText });
-
-    expect(page.rosterErrors).toHaveLength(1);
-    expect(page.rosterErrors[0]?.error.kind).toBe(kind);
-    expect(page.rosterErrors[0]?.theme).toBe(theme);
-    expect(page.gamePages).toEqual([]);
-    expect(page.card).toBeUndefined();
-    expect(board.mountCount).toBe(0);
-    expect(timer.pendingCount).toBe(0);
-    expect(log).toEqual([`page roster-error ${kind}`]);
-  });
-
-  it('名单错误原样交给页面：行号、停用了几个都在里面', () => {
-    const parseError = mountPage({ csvText: csv('沙县小吃,true', '"没关引号,true') });
-    expect(parseError.page.rosterErrors).toEqual([
-      { theme, error: { kind: 'parse-error', line: 2, reason: 'bad-quote' } },
-    ]);
-
-    const allDisabled = mountPage({ csvText: csv('沙县小吃,false', '兰州拉面,0', '黄焖鸡,no') });
-    expect(allDisabled.page.rosterErrors).toEqual([
-      { theme, error: { kind: 'all-disabled', disabledCount: 3 } },
-    ]);
-  });
-
-  it('返回的拆卸调用无害，也不去拆一个没挂上的盘面', () => {
-    const { teardown, board } = mountPage({ csvText: '' });
-    expect(() => teardown()).not.toThrow();
-    expect(() => teardown()).not.toThrow();
-    expect(board.teardownCount).toBe(0);
-  });
-});
-
-describe('名单正常时写出玩法页', () => {
+describe('写出玩法页', () => {
   it('写出的玩法页带着盘面交出的 HTML、块名和按钮上的字', () => {
     const { page, board } = mountPage();
 
-    expect(page.rosterErrors).toEqual([]);
     expect(page.gamePages).toEqual([
       { theme, html: board.html, block: board.block, closeLabel: board.closeLabel },
     ]);
@@ -369,14 +328,6 @@ describe('最近中选', () => {
     roll.boardStopped();
     expect(recentWinners.names).toEqual(['候选1']);
     expect(page.card?.showCount).toBe(0);
-  });
-
-  it('最近中选里的候选冷却，不被抽出', () => {
-    // 随机源恒为 0，不冷却就会抽出「候选1」。
-    const harness = mountPage({ csvText: roster(2), recent: ['候选1'] });
-    rollOnce(harness);
-    expect(harness.board.revealed?.name).toBe('候选2');
-    expect(harness.page.card?.shownWinner?.name).toBe('候选2');
   });
 });
 

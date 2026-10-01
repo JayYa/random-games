@@ -1,17 +1,15 @@
 /**
- * 玩法页宿主 (Game Page Host)：把名单、开抽和结果卡片接到盘面上，与玩法无关（ADR-0012）。
+ * 玩法页宿主 (Game Page Host)：把开抽和结果卡片接到盘面上，与玩法无关（ADR-0012）。
  *
  * 它是唯一的开抽状态机：盘面停下 → 抽中选 → 揭晓 → 停一拍 → 弹结果卡片 → 收下 →
  * 抹掉 → 复位。中选在盘面停下之后才抽，盘面从接口上拿不到名单，也没法指定中选（ADR-0010）。
+ * 名单由站内导航打开，宿主只拿到「抽一个中选」。
  *
  * 不碰 DOM，写页面经注入的页面适配器。
  */
 
-import type { RecentMemory } from './cooldown';
-import type { RandomSource } from './randomIndex';
 import type { ResultCard } from './resultCard';
-import type { RosterError } from './rosterError';
-import { createRosterSession, type Candidate } from './roster';
+import type { Candidate } from './roster';
 import type { Theme } from './themes';
 
 /** 揭晓后过多久弹结果卡片。卡片是全屏遮罩，没有这一拍名字刚亮就被盖住（ADR-0010）。 */
@@ -86,8 +84,6 @@ export interface WrittenGamePage {
 
 /** 宿主碰 DOM 的唯一出口，挂载点已经绑在里面。生产用 `browserPage.ts`，用例用假页面。 */
 export interface PageAdapter {
-  /** 名单开不了抽时替掉整页。 */
-  showRosterError(theme: Theme, error: RosterError): void;
   /**
    * 一次写完页头、盘面和结果卡片，交回卡片和盘面的挂载点。
    *
@@ -98,14 +94,10 @@ export interface PageAdapter {
 
 export interface GamePageHostOptions {
   readonly theme: Theme;
-  /** 名单 CSV 原文，取文件归站内导航。 */
-  readonly csvText: string;
-  /** 这个主题的最近中选（ADR-0011）。 */
-  readonly recentWinners: RecentMemory;
+  /** 抽一个中选并记进最近中选（ADR-0011）。宿主在盘面停下那一刻调它。 */
+  readonly drawWinner: () => Candidate;
   readonly board: Board;
   readonly page: PageAdapter;
-  /** 默认为 `Math.random`。 */
-  readonly random?: RandomSource;
   /** 默认是 `setTimeout`。 */
   readonly schedule?: Schedule;
 }
@@ -130,19 +122,8 @@ type RollState =
  * 挂上一个玩法页，返回拆卸。拆卸先掐掉揭晓那一拍，再调盘面自己的拆卸；重复调用无害。
  */
 export function mountGamePage(options: GamePageHostOptions): () => void {
-  const { theme, board, page } = options;
+  const { theme, drawWinner, board, page } = options;
   const schedule = options.schedule ?? realSchedule;
-  const roster = createRosterSession({
-    csvText: options.csvText,
-    random: options.random,
-    recentWinners: options.recentWinners,
-  });
-
-  // 开不了抽时不挂盘面：空盘面看着像程序坏了。
-  if (!roster.ok) {
-    page.showRosterError(theme, roster.error);
-    return () => {};
-  }
 
   let state: RollState = { phase: 'idle' };
   const observers: Array<() => void> = [];
@@ -189,7 +170,7 @@ export function mountGamePage(options: GamePageHostOptions): () => void {
       if (state.phase !== 'rolling') return;
       const shownOn = mounted;
       if (!shownOn) return;
-      const winner = roster.drawWinner();
+      const winner = drawWinner();
       shownOn.reveal(winner);
       const cancel = schedule(() => {
         moveTo({ phase: 'settled', shownOn });
