@@ -9,7 +9,7 @@
  */
 
 import type { MountedBoard, RollHandle } from '../../gamePageHost';
-import type { RandomSource } from '../../rosterSession';
+import type { RandomSource } from '../../randomIndex';
 import { BOARD, LANE_CENTER_X } from './board';
 import { simulateShot, type PinballShot } from './simulate';
 

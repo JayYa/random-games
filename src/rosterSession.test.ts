@@ -1,7 +1,8 @@
 /** 名单会话的用例：解析、四种结果、抽中选、冷却。 */
 
 import { describe, expect, it } from 'vitest';
-import { createRosterSession, type RandomSource } from './rosterSession';
+import type { RandomSource } from './randomIndex';
+import { createRosterSession } from './rosterSession';
 import type { RecentMemory } from './cooldown';
 import { csv, fakeRecentMemory, roster, rosterNames, scriptedRandom, seededRandom } from './testHelpers';
 
