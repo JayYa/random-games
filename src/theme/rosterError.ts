@@ -8,6 +8,7 @@
  */
 
 import type { Theme } from './index.ts';
+import { rosterFileName, rosterRepoPath } from './rosterFile.ts';
 
 /** 种类取值就是错误页上的 `data-error-kind`。 */
 export type RosterError =
@@ -34,11 +35,6 @@ export interface RosterErrorText {
   readonly hint: string;
 }
 
-/** 名单文件在仓库里的路径（`public/eat.csv`），区别于 `theme.rosterFile`（`eat.csv`）。 */
-function rosterPath(theme: Theme): string {
-  return `public/${theme.rosterFile}`;
-}
-
 export function describeRosterError(theme: Theme, error: RosterError): RosterErrorText {
   switch (error.kind) {
     case 'load': {
@@ -46,8 +42,8 @@ export function describeRosterError(theme: Theme, error: RosterError): RosterErr
       const reason = cause instanceof Error ? cause.message : String(cause);
       return {
         title: '名单文件没取到',
-        detail: `读取 ${theme.rosterFile} 失败：${reason}`,
-        hint: `确认 ${rosterPath(theme)} 确实在仓库里并且已经部署，然后刷新页面重试。`,
+        detail: `读取 ${rosterFileName(theme)} 失败：${reason}`,
+        hint: `确认 ${rosterRepoPath(theme)} 确实在仓库里并且已经部署，然后刷新页面重试。`,
       };
     }
     case 'parse-error':
@@ -58,12 +54,12 @@ export function describeRosterError(theme: Theme, error: RosterError): RosterErr
             ? `第 ${error.line} 行格式有误：引号未闭合或引号外有多余内容`
             : `第 ${error.line} 行没有名字：这一行是「${error.text}」，第一个逗号前面是空的。` +
               `把名字补在这一行开头（写成「名字,true」的样子），或者把整行删掉。`,
-        hint: `打开 ${rosterPath(theme)}，按上面说的行号改掉那一行，再刷新页面。`,
+        hint: `打开 ${rosterRepoPath(theme)}，按上面说的行号改掉那一行，再刷新页面。`,
       };
     case 'empty-file':
       return {
         title: '名单是空的',
-        detail: `${rosterPath(theme)} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
+        detail: `${rosterRepoPath(theme)} 里一条候选记录都没有——文件是空的，或者只剩空行和 # 注释。`,
         hint: '在文件里加上几行「名字,true」再刷新页面。',
       };
     case 'all-disabled':

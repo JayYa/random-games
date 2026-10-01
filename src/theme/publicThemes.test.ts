@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { readRosterFiles } from '../rosterFiles';
-import { collectThemes, createRosterSession, describeRosterError } from './index';
+import { collectThemes, createRosterSession, describeRosterError, rosterFileName } from './index';
 
 /** 构建时插件扫的同一个目录。 */
 const publicDir = fileURLToPath(new URL('../../public', import.meta.url));
@@ -17,7 +17,7 @@ describe('public/ 下的名单文件', () => {
     const { themes, warnings } = collectThemes(rosterFiles);
 
     expect(warnings).toEqual([]);
-    expect(themes.map((theme) => theme.rosterFile)).toEqual(
+    expect(themes.map(rosterFileName)).toEqual(
       rosterFiles.map((file) => file.fileName).sort(),
     );
   });
@@ -29,13 +29,14 @@ describe('public/ 下的名单文件', () => {
     const rosterErrors: string[] = [];
 
     for (const theme of themes) {
-      const csvText = csvByFile.get(theme.rosterFile);
-      if (csvText === undefined) throw new Error(`扫到的名单文件里没有 ${theme.rosterFile}`);
+      const fileName = rosterFileName(theme);
+      const csvText = csvByFile.get(fileName);
+      if (csvText === undefined) throw new Error(`扫到的名单文件里没有 ${fileName}`);
       const session = createRosterSession({ csvText });
       if (session.ok) continue;
 
       const { title, detail, hint } = describeRosterError(theme, session.error);
-      rosterErrors.push(`${theme.rosterFile}：${title} / ${detail} / ${hint}`);
+      rosterErrors.push(`${fileName}：${title} / ${detail} / ${hint}`);
     }
 
     expect(rosterErrors).toEqual([]);
