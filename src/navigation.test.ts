@@ -184,9 +184,9 @@ const [firstGame, secondGame] = fakeGames(['spin', 'drop']) as [Game, Game];
 /**
  * 与 `firstGame`、`secondGame` 同 slug 的两种假玩法，盘面是 `fakeBoard`。`boards` 记下造过的
  * 每个盘面；挂上、拆掉时往 `log` 记 `board mount <玩法>`、`board teardown <玩法>`。
- * 每个标签页造一份新的。
+ * 每个标签页造一份新的。`mountThrows` 时盘面挂载当下抛错，模拟程序写错。
  */
-function trackedGames(log: string[]) {
+function trackedGames(log: string[], mountThrows = false) {
   const boards: BoardRecord[] = [];
   const games: readonly Game[] = [firstGame, secondGame].map(({ slug }) => ({
     slug,
@@ -196,6 +196,7 @@ function trackedGames(log: string[]) {
         onMount(handle) {
           roll = handle;
           log.push(`board mount ${slug}`);
+          if (mountThrows) throw new Error('盘面挂不上');
         },
         onTeardown() {
           log.push(`board teardown ${slug}`);
@@ -228,15 +229,17 @@ function revealOn(record: BoardRecord | undefined): string | undefined {
 interface StartOptions {
   /** 同一份再交一次就是刷新页面。 */
   readonly storage?: FakeStorage;
+  /** 盘面挂载时抛错。 */
+  readonly mountThrows?: boolean;
 }
 
 /** 在新标签页里打开 `hash`。 */
-function open(hash: string, { storage = fakeStorage() }: StartOptions = {}) {
+function open(hash: string, { storage = fakeStorage(), mountThrows = false }: StartOptions = {}) {
   const browser = fakeBrowser(hash);
   const fetch = fakeFetch();
   const log: string[] = [];
   const pickerThemes: (readonly Theme[])[] = [];
-  const { games, boards } = trackedGames(log);
+  const { games, boards } = trackedGames(log, mountThrows);
   const page = fakeNavigationPage(log, pickerThemes);
   const navigation = createNavigation({
     history: browser.history,
@@ -313,6 +316,13 @@ describe('带玩法的地址', () => {
     expect(page.rosterErrors).toEqual([
       { theme, error: { kind: 'load', cause: new Error('HTTP 404') } },
     ]);
+  });
+
+  // 挂盘面抛错是程序写错，名单文件没问题。修复前这里还会留下未处理的 rejection，vitest 判失败。
+  it('名单回来后挂盘面抛错，不当成没取到', async () => {
+    const { fetch, page } = open(gameHash(theme, firstGame), { mountThrows: true });
+    await fetch.succeed(theme.rosterFile);
+    expect(page.rosterErrors).toEqual([]);
   });
 });
 
