@@ -1,8 +1,10 @@
 /**
- * 主题对应哪份名单文件：只有这一条规则，主题发现认文件名、取文件、错误文案指路都从这里来。
+ * 主题对应哪份名单文件：slug 加扩展名就是文件名。主题发现校验文件名、运行时拼取文件的地址、
+ * 错误文案指路都用这里的规则。构建期列目录的 `src/rosterFiles.ts` 和 `vite.config.ts` 是 I/O
+ * 适配器，自己知道文件在 `public/`、自己按 `.csv` 粗筛，不从这里取。
  */
 
-import type { Theme } from './index.ts';
+import type { Theme } from './theme.ts';
 
 /** 名单文件的扩展名，主名就是主题的 slug。 */
 export const ROSTER_FILE_EXTENSION = '.csv';

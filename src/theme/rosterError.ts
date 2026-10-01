@@ -8,7 +8,7 @@
  * `rosterFormat.ts` 的常量拼出，不手写第二遍。
  */
 
-import type { Theme } from './index.ts';
+import type { Theme } from './theme.ts';
 import { rosterFileName, rosterRepoPath } from './rosterFile.ts';
 import { COMMENT_PREFIX, DISABLED_MARKERS, ENABLED_MARKER, SAMPLE_ROW } from './rosterFormat.ts';
 

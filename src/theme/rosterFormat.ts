@@ -8,13 +8,14 @@
 /** `#` 开头（去掉首尾空白后）的一行是注释，头部元数据也写在注释里。 */
 export const COMMENT_PREFIX = '#';
 
-/** 一行里分隔名字和停用列的符号。 */
 export const FIELD_SEPARATOR = ',';
 
 /** 只有这几个取值（不分大小写）算停用；其余一切取值（含空值与缺失的列）都算启用。 */
 export const DISABLED_MARKERS: readonly string[] = ['false', '0', 'no'];
 
-/** 写给改名单的人看的启用写法。 */
+/**
+ * 示例行和错误提示里写的启用值，只是惯例：解析器不认它，不是停用标记的都算启用。
+ */
 export const ENABLED_MARKER = 'true';
 
 /** 写给改名单的人看的一行候选。 */

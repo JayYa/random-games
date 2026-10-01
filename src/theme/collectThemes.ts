@@ -2,7 +2,7 @@
  * 从一组名单文件得出主题清单（ADR-0009）。无头：跳过的原因作为返回值交出，由调用方打印。
  */
 
-import type { Theme } from './index.ts';
+import type { Theme } from './theme.ts';
 import { ROSTER_FILE_EXTENSION } from './rosterFile.ts';
 import { rosterLines } from './rosterFormat.ts';
 
@@ -52,13 +52,12 @@ function isMetadataKey(key: string): key is MetadataKey {
 }
 
 /**
- * 从注释行里取出元数据。同一个键写了多次以先写的为准；写了键没写值也算写过，笔误
- * 不会被下面一行悄悄兜住。
+ * 从注释行里取出元数据（ADR-0009）。同一个键写了多次以先写的为准；写了键没写值也算写过，
+ * 笔误不会被下面一行悄悄兜住。
  */
 function readMetadata(csvText: string): RosterMetadata {
   const metadata: RosterMetadata = {};
 
-  // 只看注释行，数据行不读（ADR-0009）。
   for (const line of rosterLines(csvText)) {
     if (line.kind !== 'comment') continue;
 

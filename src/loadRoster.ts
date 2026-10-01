@@ -4,7 +4,7 @@
 
 import { rosterFileName, type Theme } from './theme';
 
-/** 失败时抛错。名单文件部署在站点根下，地址拼在 `BASE_URL` 后面。 */
+/** 失败时抛错。 */
 export async function fetchRosterCsv(theme: Theme): Promise<string> {
   const url = `${import.meta.env.BASE_URL}${rosterFileName(theme)}`;
   // 名单随时会被人改，别让缓存挡住刚推上去的改动。
