@@ -1,4 +1,6 @@
-/** 名单 (Roster) 的解析：CSV 原文 → 候选。 */
+/** 名单 (Roster) 的解析：CSV 原文 → 候选，或一个结构化的读不懂。只管认，不管说。 */
+
+import type { RosterError } from './rosterError';
 
 export interface Candidate {
   readonly name: string;
@@ -6,12 +8,13 @@ export interface Candidate {
   readonly enabled: boolean;
 }
 
-export interface RosterParseResult {
-  /** 名单中的全部候选，含停用的。解析失败时为空。 */
-  readonly candidates: readonly Candidate[];
-  /** 解析失败的描述（含原始行号），成功时为 undefined。 */
-  readonly error?: string;
-}
+/** 名单里哪一行读不懂。 */
+export type RosterParseError = Extract<RosterError, { kind: 'parse-error' }>;
+
+export type RosterParseResult =
+  /** 名单中的全部候选，含停用的。 */
+  | { readonly ok: true; readonly candidates: readonly Candidate[] }
+  | { readonly ok: false; readonly error: RosterParseError };
 
 /** 只有这几个取值算停用；其余一切取值（含空值与缺失的列）都算启用。 */
 const DISABLED_MARKERS = new Set(['false', '0', 'no']);
@@ -83,7 +86,7 @@ function parseLine(line: string): string[] | undefined {
  *
  * - 跳过空行与 `#` 开头的注释行；
  * - 行号按文件原始行计数，不因跳过空行/注释而错位；
- * - 遇到第一个坏行即停止，返回带行号的错误。
+ * - 遇到第一个坏行即停止，交回带原始行号的读不懂。
  */
 export function parseRoster(csvText: string): RosterParseResult {
   const candidates: Candidate[] = [];
@@ -99,20 +102,15 @@ export function parseRoster(csvText: string): RosterParseResult {
 
     const fields = parseLine(raw);
     if (fields === undefined) {
-      return {
-        candidates: [],
-        error: `第 ${lineNumber} 行格式有误：引号未闭合或引号外有多余内容`,
-      };
+      return { ok: false, error: { kind: 'parse-error', line: lineNumber, reason: 'bad-quote' } };
     }
 
     // 没有名字的行报错而不跳过：跳过等于让一个手滑的逗号无声地删掉一个候选。
     const name = (fields[0] ?? '').trim();
     if (name === '') {
       return {
-        candidates: [],
-        error:
-          `第 ${lineNumber} 行没有名字：这一行是「${trimmed}」，第一个逗号前面是空的。` +
-          `把名字补在这一行开头（写成「名字,true」的样子），或者把整行删掉。`,
+        ok: false,
+        error: { kind: 'parse-error', line: lineNumber, reason: 'missing-name', text: trimmed },
       };
     }
 
@@ -120,5 +118,5 @@ export function parseRoster(csvText: string): RosterParseResult {
     candidates.push({ name, enabled: !DISABLED_MARKERS.has(enabledField) });
   }
 
-  return { candidates };
+  return { ok: true, candidates };
 }

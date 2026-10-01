@@ -1,11 +1,12 @@
 /**
- * 名单会话 (Roster Session)：把 CSV 原文解析成名单状态，并抽中选。无头，与玩法无关。
+ * 名单会话 (Roster Session)：把 CSV 原文解析成名单，能开抽就抽中选，开不了就交回名单错误。无头，与玩法无关。
  *
  * 中选从启用且不在冷却中的候选里等概率抽，抽完当场记进最近中选（ADR-0010、ADR-0011）。
  */
 
 import { NO_RECENT_MEMORY, drawWithCooldown, type RecentMemory } from './cooldown';
 import { parseRoster, type Candidate } from './roster';
+import type { RosterError } from './rosterError';
 
 export type { Candidate };
 
@@ -20,56 +21,39 @@ export interface RosterSessionOptions {
   readonly recentWinners?: RecentMemory;
 }
 
-/** 名单的状态。「取不到文件」发生在会话之前，不在这里。 */
-export type RosterStatus =
-  /** 至少有一个启用的候选。 */
-  | 'ok'
-  /** 某一行读不懂，`error` 里带行号。 */
-  | 'parse-error'
-  /** 一条候选都没有。 */
-  | 'empty-file'
-  /** 有候选，但全部停用。 */
-  | 'all-disabled';
-
-export interface RosterSession {
-  readonly enabledCount: number;
-  readonly disabledCount: number;
-  readonly status: RosterStatus;
-  /** 解析失败的描述（含行号）。 */
-  readonly error?: string;
-  /** 抽一个中选并记进最近中选。不依赖 `this`。没有启用的候选时抛错。 */
-  drawWinner(): Candidate;
-}
+/**
+ * 名单会话交回两种结果之一：能开抽（只有这一支能抽中选），或一个名单错误。
+ * 「没取到」发生在会话之前，不在这里。
+ */
+export type RosterSession =
+  | {
+      readonly ok: true;
+      /** 抽一个中选并记进最近中选。不依赖 `this`。 */
+      drawWinner(): Candidate;
+    }
+  | { readonly ok: false; readonly error: Exclude<RosterError, { kind: 'load' }> };
 
 export function createRosterSession(options: RosterSessionOptions): RosterSession {
   const random = options.random ?? Math.random;
   const recentWinners = options.recentWinners ?? NO_RECENT_MEMORY;
-  const { candidates, error } = parseRoster(options.csvText);
-  const enabled = candidates.filter((candidate) => candidate.enabled);
-  const enabledCount = enabled.length;
-  const disabledCount = candidates.length - enabledCount;
+  const parsed = parseRoster(options.csvText);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
 
-  const status: RosterStatus = error
-    ? 'parse-error'
-    : candidates.length === 0
-      ? 'empty-file'
-      : enabledCount === 0
-        ? 'all-disabled'
-        : 'ok';
+  const { candidates } = parsed;
+  if (candidates.length === 0) return { ok: false, error: { kind: 'empty-file' } };
+  const enabled = candidates.filter((candidate) => candidate.enabled);
+  if (enabled.length === 0) {
+    return { ok: false, error: { kind: 'all-disabled', disabledCount: candidates.length } };
+  }
 
   return {
-    enabledCount,
-    disabledCount,
-    status,
-    error,
-    drawWinner: () => {
-      if (enabledCount === 0) throw new Error('名单里没有启用的候选，抽不出中选');
-      return drawWithCooldown({
+    ok: true,
+    drawWinner: () =>
+      drawWithCooldown({
         pool: enabled,
         keyOf: (candidate) => candidate.name,
         memory: recentWinners,
         random,
-      });
-    },
+      }),
   };
 }

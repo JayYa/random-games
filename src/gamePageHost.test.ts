@@ -50,25 +50,29 @@ describe('名单开不了抽', () => {
     ['某一行读不懂', csv('沙县小吃,true', '"没关引号,true'), 'parse-error'],
     ['文件里一条候选都没有', '', 'empty-file'],
     ['候选全部停用', csv('沙县小吃,false', '兰州拉面,0', '黄焖鸡,no'), 'all-disabled'],
-  ])('%s：只画错误页，不写玩法页，不挂盘面', (_case, csvText, status) => {
+  ])('%s：只画名单错误，不写玩法页，不挂盘面', (_case, csvText, kind) => {
     const { page, board, timer, log } = mountPage({ csvText });
 
-    expect(page.rosterFailures).toHaveLength(1);
-    expect(page.rosterFailures[0]?.status).toBe(status);
-    expect(page.rosterFailures[0]?.theme).toBe(theme);
+    expect(page.rosterErrors).toHaveLength(1);
+    expect(page.rosterErrors[0]?.error.kind).toBe(kind);
+    expect(page.rosterErrors[0]?.theme).toBe(theme);
     expect(page.gamePages).toEqual([]);
     expect(page.card).toBeUndefined();
     expect(board.mountCount).toBe(0);
     expect(timer.pendingCount).toBe(0);
-    expect(log).toEqual([`page roster-failure ${status}`]);
+    expect(log).toEqual([`page roster-error ${kind}`]);
   });
 
-  it('错误页拿得到画提示要用的那几样：行号、停用了几个', () => {
+  it('名单错误原样交给页面：行号、停用了几个都在里面', () => {
     const parseError = mountPage({ csvText: csv('沙县小吃,true', '"没关引号,true') });
-    expect(parseError.page.rosterFailures[0]?.error).toContain('第 2 行');
+    expect(parseError.page.rosterErrors).toEqual([
+      { theme, error: { kind: 'parse-error', line: 2, reason: 'bad-quote' } },
+    ]);
 
     const allDisabled = mountPage({ csvText: csv('沙县小吃,false', '兰州拉面,0', '黄焖鸡,no') });
-    expect(allDisabled.page.rosterFailures[0]?.disabledCount).toBe(3);
+    expect(allDisabled.page.rosterErrors).toEqual([
+      { theme, error: { kind: 'all-disabled', disabledCount: 3 } },
+    ]);
   });
 
   it('返回的拆卸调用无害，也不去拆一个没挂上的盘面', () => {
@@ -83,7 +87,7 @@ describe('名单正常时写出玩法页', () => {
   it('写出的玩法页带着盘面交出的 HTML、块名和按钮上的字', () => {
     const { page, board } = mountPage();
 
-    expect(page.rosterFailures).toEqual([]);
+    expect(page.rosterErrors).toEqual([]);
     expect(page.gamePages).toEqual([
       { theme, html: board.html, block: board.block, closeLabel: board.closeLabel },
     ]);

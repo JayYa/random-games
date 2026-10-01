@@ -6,7 +6,7 @@ import type { RecentMemory } from './cooldown';
 import type { Game } from './games';
 import type { RecentStorage } from './recentStorage';
 import type { ResultCard } from './resultCard';
-import type { RosterFailureSource } from './rosterFailure';
+import type { RosterError } from './rosterError';
 import type { Candidate } from './rosterSession';
 import type { Theme } from './themes';
 import {
@@ -175,16 +175,17 @@ export function fakeTimer(): FakeTimer {
   };
 }
 
-export type RecordedRosterFailure = RosterFailureSource & {
+export interface RecordedRosterError {
   readonly theme: Theme;
-};
+  readonly error: RosterError;
+}
 
 /**
  * 记录调用的页面适配器。给了 `log` 就每次记一行 `page …`，与 `fakeBoard` 共用，
  * 看得到页面和盘面被叫的先后。
  */
 export interface FakeGamePage extends PageAdapter {
-  readonly rosterFailures: readonly RecordedRosterFailure[];
+  readonly rosterErrors: readonly RecordedRosterError[];
   readonly gamePages: readonly GamePageView[];
   /** 写玩法页时交回的卡片。 */
   readonly card: FakeResultCard | undefined;
@@ -195,7 +196,7 @@ export interface FakeGamePage extends PageAdapter {
 }
 
 export function fakeGamePage(log?: string[]): FakeGamePage {
-  const rosterFailures: RecordedRosterFailure[] = [];
+  const rosterErrors: RecordedRosterError[] = [];
   const gamePages: GamePageView[] = [];
   let card: FakeResultCard | undefined;
   let onClose: (() => void) | undefined;
@@ -203,8 +204,8 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
 
   return {
     boardRoot,
-    get rosterFailures() {
-      return [...rosterFailures];
+    get rosterErrors() {
+      return [...rosterErrors];
     },
     get gamePages() {
       return [...gamePages];
@@ -212,14 +213,9 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
     get card() {
       return card;
     },
-    showRosterFailure(theme, roster) {
-      log?.push(`page roster-failure ${roster.status}`);
-      rosterFailures.push({
-        theme,
-        status: roster.status,
-        error: roster.error,
-        disabledCount: roster.disabledCount,
-      });
+    showRosterError(theme, error) {
+      log?.push(`page roster-error ${error.kind}`);
+      rosterErrors.push({ theme, error });
     },
     showGamePage(view, close) {
       log?.push('page game');

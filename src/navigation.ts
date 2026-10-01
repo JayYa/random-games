@@ -11,19 +11,18 @@ import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
 import { rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
-import type { RandomSource } from './rosterSession';
+import type { RosterError } from './rosterError';
 import type { Theme } from './themes';
 
 /**
- * 站内导航的页面适配器，在宿主的 `PageAdapter` 之上多三屏。名单回来之后原样交给宿主。
+ * 站内导航的页面适配器，在宿主的 `PageAdapter` 之上多两屏。名单回来之后原样交给宿主；
+ * 名单文件取不到时，站内导航自己造一个 `load` 名单错误，与宿主交上来的走同一个入口。
  */
 export interface NavigationPage extends PageAdapter {
   /** 列出的主题就是认地址用的那一份。 */
   showThemePicker(themes: readonly Theme[]): void;
   /** 名单在路上。 */
   showRosterLoading(theme: Theme): void;
-  /** 名单文件取不到。 */
-  showRosterLoadFailure(theme: Theme, cause: unknown): void;
 }
 
 /** 处理「换个主题」点击要用到的那几样，生产直接交 `MouseEvent`。 */
@@ -45,7 +44,7 @@ export interface NavigationOptions {
   /** 存最近玩法与最近中选（ADR-0011），拿不到就是 `undefined`。 */
   readonly storage: RecentStorage | undefined;
   /** 抽玩法和抽中选共用。 */
-  readonly random: RandomSource;
+  readonly random: () => number;
   /** 认地址和画选主题页读同一份。 */
   readonly themes: readonly Theme[];
   /** 认地址和抽玩法读同一份。 */
@@ -149,7 +148,8 @@ export function createNavigation(options: NavigationOptions): Navigation {
       },
       (cause: unknown) => {
         if (!isCurrent()) return;
-        page.showRosterLoadFailure(theme, cause);
+        const error: RosterError = { kind: 'load', cause };
+        page.showRosterError(theme, error);
       },
     );
   }

@@ -6,7 +6,8 @@
 import { gamePage, showRosterLoading } from './gamePage';
 import type { NavigationPage } from './navigation';
 import { createResultCard, resultCardMarkup } from './resultCard';
-import { showRosterFailure, showRosterLoadFailure } from './rosterFailure';
+import { describeRosterError } from './rosterError';
+import { showRosterError } from './rosterErrorPage';
 import { renderThemePicker } from './themePicker';
 import { SITE_TITLE } from './themes';
 
@@ -21,13 +22,9 @@ export function browserPage(root: HTMLElement): NavigationPage {
       document.title = theme.title;
       showRosterLoading(root, theme);
     },
-    showRosterLoadFailure(theme, cause) {
+    showRosterError(theme, error) {
       document.title = theme.title;
-      showRosterLoadFailure(root, theme, cause);
-    },
-    showRosterFailure(theme, roster) {
-      document.title = theme.title;
-      showRosterFailure(root, theme, roster);
+      showRosterError(root, theme, error.kind, describeRosterError(theme, error));
     },
     showGamePage({ theme, html, block, closeLabel }, onClose) {
       document.title = theme.title;
