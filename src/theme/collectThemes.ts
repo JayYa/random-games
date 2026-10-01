@@ -3,6 +3,7 @@
  */
 
 import type { Theme } from './index.ts';
+import { ROSTER_FILE_EXTENSION } from './rosterFile.ts';
 
 export interface SkippedRoster {
   /** 例如 `Eat.csv`。 */
@@ -22,8 +23,17 @@ export interface CollectThemesResult {
   readonly warnings: readonly SkippedRoster[];
 }
 
-/** 不接受大写、中文、空格。扩展名也在这里校验，`Drink.CSV` 才会变成一条 warning 而不是无声消失。 */
-const FILE_NAME_PATTERN = /^([a-z0-9-]+)\.csv$/;
+/** 主名即 slug，不接受大写、中文、空格。 */
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
+
+/**
+ * 认得出就是它的 slug。扩展名也在这里校验，`Drink.CSV` 才会变成一条 warning 而不是无声消失。
+ */
+function slugOf(fileName: string): string | undefined {
+  if (!fileName.endsWith(ROSTER_FILE_EXTENSION)) return undefined;
+  const slug = fileName.slice(0, -ROSTER_FILE_EXTENSION.length);
+  return SLUG_PATTERN.test(slug) ? slug : undefined;
+}
 
 /** 封闭的两个键；其余 `#` 行当说明文字跳过。 */
 const METADATA_KEYS = ['entry', 'title'] as const;
@@ -76,11 +86,11 @@ export function collectThemes(files: readonly RosterFile[]): CollectThemesResult
   const sorted = [...files].sort((a, b) => (a.fileName < b.fileName ? -1 : a.fileName > b.fileName ? 1 : 0));
 
   for (const { fileName, csvText } of sorted) {
-    const match = FILE_NAME_PATTERN.exec(fileName);
-    if (match === null) {
+    const slug = slugOf(fileName);
+    if (slug === undefined) {
       warnings.push({
         fileName,
-        reason: '文件名不合规：主名只能用小写字母、数字和连字符，扩展名必须是 .csv',
+        reason: `文件名不合规：主名只能用小写字母、数字和连字符，扩展名必须是 ${ROSTER_FILE_EXTENSION}`,
       });
       continue;
     }
@@ -105,8 +115,7 @@ export function collectThemes(files: readonly RosterFile[]): CollectThemesResult
     }
 
     themes.push({
-      slug: match[1] ?? '',
-      rosterFile: fileName,
+      slug,
       title: valueOr(metadata.title, entryLabel),
       entryLabel,
     });

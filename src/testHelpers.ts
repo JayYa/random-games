@@ -319,7 +319,6 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
 
 export const hostTheme: Theme = {
   slug: 'eat',
-  rosterFile: 'eat.csv',
   title: '今天吃什么',
   entryLabel: '吃什么',
 };
@@ -327,7 +326,7 @@ export const hostTheme: Theme = {
 /** 一对假主题，用例不因 `public/` 下加减 CSV 而变（ADR-0009）。 */
 export const fakeThemes: readonly [Theme, Theme] = [
   hostTheme,
-  { slug: 'play', rosterFile: 'play.csv', title: '今天玩什么', entryLabel: '玩什么' },
+  { slug: 'play', title: '今天玩什么', entryLabel: '玩什么' },
 ];
 
 /** 假玩法，盘面是 `fakeBoard`：用例不因加减真实玩法而变，也不载入盘面。 */
