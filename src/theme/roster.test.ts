@@ -1,97 +1,71 @@
-/** 名单的用例，全部经过创建名单会话：解析、四种结果、抽中选、冷却。 */
+/** 名单的用例，全部经过打开名单：解析、交回的候选、名单错误。抽中选和冷却见 cooldown.test.ts。 */
 
 import { describe, expect, it } from 'vitest';
-import type { RandomSource } from '../randomIndex';
-import { createRosterSession } from './index';
-import type { RecentMemory } from '../cooldown';
-import { csv, fakeRecentMemory, roster, rosterNames, scriptedRandom, seededRandom } from '../testHelpers';
+import { openRoster } from './index';
+import { csv, roster, rosterNames } from '../testHelpers';
 
-interface SessionOptions {
-  csvText: string;
-  random?: RandomSource;
-  recentWinners?: RecentMemory;
+/** 能开抽时交回的候选；名单开不了抽时让用例当场失败。 */
+function candidatesOf(csvText: string) {
+  const opened = openRoster(csvText);
+  if (!opened.ok) throw new Error(`名单应当能开抽，却交回了 ${JSON.stringify(opened.error)}`);
+  return opened.candidates;
 }
 
-/** 能开抽的会话；名单开不了抽时让用例当场失败。 */
-function makeSession(options: SessionOptions) {
-  const session = createRosterSession(options);
-  if (!session.ok) throw new Error(`名单应当能开抽，却交回了 ${JSON.stringify(session.error)}`);
-  return session;
+/** 交回的候选的名字，按交回的先后。 */
+function namesOf(csvText: string): string[] {
+  return candidatesOf(csvText).map((candidate) => candidate.name);
 }
 
 /** 开不了抽时交回的名单错误；名单能开抽时让用例当场失败。 */
 function rosterErrorOf(csvText: string) {
-  const session = createRosterSession({ csvText });
-  if (session.ok) throw new Error('名单应当开不了抽');
-  return session.error;
-}
-
-/** 每个种子从同一份最近中选起各抽一次，交回抽出过的名字。只抽一次，因为抽完冷却就变了。 */
-function drawableNames(csvText: string, recent: readonly string[], seeds = 200): Set<string> {
-  const drawn = new Set<string>();
-  for (let seed = 1; seed <= seeds; seed += 1) {
-    const session = makeSession({
-      csvText,
-      random: seededRandom(seed),
-      recentWinners: fakeRecentMemory(recent),
-    });
-    drawn.add(session.drawWinner().name);
-  }
-  return drawn;
-}
-
-function sorted(names: Iterable<string>): string[] {
-  return [...names].sort();
-}
-
-/** 把 [0, 1) 等分成 `count` 段，依次取各段正中：没有冷却时逐个落在下标 0 到 `count` − 1。 */
-function evenSweep(count: number): number[] {
-  return Array.from({ length: count }, (_, i) => (i + 0.5) / count);
-}
-
-/**
- * 全部启用的候选，按书写顺序。会话不交出候选列表，只能让随机值扫过每个下标逐个抽出；
- * `count` 是用例造名单时写下的启用个数。
- */
-function enabledNames(csvText: string, count: number): string[] {
-  const session = makeSession({ csvText, random: scriptedRandom(evenSweep(count)) });
-  return Array.from({ length: count }, () => session.drawWinner().name);
+  const opened = openRoster(csvText);
+  if (opened.ok) throw new Error('名单应当开不了抽');
+  return opened.error;
 }
 
 describe('解析名单', () => {
   it('读出普通行的名字', () => {
-    expect(enabledNames(csv('沙县小吃,true', '兰州拉面,true'), 2)).toEqual(['沙县小吃', '兰州拉面']);
+    expect(namesOf(csv('沙县小吃,true', '兰州拉面,true'))).toEqual(['沙县小吃', '兰州拉面']);
   });
 
   it('双引号包裹的名字可以含逗号', () => {
-    expect(enabledNames(csv('"老王烧烤, 二店",true'), 1)).toEqual(['老王烧烤, 二店']);
+    expect(namesOf(csv('"老王烧烤, 二店",true'))).toEqual(['老王烧烤, 二店']);
   });
 
   it('双写引号是一个引号', () => {
-    expect(enabledNames(csv('"老王""烧烤""",true'), 1)).toEqual(['老王"烧烤"']);
+    expect(namesOf(csv('"老王""烧烤""",true'))).toEqual(['老王"烧烤"']);
   });
 
   it('跳过空行与 # 注释行', () => {
     const csvText = csv('# name,enabled', '', '沙县小吃,true', '   ', '# 下面是新店', '兰州拉面,true');
-    expect(enabledNames(csvText, 2)).toEqual(['沙县小吃', '兰州拉面']);
+    expect(namesOf(csvText)).toEqual(['沙县小吃', '兰州拉面']);
   });
 
   it('缺少 enabled 列算启用', () => {
-    expect(enabledNames(csv('沙县小吃', '兰州拉面,'), 2)).toEqual(['沙县小吃', '兰州拉面']);
+    expect(namesOf(csv('沙县小吃', '兰州拉面,'))).toEqual(['沙县小吃', '兰州拉面']);
   });
 
   it.each(['false', 'FALSE', ' False ', '0', 'no', 'NO', 'No'])('%s 算停用', (marker) => {
     const csvText = csv(`沙县小吃,${marker}`, '兰州拉面,true');
-    expect(enabledNames(csvText, 1)).toEqual(['兰州拉面']);
+    expect(namesOf(csvText)).toEqual(['兰州拉面']);
   });
 
   it.each(['true', 'yes', '1', 'y', '随便写点什么', ' '])('%s 算启用', (marker) => {
-    expect(enabledNames(csv(`沙县小吃,${marker}`), 1)).toEqual(['沙县小吃']);
+    expect(namesOf(csv(`沙县小吃,${marker}`))).toEqual(['沙县小吃']);
   });
 
-  it('停用的候选不算在启用的候选里', () => {
-    const csvText = csv('沙县小吃,true', '关门大吉,false', '兰州拉面,no');
-    expect(enabledNames(csvText, 1)).toEqual(['沙县小吃']);
+  it('停用的候选不在交回的候选里', () => {
+    const csvText = csv('沙县小吃,true', '关门大吉,false', '兰州拉面,true', '停业,no', '黄焖鸡,true', '搬走了,0');
+    expect(candidatesOf(csvText)).toEqual([
+      { name: '沙县小吃', enabled: true },
+      { name: '兰州拉面', enabled: true },
+      { name: '黄焖鸡', enabled: true },
+    ]);
+  });
+
+  it('交出每一个启用的候选，不受任何盘面格数所限', () => {
+    // 多于转盘的扇区数和弹球机的落格数。
+    expect(namesOf(roster(40))).toEqual(rosterNames(40));
   });
 });
 
@@ -178,189 +152,44 @@ describe('开不了抽的另两种名单', () => {
   });
 
   it('读不懂、空、全部停用三者的种类互不相同', () => {
-    const sessions = ['"沙县小吃,false', '\n\n# 只有注释\n', csv('沙县小吃,false')].map((csvText) =>
-      createRosterSession({ csvText }),
-    );
-    const kinds = sessions.map((session) => (session.ok ? 'ok' : session.error.kind));
+    const opened = ['"沙县小吃,false', '\n\n# 只有注释\n', csv('沙县小吃,false')].map(openRoster);
+    const kinds = opened.map((result) => (result.ok ? 'ok' : result.error.kind));
     expect(kinds).toEqual(['parse-error', 'empty-file', 'all-disabled']);
   });
 
   it('有一个启用的候选就能开抽，停用的不碍事', () => {
-    expect(createRosterSession({ csvText: csv('沙县小吃,true', '关门大吉,false') }).ok).toBe(true);
-  });
-});
-
-describe('抽一个中选', () => {
-  it('只会抽到启用的候选', () => {
-    const session = makeSession({
-      csvText: csv('沙县小吃,true', '关门大吉,false', '兰州拉面,true', '停业,no', '黄焖鸡,true', '搬走了,0'),
-      random: scriptedRandom(Array.from({ length: 50 }, (_, i) => i / 50)),
-    });
-    const drawn = new Set(Array.from({ length: 50 }, () => session.drawWinner().name));
-    expect([...drawn].sort()).toEqual(['兰州拉面', '沙县小吃', '黄焖鸡'].sort());
-  });
-
-  it('注入的随机序列下抽到的是预期的那一个', () => {
-    // 下标 = ⌊随机值 × 启用数⌋，按书写顺序。
-    const session = makeSession({
-      csvText: csv('沙县小吃,true', '关门大吉,false', '兰州拉面,true', '黄焖鸡,true', '麻辣烫,true'),
-      random: scriptedRandom([0, 0.3, 0.5, 0.99, 0.26]),
-    });
-    const drawn = Array.from({ length: 5 }, () => session.drawWinner().name);
-    expect(drawn).toEqual(['沙县小吃', '兰州拉面', '黄焖鸡', '麻辣烫', '兰州拉面']);
-  });
-
-  it('random() 恰好返回 1 时抽到最后一个启用的候选，不越界', () => {
-    const session = makeSession({
-      csvText: csv('沙县小吃,true', '兰州拉面,true', '关门大吉,false'),
-      random: scriptedRandom([1]),
-    });
-    expect(session.drawWinner()).toEqual({ name: '兰州拉面', enabled: true });
-  });
-
-  it('每个启用的候选都抽得到，不受任何盘面格数所限', () => {
-    // 多于转盘的扇区数和弹球机的落格数。
-    const count = 40;
-    const session = makeSession({
-      csvText: roster(count),
-      random: scriptedRandom(evenSweep(count)),
-    });
-    const drawn = Array.from({ length: count }, () => session.drawWinner().name);
-    expect(drawn).toEqual(rosterNames(count));
-  });
-
-  it('只有一个启用的候选时总是它', () => {
-    const session = makeSession({
-      csvText: csv('关门大吉,false', '沙县小吃,true'),
-      random: scriptedRandom([0, 0.42, 0.99, 1]),
-    });
-    for (let i = 0; i < 4; i += 1) {
-      expect(session.drawWinner().name).toBe('沙县小吃');
-    }
+    expect(openRoster(csv('沙县小吃,true', '关门大吉,false')).ok).toBe(true);
   });
 });
 
 describe('写重的名字', () => {
-  it('同名的几行是一个候选，中选机会与只写一次的相等', () => {
-    // 等分的 k 个点依次喂进去，每个候选应各中 k / 2 次。
-    const k = 6;
-    const session = makeSession({
-      csvText: csv('沙县小吃,true', '兰州拉面,true', '沙县小吃,true'),
-      random: scriptedRandom(evenSweep(k)),
-    });
-    const counts = new Map<string, number>();
-    for (let i = 0; i < k; i += 1) {
-      const name = session.drawWinner().name;
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-    }
-    expect(Object.fromEntries(counts)).toEqual({ 沙县小吃: 3, 兰州拉面: 3 });
+  it('同名的几行只交出一个候选', () => {
+    expect(candidatesOf(csv('沙县小吃,true', '兰州拉面,true', '沙县小吃,true'))).toEqual([
+      { name: '沙县小吃', enabled: true },
+      { name: '兰州拉面', enabled: true },
+    ]);
   });
 
   it.each([
     ['启用的在前', ['沙县小吃,true', '沙县小吃,false']],
     ['停用的在前', ['沙县小吃,false', '沙县小吃,']],
-  ])('同名的几行任一行停用，这个候选就永不中选（%s）', (_, rows) => {
-    expect(sorted(drawableNames(csv(...rows, '兰州拉面,true'), []))).toEqual(['兰州拉面']);
+  ])('同名的几行任一行停用，这个候选就不在交回的候选里（%s）', (_, rows) => {
+    expect(namesOf(csv(...rows, '兰州拉面,true'))).toEqual(['兰州拉面']);
   });
 
   it('大小写不同的名字是两个候选', () => {
-    expect(enabledNames(csv('KFC,true', 'kfc,true'), 2)).toEqual(['KFC', 'kfc']);
+    expect(namesOf(csv('KFC,true', 'kfc,true'))).toEqual(['KFC', 'kfc']);
   });
 
-  it('名字首尾的空白不算，带空白的与不带的是同一个候选', () => {
-    expect(enabledNames(csv('  沙县小吃 ,true', '兰州拉面,true', '沙县小吃,true'), 2)).toEqual(['沙县小吃', '兰州拉面']);
+  it('名字首尾的空白不算，带空白的与不带的是同一个候选，排在第一次出现的位置', () => {
+    expect(namesOf(csv('兰州拉面,true', '  沙县小吃 ,true', '黄焖鸡,true', '沙县小吃,true'))).toEqual([
+      '兰州拉面',
+      '沙县小吃',
+      '黄焖鸡',
+    ]);
   });
 
   it('同名的几行全部停用、又没有别的候选时，全部停用的个数按候选数计', () => {
     expect(rosterErrorOf(csv('沙县小吃,false', '沙县小吃,no'))).toEqual({ kind: 'all-disabled', disabledCount: 1 });
-  });
-});
-
-describe('最近中选冷却', () => {
-  it('冷却中的候选抽不出来，其余启用的候选都抽得到', () => {
-    const recent = rosterNames(7);
-    expect(sorted(drawableNames(roster(10), recent))).toEqual(sorted(['候选8', '候选9', '候选10']));
-  });
-
-  it('不在冷却中的候选按书写顺序排成一列，等概率取下标', () => {
-    const session = makeSession({
-      csvText: roster(5),
-      random: scriptedRandom([0.5]),
-      recentWinners: fakeRecentMemory(['候选2', '候选4']),
-    });
-    // 剩下「候选1、候选3、候选5」，0.5 落在正中那一个。
-    expect(session.drawWinner().name).toBe('候选3');
-  });
-
-  it('停用的候选不算进可抽的个数', () => {
-    // 可抽总数 3，最多冷却 3 − 1 = 2 个，两个都冷却。
-    const csvText = csv('沙县小吃,true', '停业,false', '兰州拉面,true', '搬走了,no', '黄焖鸡,true', '关门,0', '歇业,false');
-    expect(sorted(drawableNames(csvText, ['黄焖鸡', '沙县小吃']))).toEqual(['兰州拉面']);
-  });
-
-  it('最近中选多过「启用数 − 1」个时只冷却最新的「启用数 − 1」个，最早的先解冷', () => {
-    // 冷却最新的 4 个。
-    expect(sorted(drawableNames(roster(5), rosterNames(5)))).toEqual(['候选1']);
-    // 冷却最新的 2 个。
-    expect(sorted(drawableNames(roster(3), ['候选3', '候选1', '候选2']))).toEqual(['候选3']);
-  });
-
-  it('只有一个启用的候选时照常抽出它', () => {
-    const csvText = csv('关门大吉,false', '沙县小吃,true');
-    expect(sorted(drawableNames(csvText, ['沙县小吃']))).toEqual(['沙县小吃']);
-  });
-
-  it('最近中选里的失效名字照旧占一格，不回溯补满', () => {
-    // 冷却 2 格，被「候选2」和失效的名字占满。
-    expect(sorted(drawableNames(roster(3), ['候选1', '候选2', '改了名的']))).toEqual(sorted(['候选1', '候选3']));
-  });
-
-  it('停用了的名字同样照旧占一格', () => {
-    const csvText = csv('候选1,true', '候选2,true', '候选3,false', '候选4,true');
-    // 冷却 2 格，被「候选2」和停用的「候选3」占满。
-    expect(sorted(drawableNames(csvText, ['候选1', '候选2', '候选3']))).toEqual(sorted(['候选1', '候选4']));
-  });
-
-  it('名单里写重了的名字算一个候选，冷却不会把可抽的扣光', () => {
-    // 两个不同的名字，最多冷却 2 − 1 = 1 个。
-    const csvText = csv('沙县小吃,true', '沙县小吃,true', '兰州拉面,true');
-    expect(sorted(drawableNames(csvText, ['兰州拉面', '沙县小吃']))).toEqual(['兰州拉面']);
-  });
-
-  // 只留几个归存储适配，见 recentStorage.test.ts。
-  it('每抽一次都把中选按先后记进最近中选', () => {
-    const memory = fakeRecentMemory(['候选1']);
-    const session = makeSession({ csvText: roster(10), random: seededRandom(7), recentWinners: memory });
-    const drawn = Array.from({ length: 3 }, () => session.drawWinner().name);
-    expect(memory.names).toEqual(['候选1', ...drawn]);
-  });
-
-  it('候选够多时连抽 8 次都不重复', () => {
-    for (let seed = 1; seed <= 50; seed += 1) {
-      const session = makeSession({
-        csvText: roster(10),
-        random: seededRandom(seed),
-        recentWinners: fakeRecentMemory(),
-      });
-      const drawn = Array.from({ length: 8 }, () => session.drawWinner().name);
-      expect(new Set(drawn).size).toBe(8);
-    }
-  });
-
-  it('只有两个启用的候选时轮流抽出', () => {
-    const session = makeSession({
-      csvText: roster(2),
-      random: seededRandom(3),
-      recentWinners: fakeRecentMemory(),
-    });
-    const drawn = Array.from({ length: 6 }, () => session.drawWinner().name);
-    for (let i = 1; i < drawn.length; i += 1) {
-      expect(drawn[i]).not.toBe(drawn[i - 1]);
-    }
-  });
-
-  it('不注入记忆时没有冷却，同一个候选可以连着抽出', () => {
-    const session = makeSession({ csvText: roster(3), random: scriptedRandom([0]) });
-    expect([session.drawWinner().name, session.drawWinner().name]).toEqual(['候选1', '候选1']);
   });
 });

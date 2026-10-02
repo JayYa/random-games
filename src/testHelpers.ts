@@ -359,7 +359,7 @@ export interface HostedBoard {
  *
  * 宿主只收「抽一个中选」（ADR-0012），所以它在这里算宿主的边界；在这里换替身是在边界上
  * 替换，不是 mock 内部模块。替身按顺序交出 `winners` 里的名字（启用的候选），用完从头
- * 循环，并记进 `drawnWinners`；`winners` 为空时挂载当场抛错。「抽了就记」和冷却归名单会话的用例，
+ * 循环，并记进 `drawnWinners`；`winners` 为空时挂载当场抛错。「抽了就记」和冷却归冷却规则的用例，
  * 真宿主加真名单的路径归站内导航的用例。
  */
 export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {

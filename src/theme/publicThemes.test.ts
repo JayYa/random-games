@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { readRosterFiles } from '../rosterFiles';
-import { collectThemes, createRosterSession, describeRosterError, rosterFileName } from './index';
+import { collectThemes, describeRosterError, openRoster, rosterFileName } from './index';
 
 /** 构建时插件扫的同一个目录。 */
 const publicDir = fileURLToPath(new URL('../../public', import.meta.url));
@@ -22,7 +22,7 @@ describe('public/ 下的名单文件', () => {
     );
   });
 
-  // 「能不能开抽」只认名单会话；记下的就是错误页上会说的那段话。
+  // 「能不能开抽」只认打开名单；记下的就是错误页上会说的那段话。
   it('每一份名单都能开抽', () => {
     const { themes } = collectThemes(rosterFiles);
     const csvByFile = new Map(rosterFiles.map((file) => [file.fileName, file.csvText]));
@@ -32,10 +32,10 @@ describe('public/ 下的名单文件', () => {
       const fileName = rosterFileName(theme);
       const csvText = csvByFile.get(fileName);
       if (csvText === undefined) throw new Error(`扫到的名单文件里没有 ${fileName}`);
-      const session = createRosterSession({ csvText });
-      if (session.ok) continue;
+      const opened = openRoster(csvText);
+      if (opened.ok) continue;
 
-      const { title, detail, hint } = describeRosterError(theme, session.error);
+      const { title, detail, hint } = describeRosterError(theme, opened.error);
       rosterErrors.push(`${fileName}：${title} / ${detail} / ${hint}`);
     }
 
