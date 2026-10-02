@@ -9,10 +9,9 @@
  */
 
 import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
-import { drawWithCooldown } from './cooldown';
+import { createCooldown, type RecentStorage } from './cooldown';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
-import { rollGame, type Game } from './games';
-import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
+import type { Game } from './games';
 import { openRoster, type OpenedRoster, type RosterError, type Theme } from './theme';
 
 /** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上补齐站内导航自己画的几屏。 */
@@ -90,6 +89,9 @@ function isPlainClick(click: PickerLinkClick): boolean {
 export function createNavigation(options: NavigationOptions): Navigation {
   const { history, location, fetchRoster, storage, random, themes, games, page } = options;
 
+  /** 抽玩法和抽中选共用这一个，整个生命周期只建一次（ADR-0011）。 */
+  const cooldown = createCooldown({ storage, random });
+
   /** 每次 render 领一张号，晚回来的名单不是最新那张就作废。 */
   let latestTicket = 0;
 
@@ -129,7 +131,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
     if (address.kind === 'pending-roll') {
       // 抽玩法后用 replaceState 换地址，不进历史（ADR-0007）。replaceState 不触发
       // hashchange，所以自己再画一次。只有这里算抽玩法，记进最近玩法（ADR-0011）。
-      const rolled = rollGame(random, games, { recentGames: recentGamesMemory(storage) });
+      const rolled = cooldown.rollGame(games);
       history.replaceState(history.state, '', gameHash(theme, rolled));
       render();
       return;
@@ -151,12 +153,9 @@ export function createNavigation(options: NavigationOptions): Navigation {
           page.showRosterError(theme, roster.error);
           return;
         }
-        // 抽一个中选：在这个主题的候选里按冷却规则抽，候选按名字记，抽完当场记进
-        // 这个主题的最近中选（ADR-0011）。什么时候抽由宿主定。
+        // 抽一个中选：在这个主题的这批候选里按冷却规则抽（ADR-0011）。什么时候抽由宿主定。
         const { candidates } = roster;
-        const recentWinners = recentWinnersMemory(storage, theme.slug);
-        const drawWinner = () =>
-          drawWithCooldown({ pool: candidates, keyOf: (candidate) => candidate.name, memory: recentWinners, random });
+        const drawWinner = () => cooldown.drawWinner(theme, candidates);
         teardown = mountGamePage({
           theme,
           drawWinner,

@@ -1,11 +1,11 @@
 /**
- * 冷却 (Cooldown)：候选与玩法共用的一条规则（ADR-0011）。
+ * 冷却规则：候选与玩法共用的一条（ADR-0011）。
  *
  * 记忆读出来的名字都冷却，但最多冷却「池子大小 − 1」个，最早的先解冷；在剩下的里
  * 等概率取一个，取完记下。池子里已经没有的名字照旧占一格，不回溯补满。
  */
 
-import { randomIndex } from './randomIndex.ts';
+import { randomIndex, type RandomSource } from '../randomIndex';
 
 /**
  * 记着最近 N 个名字的记忆。N 由记忆自己定：读出最多 N 个，记下时挤掉最早的。
@@ -17,20 +17,13 @@ export interface RecentMemory {
   remember(name: string): void;
 }
 
-/** 什么都不记：没有冷却。 */
-export const NO_RECENT_MEMORY: RecentMemory = {
-  read: () => [],
-  remember: () => {},
-};
-
 export interface CooldownDraw<T> {
   /** 不能为空，各成员的 key 互不重复。 */
   readonly pool: readonly T[];
-  /** 成员在记忆里的名字：候选按名字，玩法按 slug。 */
+  /** 成员在记忆里的名字。 */
   readonly keyOf: (member: T) => string;
   readonly memory: RecentMemory;
-  /** 返回 [0, 1)。 */
-  readonly random: () => number;
+  readonly random: RandomSource;
 }
 
 /**

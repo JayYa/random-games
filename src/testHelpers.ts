@@ -2,9 +2,8 @@
  * 用例共用的替身与小工具。只被 `*.test.ts` 引用，不进产物。
  */
 
-import type { RecentMemory } from './cooldown';
+import type { RecentStorage } from './cooldown';
 import type { Game } from './games';
-import type { RecentStorage } from './recentStorage';
 import type { ResultCard } from './resultCard';
 import type { Candidate, RosterError, Theme } from './theme';
 import {
@@ -42,26 +41,6 @@ export function roster(count: number): string {
 /** `roster(n)` 里的名字，按书写顺序。 */
 export function rosterNames(count: number): string[] {
   return Array.from({ length: count }, (_, i) => `候选${i + 1}`);
-}
-
-/** 内存里的最近中选 / 最近玩法。不截断、不去重，记下什么都看得到。 */
-export interface FakeRecentMemory extends RecentMemory {
-  /** 最早的在前。 */
-  readonly names: readonly string[];
-}
-
-/** 相当于 N 无上限的记忆：从不截断，照样守「最多 N 个」的约定。 */
-export function fakeRecentMemory(initial: readonly string[] = []): FakeRecentMemory {
-  const names: string[] = [...initial];
-  return {
-    get names() {
-      return [...names];
-    },
-    read: () => [...names],
-    remember(name) {
-      names.push(name);
-    },
-  };
 }
 
 /** 内存里的 localStorage。同一份交给第二个站内导航，就是刷新了页面。 */
@@ -359,7 +338,7 @@ export interface HostedBoard {
  *
  * 宿主只收「抽一个中选」（ADR-0012），所以它在这里算宿主的边界；在这里换替身是在边界上
  * 替换，不是 mock 内部模块。替身按顺序交出 `winners` 里的名字（启用的候选），用完从头
- * 循环，并记进 `drawnWinners`；`winners` 为空时挂载当场抛错。「抽了就记」和冷却归冷却规则的用例，
+ * 循环，并记进 `drawnWinners`；`winners` 为空时挂载当场抛错。「抽了就记」和冷却归冷却 module 的用例，
  * 真宿主加真名单的路径归站内导航的用例。
  */
 export function mountOnHost(board: Board, options: MountOnHostOptions = {}): HostedBoard {
