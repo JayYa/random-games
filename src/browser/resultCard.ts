@@ -11,10 +11,14 @@ import { escapeHtml } from './escapeHtml';
 import type { ResultCard } from '../gamePage';
 import type { Candidate } from '../theme';
 
-/** @param closeLabel 收下按钮上的字，由盘面给：转盘「再来一次」，弹球机「再打一发」。 */
+/**
+ * `tabindex="-1"`：点在遮罩空白处时焦点落在卡片上而不是掉回 `<body>`，Esc 才还按得到卡片。
+ *
+ * @param closeLabel 收下按钮上的字，由盘面给：转盘「再来一次」，弹球机「再打一发」。
+ */
 export function resultCardMarkup(closeLabel: string): string {
   return `
-      <div class="card" id="card" hidden role="dialog" aria-live="polite">
+      <div class="card" id="card" hidden role="dialog" aria-live="polite" tabindex="-1">
         <div class="card__inner">
           <p class="card__name" id="card-name"></p>
           <button class="card__close" id="card-close" type="button">${escapeHtml(closeLabel)}</button>
@@ -26,7 +30,10 @@ export function resultCardMarkup(closeLabel: string): string {
 /**
  * 给已经写进 `root` 的卡片接上行为。
  *
- * @param onClose 按下收下按钮时做什么。
+ * 卡片挂着时它是模态的：Tab 留在收下按钮上；同层的页头和盘面设成 `inert`，焦点和点击都
+ * 进不去。不认 `inert` 的浏览器上这一层退化成原样，Tab 照样出不去。
+ *
+ * @param onClose 收下时做什么：按收下按钮或按 Esc。两条路都只交给宿主，收不收由它定。
  */
 export function createResultCard(root: HTMLElement, onClose: () => void): ResultCard {
   const byId = createById(root);
@@ -36,10 +43,29 @@ export function createResultCard(root: HTMLElement, onClose: () => void): Result
   const cardClose = byId<HTMLButtonElement>('card-close');
 
   cardClose.addEventListener('click', onClose);
+  // 挂在卡片上而不是 document 上：卡片挂着时焦点出不了它，Esc 总能冒泡到这里；没挂时
+  // 焦点进不来，按了也到不了。换页时监听随旧 DOM 一起丢掉，不用拆。
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      onClose();
+    } else if (event.key === 'Tab') {
+      // 卡片里能 Tab 到的只有收下按钮。放它 Tab 出去，焦点会掉到 `<body>`，Esc 就按不到卡片了。
+      event.preventDefault();
+      cardClose.focus();
+    }
+  });
+
+  /** 卡片后面那些：同一层里卡片以外的元素。每次现取，盘面挂上之后才插进来的也算。 */
+  const setBehindInert = (inert: boolean): void => {
+    for (const sibling of card.parentElement?.children ?? []) {
+      if (sibling !== card && sibling instanceof HTMLElement) sibling.inert = inert;
+    }
+  };
 
   return {
     show(winner: Candidate): void {
       cardName.textContent = winner.name;
+      setBehindInert(true);
       card.hidden = false;
       burstConfetti();
       cardClose.focus();
@@ -48,6 +74,8 @@ export function createResultCard(root: HTMLElement, onClose: () => void): Result
       // 没开时不动，免得抢走当前的焦点。
       if (card.hidden) return;
       card.hidden = true;
+      // 先解开再交焦点：`inert` 里的元素聚焦不了。
+      setBehindInert(false);
       returnFocusTo?.focus();
     },
   };

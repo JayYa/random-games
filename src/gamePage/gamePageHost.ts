@@ -97,7 +97,7 @@ export interface PageAdapter {
   /**
    * 一次写完页头、盘面和结果卡片，交回卡片和盘面的挂载点。
    *
-   * @param onClose 收下按钮被按下时做什么。
+   * @param onClose 收下时做什么：按下收下按钮或按 Esc。
    */
   showGamePage(view: GamePageView, onClose: () => void): WrittenGamePage;
 }

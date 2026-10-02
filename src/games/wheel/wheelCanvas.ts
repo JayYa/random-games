@@ -35,6 +35,32 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return kept > 0 ? `${chars.slice(0, kept).join('')}…` : '…';
 }
 
+/** 转盘用到的颜色，取自 style.css 的颜色变量，跟着明暗主题变。 */
+export interface WheelColors {
+  /** 扇区之间的缝。 */
+  readonly gap: string;
+  /** 扇区上的揭晓文字，两套主题都是深色。 */
+  readonly onPalette: string;
+  readonly hub: string;
+  readonly hubEdge: string;
+  readonly pointer: string;
+  readonly pointerEdge: string;
+}
+
+/** 画布读不了 CSS 变量，只能读算好的值。换主题后要重读。 */
+export function readWheelColors(element: Element): WheelColors {
+  const style = getComputedStyle(element);
+  const token = (name: string) => style.getPropertyValue(name).trim();
+  return {
+    gap: token('--wheel-gap'),
+    onPalette: token('--on-palette'),
+    hub: token('--wheel-hub'),
+    hubEdge: token('--wheel-hub-edge'),
+    pointer: token('--ink'),
+    pointerEdge: token('--wheel-pointer-edge'),
+  };
+}
+
 export interface DrawOptions {
   readonly sectors: Sectors;
   /** 转盘逆时针转过的弧度。 */
@@ -43,10 +69,11 @@ export interface DrawOptions {
   readonly size: number;
   /** 只在揭晓时给。 */
   readonly reveal?: Reveal;
+  readonly colors: WheelColors;
 }
 
 export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): void {
-  const { sectors, rotation, size, reveal } = options;
+  const { sectors, rotation, size, reveal, colors } = options;
   const center = size / 2;
   const radius = center - Math.max(8, size * 0.04);
 
@@ -64,7 +91,7 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
     ctx.closePath();
     ctx.fillStyle = sectorColor(i, sectors.count);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.strokeStyle = colors.gap;
     ctx.lineWidth = Math.max(1, size * 0.004);
     ctx.stroke();
   }
@@ -76,7 +103,7 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
     ctx.rotate((start + end) / 2);
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#2b2b33';
+    ctx.fillStyle = colors.onPalette;
     ctx.font = `600 ${Math.max(11, Math.round(size * 0.038))}px system-ui, sans-serif`;
     // 文字只占扇区外侧较宽的一段（0.30r ~ 0.90r），别探进靠近轴心的窄尖角里。
     const maxWidth = radius * 0.6;
@@ -87,15 +114,15 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
   // 中心轴
   ctx.beginPath();
   ctx.arc(0, 0, Math.max(10, radius * 0.1), 0, TAU);
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = colors.hub;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+  ctx.strokeStyle = colors.hubEdge;
   ctx.lineWidth = 2;
   ctx.stroke();
 
   ctx.restore();
 
-  drawPointer(ctx, center, center - radius, size);
+  drawPointer(ctx, center, center - radius, size, colors);
 }
 
 /** 指针固定在转盘顶部，旋转的是转盘本身。 */
@@ -104,6 +131,7 @@ function drawPointer(
   centerX: number,
   topY: number,
   size: number,
+  colors: WheelColors,
 ): void {
   const width = Math.max(12, size * 0.045);
   ctx.save();
@@ -112,7 +140,12 @@ function drawPointer(
   ctx.lineTo(centerX + width / 2, topY - width * 0.7);
   ctx.lineTo(centerX, topY + width * 0.55);
   ctx.closePath();
-  ctx.fillStyle = '#2b2b33';
+  // 先描边再填，描边只露出外面那一半。
+  ctx.strokeStyle = colors.pointerEdge;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.fillStyle = colors.pointer;
   ctx.fill();
   ctx.restore();
 }

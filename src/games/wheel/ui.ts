@@ -9,7 +9,7 @@ import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePage';
 import { fitCanvas } from '../fitCanvas';
 import { createWheelMachine, type WheelView } from './machine';
-import { drawWheel } from './wheelCanvas';
+import { drawWheel, readWheelColors } from './wheelCanvas';
 
 /** 收下只收卡片，转不转由使用者再按「转」。 */
 const CLOSE_LABEL = '再来一次';
@@ -39,6 +39,7 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
 
   /** 静止时为空。 */
   let rafId: number | undefined;
+  let colors = readWheelColors(canvas);
 
   const draw = (view: WheelView) => {
     // 边长由 CSS 决定（.wheel__canvas）。
@@ -50,6 +51,7 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
       rotation: view.rotation,
       size,
       reveal: view.reveal,
+      colors,
     });
   };
 
@@ -78,6 +80,15 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   // 缩放或换屏时像素比变了而 CSS 尺寸不变，ResizeObserver 收不到。
   const controller = new AbortController();
   window.addEventListener('resize', redraw, { signal: controller.signal });
+  // 静止时没有下一帧，换了明暗主题得自己重画。
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener(
+    'change',
+    () => {
+      colors = readWheelColors(canvas);
+      redraw();
+    },
+    { signal: controller.signal },
+  );
   redraw();
 
   return {

@@ -17,6 +17,8 @@ const GRAVITY = 0.0011;
 const DRAG = 0.995;
 /** 最后这段时间里纸屑淡出。 */
 const FADE_MS = 600;
+/** 与盘面的对齐画布同一个上限：再高肉眼看不出，全屏画布只会多开缓冲、多画像素。 */
+const MAX_PIXEL_RATIO = 3;
 
 interface Particle {
   x: number;
@@ -64,7 +66,7 @@ export function burstConfetti(): void {
   const context = canvas.getContext('2d');
   if (!context) return;
 
-  const ratio = window.devicePixelRatio || 1;
+  const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
   const width = window.innerWidth;
   const height = window.innerHeight;
   canvas.width = Math.round(width * ratio);
