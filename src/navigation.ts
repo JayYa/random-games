@@ -9,10 +9,11 @@
  */
 
 import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
+import { drawWithCooldown } from './cooldown';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
 import { rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
-import { createRosterSession, type RosterError, type RosterSession, type Theme } from './theme';
+import { openRoster, type OpenedRoster, type RosterError, type Theme } from './theme';
 
 /** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上补齐站内导航自己画的几屏。 */
 export interface NavigationPage extends PageAdapter {
@@ -24,8 +25,8 @@ export interface NavigationPage extends PageAdapter {
   showRosterError(theme: Theme, error: RosterError): void;
 }
 
-/** 取名单、打开名单的结果：能开抽，或四种名单错误之一。 */
-type OpenedRoster = RosterSession | { readonly ok: false; readonly error: RosterError };
+/** 取名单、打开名单的结果：能开抽的候选，或四种名单错误之一。 */
+type FetchedRoster = OpenedRoster | { readonly ok: false; readonly error: RosterError };
 
 /** 处理「换个主题」点击要用到的那几样，生产直接交 `MouseEvent`。 */
 export interface PickerLinkClick {
@@ -139,13 +140,8 @@ export function createNavigation(options: NavigationOptions): Navigation {
     // 只有取不到才是「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
     fetchRoster(theme)
       .then(
-        (csvText): OpenedRoster =>
-          createRosterSession({
-            csvText,
-            random,
-            recentWinners: recentWinnersMemory(storage, theme.slug),
-          }),
-        (cause: unknown): OpenedRoster => ({ ok: false, error: { kind: 'load', cause } }),
+        (csvText): FetchedRoster => openRoster(csvText),
+        (cause: unknown): FetchedRoster => ({ ok: false, error: { kind: 'load', cause } }),
       )
       .then((roster) => {
         // 打开名单没有副作用，晚回来的结果不论哪种都在这里作废。
@@ -155,9 +151,15 @@ export function createNavigation(options: NavigationOptions): Navigation {
           page.showRosterError(theme, roster.error);
           return;
         }
+        // 抽一个中选：在这个主题的候选里按冷却规则抽，候选按名字记，抽完当场记进
+        // 这个主题的最近中选（ADR-0011）。什么时候抽由宿主定。
+        const { candidates } = roster;
+        const recentWinners = recentWinnersMemory(storage, theme.slug);
+        const drawWinner = () =>
+          drawWithCooldown({ pool: candidates, keyOf: (candidate) => candidate.name, memory: recentWinners, random });
         teardown = mountGamePage({
           theme,
-          drawWinner: roster.drawWinner,
+          drawWinner,
           board: address.game.createBoard(),
           page,
         });

@@ -14,7 +14,7 @@ import { COMMENT_PREFIX, DISABLED_MARKERS, ENABLED_MARKER, SAMPLE_ROW } from './
 
 /** 种类取值就是错误页上的 `data-error-kind`。 */
 export type RosterError =
-  /** 名单文件没取回来（404、断网、服务器出错）。还没轮到名单会话。 */
+  /** 名单文件没取回来（404、断网、服务器出错）。还没轮到打开名单。 */
   | { readonly kind: 'load'; readonly cause: unknown }
   /** 引号未闭合或引号外有多余内容。`line` 按文件原始行算。 */
   | { readonly kind: 'parse-error'; readonly line: number; readonly reason: 'bad-quote' }

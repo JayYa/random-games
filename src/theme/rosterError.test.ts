@@ -1,7 +1,7 @@
 /** 名单错误的文案：四种名单错误各写成什么标题、说明、提示。 */
 
 import { describe, expect, it } from 'vitest';
-import { createRosterSession, describeRosterError } from './index';
+import { describeRosterError, openRoster } from './index';
 import { hostTheme as theme } from '../testHelpers';
 
 describe('名单错误写成文案', () => {
@@ -71,8 +71,8 @@ describe('名单错误文案与名单的写法一致', () => {
 
   it('全部停用的说明里列出的每个停用标记，写进名单后那一行确实算停用', () => {
     for (const marker of disabledMarkersInText()) {
-      const session = createRosterSession({ csvText: `沙县小吃,${marker}` });
-      expect(session.ok ? undefined : session.error, `写了 ${marker} 的那一行`).toEqual({
+      const opened = openRoster(`沙县小吃,${marker}`);
+      expect(opened.ok ? undefined : opened.error, `写了 ${marker} 的那一行`).toEqual({
         kind: 'all-disabled',
         disabledCount: 1,
       });
