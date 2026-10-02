@@ -53,13 +53,8 @@ function isSingleFileModule(path: string): boolean {
   );
 }
 
-/**
- * 源码树里违反 ADR-0014 的地方，每条一句话。`notYetMoved` 是还没搬的顶层文件（`address.ts`）
- * 和目录（`games/`）：它们里面的文件不查，引用落进还没搬的目录也不查。
- */
-function moduleBoundaryViolations(tree: SourceTree, notYetMoved: readonly string[]): string[] {
-  const isNotYetMoved = (path: string) =>
-    notYetMoved.some((entry) => (entry.endsWith('/') ? path.startsWith(entry) : path === entry));
+/** 源码树里违反 ADR-0014 的地方，每条一句话。 */
+function moduleBoundaryViolations(tree: SourceTree): string[] {
   const violations: string[] = [];
 
   const directories = new Set<string>();
@@ -67,17 +62,16 @@ function moduleBoundaryViolations(tree: SourceTree, notYetMoved: readonly string
     for (let dir = directoryOf(path); dir !== ''; dir = directoryOf(dir)) directories.add(dir);
   }
   for (const dir of [...directories].sort()) {
-    if (isNotYetMoved(`${dir}/`)) continue;
     if (!(`${dir}/${INTERFACE_FILE}` in tree)) {
       violations.push(`目录 ${dir}/ 没有 ${INTERFACE_FILE}；每个目录都得有 interface 文件，目录外只从它进`);
     }
   }
 
   for (const [importer, source] of Object.entries(tree)) {
-    if (!importer.endsWith('.ts') || isNotYetMoved(importer)) continue;
+    if (!importer.endsWith('.ts')) continue;
     for (const [, specifier] of source.matchAll(IMPORT_SPECIFIER)) {
       const target = resolveImport(tree, importer, specifier!);
-      if (target === undefined || isNotYetMoved(target)) continue;
+      if (target === undefined) continue;
       if (isSingleFileModule(importer)) {
         violations.push(
           `顶层单文件 module ${importer} 的 import '${specifier}' 引用了 ${target}；顶层单文件 module 不引用 src/ 里的任何东西`,
@@ -92,17 +86,6 @@ function moduleBoundaryViolations(tree: SourceTree, notYetMoved: readonly string
   }
   return violations;
 }
-
-/**
- * 还没搬的顶层文件和目录（ADR-0014 迁移期间）。每个 ticket 搬完只删自己那几行，留着组间空行
- * （几个 ticket 并行合入时不撞在相邻行上）；收尾 ticket 删掉整份名单。
- */
-const NOT_YET_MOVED: readonly string[] = [
-
-
-
-
-];
 
 const SRC = fileURLToPath(new URL('.', import.meta.url));
 
@@ -120,13 +103,7 @@ describe('src/ 的源码树', () => {
   const tree = readSourceTree();
 
   it('一个目录一个 module，目录外只从 index.ts 进（ADR-0014）', () => {
-    expect(moduleBoundaryViolations(tree, NOT_YET_MOVED)).toEqual([]);
-  });
-
-  it('过渡名单只列还在的东西：搬完了就从名单上删掉', () => {
-    const present = (entry: string) =>
-      entry.endsWith('/') ? Object.keys(tree).some((path) => path.startsWith(entry)) : entry in tree;
-    expect(NOT_YET_MOVED.filter((entry) => !present(entry))).toEqual([]);
+    expect(moduleBoundaryViolations(tree)).toEqual([]);
   });
 });
 
@@ -142,7 +119,7 @@ describe('源码树的反例', () => {
       'cooldown/rule.ts': '',
       'navigation/index.ts': importOf('../cooldown/rule.ts'),
     };
-    expect(moduleBoundaryViolations(tree, [])).toEqual([
+    expect(moduleBoundaryViolations(tree)).toEqual([
       "navigation/index.ts 的 import '../cooldown/rule.ts' 伸进了 cooldown/rule.ts；应当改从 cooldown/index.ts 进",
     ]);
   });
@@ -153,7 +130,7 @@ describe('源码树的反例', () => {
       'cooldown/rule.ts': '',
       'navigation/index.ts': importOf('../cooldown/rule', { typeOnly: true }),
     };
-    expect(moduleBoundaryViolations(tree, [])).toEqual([
+    expect(moduleBoundaryViolations(tree)).toEqual([
       "navigation/index.ts 的 import '../cooldown/rule' 伸进了 cooldown/rule.ts；应当改从 cooldown/index.ts 进",
     ]);
   });
@@ -164,7 +141,7 @@ describe('源码树的反例', () => {
       'games/wheel/index.ts': '',
       'navigation/index.ts': importOf('../games/wheel'),
     };
-    expect(moduleBoundaryViolations(tree, [])).toEqual([
+    expect(moduleBoundaryViolations(tree)).toEqual([
       "navigation/index.ts 的 import '../games/wheel' 伸进了 games/wheel/index.ts；应当改从 games/index.ts 进",
     ]);
   });
@@ -177,7 +154,7 @@ describe('源码树的反例', () => {
       'games/pinball/index.ts': '',
       'games/pinball/ui.ts': [importOf('../fitCanvas.ts'), importOf('../wheel'), importOf('./index.ts')].join('\n'),
     };
-    expect(moduleBoundaryViolations(tree, [])).toEqual([]);
+    expect(moduleBoundaryViolations(tree)).toEqual([]);
   });
 
   it('缺 interface 文件的目录被抓到', () => {
@@ -185,7 +162,7 @@ describe('源码树的反例', () => {
       'games/allGames.ts': '',
       'games/wheel/index.ts': '',
     };
-    expect(moduleBoundaryViolations(tree, [])).toEqual(['目录 games/ 没有 index.ts；每个目录都得有 interface 文件，目录外只从它进']);
+    expect(moduleBoundaryViolations(tree)).toEqual(['目录 games/ 没有 index.ts；每个目录都得有 interface 文件，目录外只从它进']);
   });
 
   it('顶层单文件 module 引用 src/ 里的东西被抓到，连别的顶层文件和 interface 文件也不行', () => {
@@ -194,7 +171,7 @@ describe('源码树的反例', () => {
       'theme/index.ts': '',
       'palette.ts': [importOf('./angles'), importOf('./theme', { typeOnly: true })].join('\n'),
     };
-    expect(moduleBoundaryViolations(tree, [])).toEqual([
+    expect(moduleBoundaryViolations(tree)).toEqual([
       "顶层单文件 module palette.ts 的 import './angles' 引用了 angles.ts；顶层单文件 module 不引用 src/ 里的任何东西",
       "顶层单文件 module palette.ts 的 import './theme' 引用了 theme/index.ts；顶层单文件 module 不引用 src/ 里的任何东西",
     ]);
@@ -210,17 +187,6 @@ describe('源码树的反例', () => {
       'vite-env.d.ts': importOf('./theme', { typeOnly: true }),
       'angles.test.ts': [importOf('./angles'), importOf('./testHelpers')].join('\n'),
     };
-    expect(moduleBoundaryViolations(tree, [])).toEqual([]);
-  });
-
-  it('还没搬的顶层文件和目录不查，引用落进还没搬的目录也不查', () => {
-    const tree: SourceTree = {
-      'angles.ts': '',
-      'address.ts': importOf('./angles'),
-      'games/allGames.ts': '',
-      'games/wheel/ui.ts': importOf('../allGames'),
-      'main.ts': importOf('./games/allGames'),
-    };
-    expect(moduleBoundaryViolations(tree, ['address.ts', 'games/'])).toEqual([]);
+    expect(moduleBoundaryViolations(tree)).toEqual([]);
   });
 });
