@@ -2,7 +2,7 @@
  * 选主题页。不发网络请求；入口是真链接，能中键新开、能收藏。
  */
 
-import { themeHash } from './address';
+import { themeHash } from './navigation';
 import { escapeHtml } from './escapeHtml';
 import type { Theme } from './theme';
 
