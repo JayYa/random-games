@@ -45,6 +45,6 @@ Preconditions:
 - A URL ending in a bare `#` has `location.hash === ''`, so it is the bare root: picker, no rewrite. Don't list it as a fallback case.
 - A true direct landing needs a new document: `page.goto('about:blank')` first, otherwise a hash-only `page.goto` is an in-page navigation that remembers the previous page.
 - `page.goto` to a URL that differs only by hash does not reload the page; that's fine here, but a fresh `page.goto(baseURL)` won't clear `history`.
-- The picker makes no network requests; a `requestfailed` in `browser.log` on the picker is a real finding.
+- The picker fetches no roster CSV; its only requests are the app's own JS, CSS and hand-lettering font (`assets/hand-*.woff2`). A `requestfailed` in `browser.log` on the picker is a real finding.
 - Adding or fixing a theme CSV needs `stop` + `start`: the theme list is compiled into the build.
 - Slugs are `[a-z0-9-]+` file names; a link text is the CSV's `# entry:` line, not the file name.
