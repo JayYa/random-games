@@ -1,4 +1,4 @@
-/** 名单的用例，全部经过打开名单：解析、交回的候选、名单错误。抽中选和冷却见 cooldown.test.ts。 */
+/** 名单的用例，全部经过打开名单：解析、交回的候选、名单错误。抽中选和冷却见 cooldown/cooldown.test.ts。 */
 
 import { describe, expect, it } from 'vitest';
 import { openRoster } from './index';
