@@ -7,7 +7,8 @@
  * 签掉出筒口那一刻才 `begin()`，签在筒前立住时 `boardStopped()`。之前的甩都不经开抽句柄：
  * 签没掉出来之前随时可以停、可以离开（ADR-0015）。锁着时指针样本一律不接。
  *
- * 冒头这张票只涨不降；停手后回落见 #198。
+ * 只要还在甩（这一帧签筒走了路），冒头就不回落；停手 `STICKS.fallDelayMs` 之后才往回滑，
+ * 所以一直晃的人一定出得了签（ADR-0015）。
  */
 
 import { REVEAL_PAUSE_MS, type MountedBoard, type RollHandle } from '../../gamePage';
@@ -32,10 +33,16 @@ export const STICKS = {
   /** 离正中不到这么远就当已经回正，画面不再变。 */
   tubeRestEpsilon: 0.5,
   /**
-   * 冒头按甩的速度涨：每帧涨 速度 × 时长 × 这个系数，也就是签筒每走一个盘面单位涨这么多。
-   * 冒头 0 到 1，1 即出签。用力甩（约 600 单位/秒）约 2 秒出签，轻轻晃（约 200 单位/秒）约 6 秒。
+   * 冒头按甩的速度涨：签筒每走一个盘面单位涨一点，甩得越快一秒里走得越多。两个参照点定手感：
+   * 一直以 `speed`（盘面单位每秒）甩，`ms` 毫秒出签。两个参照点之间每单位涨多少按速度线性插，
+   * 比轻轻晃还慢按轻轻晃算、比用力甩还快按用力甩算，所以只要一直晃就一定出签。
    */
-  risePerUnit: 1 / 1200,
+  hardShake: { speed: 600, ms: 2000 },
+  gentleShake: { speed: 200, ms: 6000 },
+  /** 停手（签筒一帧没走路，松手或按着不动都算）多久以后冒头开始回落。 */
+  fallDelayMs: 500,
+  /** 冒头从顶滑回筒里要多久；匀速滑，冒了一半就滑一半的时间。 */
+  fallMs: 2000,
   /** 签从掉出筒口到在筒前立住要多久：掉下来、弹一下、立住。立住才报盘面停下。 */
   dropMs: 900,
 } as const;
@@ -118,6 +125,18 @@ function unitsPerPx(rect: CanvasRect): number {
   return width > 0 ? STICKS.width / width : 1;
 }
 
+/** 一直以参照点的速度甩，签筒每走一个盘面单位冒头涨多少。 */
+function risePerUnitAt(shake: { readonly speed: number; readonly ms: number }): number {
+  return 1000 / (shake.speed * shake.ms);
+}
+
+/** 这一帧以 `speed`（盘面单位每秒）甩，签筒每走一个盘面单位冒头涨多少。 */
+function risePerUnit(speed: number): number {
+  const { gentleShake: gentle, hardShake: hard } = STICKS;
+  const t = Math.max(0, Math.min(1, (speed - gentle.speed) / (hard.speed - gentle.speed)));
+  return risePerUnitAt(gentle) + t * (risePerUnitAt(hard) - risePerUnitAt(gentle));
+}
+
 /**
  * @param roll 宿主交给盘面的开抽句柄。
  * @param random 只用来定哪根签打头。
@@ -128,6 +147,8 @@ export function createSticksMachine(roll: RollHandle, random: RandomSource = Mat
   /** 上一次 tick 以来签筒走过的路程（盘面单位）。 */
   let travel = 0;
   let rise = 0;
+  /** 停手了多久：签筒一帧没走路就往上加，一走路就清零。 */
+  let idleMs = 0;
   let lastTickAt: number | undefined;
   /** 签掉出筒口之后第一次 tick 的时刻；还没掉出来时为 undefined。 */
   let droppedAt: number | undefined;
@@ -183,7 +204,16 @@ export function createSticksMachine(roll: RollHandle, random: RandomSource = Mat
         if (Math.abs(offset) < STICKS.tubeRestEpsilon) offset = 0;
       }
       if (!dropped) {
-        rise = Math.min(1, rise + travel * STICKS.risePerUnit);
+        if (travel > 0) {
+          idleMs = 0;
+          // 基准帧（时长 0）里的路程按最快算。
+          const speed = delta > 0 ? (travel * 1000) / delta : Infinity;
+          rise = Math.min(1, rise + travel * risePerUnit(speed));
+        } else {
+          idleMs += delta;
+          const falling = Math.min(delta, idleMs - STICKS.fallDelayMs);
+          if (falling > 0) rise = Math.max(0, rise - falling / STICKS.fallMs);
+        }
         if (rise >= 1) dropStick();
       }
       travel = 0;
@@ -226,6 +256,7 @@ export function createSticksMachine(roll: RollHandle, random: RandomSource = Mat
       droppedAt = undefined;
       rise = 0;
       travel = 0;
+      idleMs = 0;
       leadStick = undefined;
     },
   };
