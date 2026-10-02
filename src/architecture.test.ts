@@ -98,7 +98,6 @@ function moduleBoundaryViolations(tree: SourceTree, notYetMoved: readonly string
  * （几个 ticket 并行合入时不撞在相邻行上）；收尾 ticket 删掉整份名单。
  */
 const NOT_YET_MOVED: readonly string[] = [
-  'rosterFiles.ts', // #178 build
 
   'gamePageHost.ts', // #179 gamePage
 
