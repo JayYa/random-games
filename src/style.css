@@ -11,6 +11,11 @@
   --card-shadow: rgba(0, 0, 0, 0.2);
   --primary-bg: #2b2b33;
   --primary-fg: #fff;
+  /* 按下去的底色：主按钮往页面底色褪一点；入口块浅色压暗、深色提亮。 */
+  --primary-bg-pressed: #474753;
+  --surface-pressed: #ededf3;
+  /* 按下几乎即刻到位（60ms），松手慢一点弹回来（240ms），手感在这一快一慢里。 */
+  --press-ease: cubic-bezier(0.25, 1, 0.5, 1);
   --error-border: #e6b4b4;
   --error-bg: #fff6f6;
   --error-title: #a12f2f;
@@ -50,6 +55,8 @@
     --card-shadow: rgba(0, 0, 0, 0.4);
     --primary-bg: #ececf2;
     --primary-fg: #1b1b22;
+    --primary-bg-pressed: #c4c4d0;
+    --surface-pressed: #2e2e39;
     --error-border: #6e3a3e;
     --error-bg: #2a1c20;
     --error-title: #ff9d96;
@@ -135,6 +142,7 @@ body {
   color: var(--muted);
   text-decoration: none;
   border-bottom: 1px solid var(--border-soft);
+  transition: transform 240ms var(--press-ease);
 }
 
 /* 拇指目标：以字的中线为准上下各 24px、左右各多 12px，48px 高。
@@ -149,6 +157,15 @@ body {
 .page__home:focus-visible {
   color: var(--ink);
   border-bottom-color: var(--ink);
+}
+
+/* 按下时朝箭头那边让一下。transform 不占位，::before 的点击范围跟着挪几像素也无妨。 */
+.page__home:active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  transform: translateX(-4px);
+  transition-duration: 60ms;
+  transition-timing-function: ease-out;
 }
 
 .wheel__stage {
@@ -182,12 +199,23 @@ body {
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 240ms var(--press-ease),
+    background-color 160ms ease-out;
 }
 
 /* 锁着时用 aria-disabled，按钮留在 tab 序里（见 games/wheel/ui.ts）。 */
 .wheel__spin[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
+}
+
+/* 锁着时按下去不给反馈，免得看着像按动了。 */
+.wheel__spin:active:not([aria-disabled='true']) {
+  transform: scale(0.95);
+  background: var(--primary-bg-pressed);
+  transition-duration: 60ms;
+  transition-timing-function: ease-out;
 }
 
 /* 结果卡片：两种玩法共用，是独立的块。 */
@@ -235,6 +263,16 @@ body {
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 240ms var(--press-ease),
+    background-color 160ms ease-out;
+}
+
+.card__close:active {
+  transform: scale(0.95);
+  background: var(--primary-bg-pressed);
+  transition-duration: 60ms;
+  transition-timing-function: ease-out;
 }
 
 .pinball {
@@ -381,9 +419,20 @@ body {
   text-decoration: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 240ms var(--press-ease),
+    background-color 160ms ease-out;
 }
 
 .picker__entry:hover,
 .picker__entry:focus-visible {
   border-color: var(--ink);
+}
+
+/* 块大，缩得比按钮少，看着才是同一个力度。 */
+.picker__entry:active {
+  transform: scale(0.97);
+  background: var(--surface-pressed);
+  transition-duration: 60ms;
+  transition-timing-function: ease-out;
 }
