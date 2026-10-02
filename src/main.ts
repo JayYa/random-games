@@ -1,10 +1,10 @@
 import './style.css';
 import { THEMES } from 'virtual:themes';
 import { browserPage } from './browserPage';
+import type { RecentStorage } from './cooldown';
 import { GAMES } from './games/allGames';
 import { fetchRosterCsv } from './loadRoster';
 import { createNavigation } from './navigation';
-import type { RecentStorage } from './recentStorage';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('缺少 #app 挂载点');

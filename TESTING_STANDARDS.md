@@ -13,13 +13,16 @@ describe _what_ the system does, not _how_.
 ```typescript
 // GOOD: Observable behavior through the public interface; only the
 // boundaries (randomness, storage) are fakes, the cooldown logic runs for real
-it('最近中选里的候选不会再中', () => {
-  const session = createRosterSession({
-    csvText: csv('甲,true', '乙,true'),
-    recentWinners: fakeRecentMemory(['甲']),
-    random: seededRandom(1),
-  });
-  expect(session.drawWinner().name).toBe('乙');
+it('同一份存储上重新建的冷却 module 照旧冷却：刷新页面后仍然有效', () => {
+  const storage = fakeStorage();
+  const pool = [{ name: '甲', enabled: true }, { name: '乙', enabled: true }];
+  expect(createCooldown({ storage, random: scriptedRandom([0]) }).drawWinner(theme, pool).name).toBe('甲');
+  expect(createCooldown({ storage, random: scriptedRandom([0]) }).drawWinner(theme, pool).name).toBe('乙');
+});
+
+// GOOD: Asserts what the interface hands back, not how it parsed
+it('停用的候选不在交回的候选里', () => {
+  expect(openRoster(csv('甲,true', '乙,false'))).toEqual({ ok: true, candidates: [{ name: '甲', enabled: true }] });
 });
 
 // GOOD: Pins the property callers rely on — a written address resolves back
@@ -41,17 +44,17 @@ it('写出来的主题地址认回同一个主题', () => {
 
 ```typescript
 // BAD: Mocks an internal module, tests HOW not WHAT
-vi.mock('./cooldown');
-it('drawWinner 调用 drawWithCooldown', () => {
-  createRosterSession({ csvText: roster(3) }).drawWinner();
+vi.mock('./cooldown/rule');
+it('drawWinner 调用冷却规则', () => {
+  createCooldown({ storage: fakeStorage(), random: Math.random }).drawWinner(theme, candidates);
   expect(drawWithCooldown).toHaveBeenCalledOnce();
 });
 
 // BAD: Bypasses the interface to verify via the raw storage
-it('remember 往存储里写 JSON', () => {
+it('抽一个中选往存储里写 JSON', () => {
   const storage = fakeStorage();
-  recentWinnersMemory(storage, 'eat').remember('沙县小吃');
-  expect(storage.getItem('recent-winners:eat')).toBe('["沙县小吃"]');
+  createCooldown({ storage, random: scriptedRandom([0]) }).drawWinner(theme, [{ name: '沙县小吃', enabled: true }]);
+  expect(storage.getItem('random-games:recent-winners:eat')).toBe('["沙县小吃"]');
 });
 ```
 

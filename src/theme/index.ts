@@ -12,6 +12,6 @@ export {
   type RosterFile,
   type SkippedRoster,
 } from './collectThemes.ts';
-export { createRosterSession, type Candidate, type RosterSession } from './roster.ts';
+export { openRoster, type Candidate, type OpenedRoster } from './roster.ts';
 export { describeRosterError, type RosterError, type RosterErrorText } from './rosterError.ts';
 export { rosterFileName } from './rosterFile.ts';

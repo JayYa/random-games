@@ -9,10 +9,11 @@
  */
 
 import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
+import { createCooldown, type RecentStorage } from './cooldown';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
-import { rollGame, type Game } from './games';
-import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
-import { createRosterSession, type RosterError, type RosterSession, type Theme } from './theme';
+import type { Game } from './games';
+import type { RandomSource } from './randomIndex';
+import { openRoster, type OpenedRoster, type RosterError, type Theme } from './theme';
 
 /** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上补齐站内导航自己画的几屏。 */
 export interface NavigationPage extends PageAdapter {
@@ -24,8 +25,8 @@ export interface NavigationPage extends PageAdapter {
   showRosterError(theme: Theme, error: RosterError): void;
 }
 
-/** 取名单、打开名单的结果：能开抽，或四种名单错误之一。 */
-type OpenedRoster = RosterSession | { readonly ok: false; readonly error: RosterError };
+/** 取名单、打开名单的结果：能开抽的候选，或四种名单错误之一。 */
+type FetchedRoster = OpenedRoster | { readonly ok: false; readonly error: RosterError };
 
 /** 处理「换个主题」点击要用到的那几样，生产直接交 `MouseEvent`。 */
 export interface PickerLinkClick {
@@ -46,7 +47,7 @@ export interface NavigationOptions {
   /** 存最近玩法与最近中选（ADR-0011），拿不到就是 `undefined`。 */
   readonly storage: RecentStorage | undefined;
   /** 抽玩法和抽中选共用。 */
-  readonly random: () => number;
+  readonly random: RandomSource;
   /** 认地址和画选主题页读同一份。 */
   readonly themes: readonly Theme[];
   /** 认地址和抽玩法读同一份。 */
@@ -89,6 +90,9 @@ function isPlainClick(click: PickerLinkClick): boolean {
 export function createNavigation(options: NavigationOptions): Navigation {
   const { history, location, fetchRoster, storage, random, themes, games, page } = options;
 
+  /** 抽玩法和抽中选共用这一个，整个生命周期只建一次（ADR-0011）。 */
+  const cooldown = createCooldown({ storage, random });
+
   /** 每次 render 领一张号，晚回来的名单不是最新那张就作废。 */
   let latestTicket = 0;
 
@@ -128,7 +132,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
     if (address.kind === 'pending-roll') {
       // 抽玩法后用 replaceState 换地址，不进历史（ADR-0007）。replaceState 不触发
       // hashchange，所以自己再画一次。只有这里算抽玩法，记进最近玩法（ADR-0011）。
-      const rolled = rollGame(random, games, { recentGames: recentGamesMemory(storage) });
+      const rolled = cooldown.rollGame(games);
       history.replaceState(history.state, '', gameHash(theme, rolled));
       render();
       return;
@@ -139,13 +143,8 @@ export function createNavigation(options: NavigationOptions): Navigation {
     // 只有取不到才是「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
     fetchRoster(theme)
       .then(
-        (csvText): OpenedRoster =>
-          createRosterSession({
-            csvText,
-            random,
-            recentWinners: recentWinnersMemory(storage, theme.slug),
-          }),
-        (cause: unknown): OpenedRoster => ({ ok: false, error: { kind: 'load', cause } }),
+        (csvText): FetchedRoster => openRoster(csvText),
+        (cause: unknown): FetchedRoster => ({ ok: false, error: { kind: 'load', cause } }),
       )
       .then((roster) => {
         // 打开名单没有副作用，晚回来的结果不论哪种都在这里作废。
@@ -155,9 +154,12 @@ export function createNavigation(options: NavigationOptions): Navigation {
           page.showRosterError(theme, roster.error);
           return;
         }
+        // 什么时候抽由宿主定。
+        const { candidates } = roster;
+        const drawWinner = () => cooldown.drawWinner(theme, candidates);
         teardown = mountGamePage({
           theme,
-          drawWinner: roster.drawWinner,
+          drawWinner,
           board: address.game.createBoard(),
           page,
         });
