@@ -16,6 +16,7 @@ import {
   type SticksDrop,
   type SticksView,
 } from './machine';
+import { layoutStickName } from './nameLayout';
 
 /** 收下之后签回到筒里，真的能再抽一根。 */
 const CLOSE_LABEL = '再抽一根';
@@ -52,11 +53,7 @@ const GEOMETRY = {
   standingWidth: 40,
 } as const;
 
-/** 签上竖写名字：字号从大往小试，到下限为止；字距按字号算。 */
-const NAME_FONT_MAX = 28;
-const NAME_FONT_MIN = 14;
-const NAME_CHAR_SPACING = 1.12;
-/** 名字在签面上离两头留多少。 */
+/** 名字在签面上离两头留多少；名字怎么排见 `./nameLayout.ts`。 */
 const NAME_MARGIN_TOP = 30;
 const NAME_MARGIN_BOTTOM = 70;
 
@@ -214,25 +211,6 @@ function drawDroppedStick(
   }
 }
 
-/** 竖写名字的排法：字号与每个字。 */
-interface VerticalNameLayout {
-  readonly fontSize: number;
-  readonly chars: readonly string[];
-}
-
-/**
- * 把名字竖排进 `maxLength × maxWidth`：从大往小试字号，到下限还放不下就用下限（#199 再加折成两列）。
- */
-function layoutVerticalName(name: string, maxLength: number, maxWidth: number): VerticalNameLayout {
-  // 按码点切，别把一个表情字符劈成两半。
-  const chars = Array.from(name);
-  const widest = Math.min(NAME_FONT_MAX, maxWidth - 8);
-  for (let size = widest; size >= NAME_FONT_MIN; size -= 1) {
-    if (chars.length * size * NAME_CHAR_SPACING <= maxLength) return { fontSize: size, chars };
-  }
-  return { fontSize: NAME_FONT_MIN, chars };
-}
-
 function drawVerticalName(
   ctx: CanvasRenderingContext2D,
   name: string,
@@ -242,15 +220,12 @@ function drawVerticalName(
   maxWidth: number,
   colors: SticksColors,
 ): void {
-  const layout = layoutVerticalName(name, maxLength, maxWidth);
-  const step = layout.fontSize * NAME_CHAR_SPACING;
+  const layout = layoutStickName(name, { length: maxLength, width: maxWidth });
   ctx.font = `${layout.fontSize}px ${colors.hand}`;
   ctx.fillStyle = colors.ink;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  layout.chars.forEach((char, i) => {
-    ctx.fillText(char, centerX, top + (i + 0.5) * step);
-  });
+  for (const glyph of layout.glyphs) ctx.fillText(glyph.text, centerX + glyph.x, top + glyph.y);
 }
 
 function drawBoard(ctx: CanvasRenderingContext2D, view: SticksView, colors: SticksColors): void {
