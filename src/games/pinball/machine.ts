@@ -10,7 +10,7 @@
  * 物理模拟从外面递进来：渲染层按需加载它（matter.js 单独成包），用例直接给。
  */
 
-import type { MountedBoard, RollHandle } from '../../gamePage';
+import { REVEAL_PAUSE_MS, type MountedBoard, type RollHandle } from '../../gamePage';
 import type { RandomSource } from '../../random';
 import { BOARD, LANE_CENTER_X } from './board';
 import type { PinballShot, simulateShot } from './simulate';
@@ -26,6 +26,12 @@ const WINDMILL_RADIANS_PER_MS = BOARD.windmillAngularVelocity / (1000 / 60);
 
 /** 掉帧时单帧时间最多算这么长，风车不会一下转出半圈。 */
 export const MAX_FRAME_MS = 100;
+
+/**
+ * 揭晓之后过多久盘面停住：宿主停一拍就弹结果卡片，全屏遮罩盖住盘面，再画也看不清，
+ * 白费手机的电。多等一会儿：宿主的计时器可能晚到，早停了风车会在卡片弹出前就定住。
+ */
+export const STILL_AFTER_REVEAL_MS = REVEAL_PAUSE_MS + 200;
 
 /** 球底与柱塞头之间留的缝。 */
 const BALL_SEAT_GAP_PX = 2;
@@ -61,6 +67,11 @@ export interface PinballView {
   readonly power: number;
   /** 只在揭晓到收下之间有值。 */
   readonly revealed: PinballReveal | undefined;
+  /**
+   * 结果卡片已经盖住盘面：抹掉之前画面一帧都不再变，渲染层可以停帧。抹掉之后风车从
+   * 停住的角度接着转。
+   */
+  readonly still: boolean;
 }
 
 /** `getBoundingClientRect()` 的形状。 */
@@ -91,7 +102,7 @@ export interface PinballMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
   release(sample: PointerSample): void;
   /** 系统抢走了指针：这一发作废。 */
   cancel(pointerId: number): void;
-  /** 推进到 `now`（毫秒，rAF 口径），交回画面。第一次只作基准。 */
+  /** 推进到 `now`（毫秒，rAF 口径），交回画面。第一次只作基准；盘面停住时原样交回停住那一帧。 */
   tick(now: number): PinballView;
   /** 收下之后回到待发：球回柱塞、力度归零，没播完的余韵就地掐掉。不自动发射。 */
   reset(): void;
@@ -179,6 +190,10 @@ export function createPinballMachine(
   let lastTickAt: number | undefined;
   let landedSlot = 0;
   let revealed: PinballReveal | undefined;
+  /** 揭晓之后第一次 `tick` 的时刻。 */
+  let revealedAt: number | undefined;
+  /** 盘面停住的那一帧，抹掉前原样交回。 */
+  let stillView: PinballView | undefined;
 
   /**
    * 按累积时间取帧并线性插值，刷新率只影响流畅度，不影响球速（ADR-0006）。
@@ -309,6 +324,7 @@ export function createPinballMachine(
     },
 
     tick(now) {
+      if (stillView) return stillView;
       const delta = lastTickAt === undefined ? 0 : Math.min(now - lastTickAt, MAX_FRAME_MS);
       lastTickAt = now;
 
@@ -329,7 +345,16 @@ export function createPinballMachine(
         ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - BALL_SEAT_GAP_PX;
       }
 
-      return { ballX, ballY, windmillAngles: angles, power, revealed };
+      // 宿主在报停当下揭晓，往往就在这一次 tick 里。
+      if (revealed) revealedAt ??= now;
+      const still = revealedAt !== undefined && now - revealedAt >= STILL_AFTER_REVEAL_MS;
+      const view = { ballX, ballY, windmillAngles: angles, power, revealed, still };
+      if (still) {
+        stillView = view;
+        // 停住的这段不算时间：抹掉后第一次 tick 只作基准，风车不会一下转出一截。
+        lastTickAt = undefined;
+      }
+      return view;
     },
 
     reveal(winner) {
@@ -338,6 +363,8 @@ export function createPinballMachine(
 
     erase() {
       revealed = undefined;
+      revealedAt = undefined;
+      stillView = undefined;
     },
 
     reset() {

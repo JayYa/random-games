@@ -11,6 +11,7 @@ import { BOARD, slotIndexAtX } from './board';
 import {
   FULL_PULL_PX,
   MAX_FRAME_MS,
+  STILL_AFTER_REVEAL_MS,
   createPinballMachine,
   type PhysicsSource,
   type PinballMachine,
@@ -568,5 +569,47 @@ describe('风车', () => {
     const afterLongGap = machine.tick(5_000);
 
     expect(afterLongGap.windmillAngles).toEqual(afterCappedFrame.windmillAngles);
+  });
+});
+
+describe('结果卡片盖住盘面时停住', () => {
+  it('揭晓之后那一拍照常走帧；卡片弹出之后停住，再过多久都原样交回那一帧', () => {
+    const harness = setup();
+    const { machine } = harness;
+    const { reached } = stepUntil(machine, fire(harness), isRevealed);
+
+    const justBefore = machine.tick(reached.at + STILL_AFTER_REVEAL_MS - 1);
+    const stilled = machine.tick(reached.at + STILL_AFTER_REVEAL_MS);
+    const later = machine.tick(reached.at + STILL_AFTER_REVEAL_MS + FAR_MS);
+
+    expect({ justBefore: justBefore.still, stilled: stilled.still, later }).toEqual({
+      justBefore: false,
+      stilled: true,
+      later: stilled,
+    });
+  });
+
+  it('收下之后风车从停住的角度接着转，停着的那段不算时间、不跳', () => {
+    const harness = setup();
+    const { machine } = harness;
+    const turn = oneFrameTurn();
+    fire(harness);
+    const landedAt = START_MS + FAR_MS;
+    machine.tick(landedAt);
+    const stilled = machine.tick(landedAt + STILL_AFTER_REVEAL_MS);
+
+    harness.accept();
+    const resumedAt = landedAt + STILL_AFTER_REVEAL_MS + FAR_MS;
+    const resumed = machine.tick(resumedAt);
+    const next = machine.tick(resumedAt + FRAME_MS);
+
+    expect({ still: resumed.still, revealed: resumed.revealed }).toEqual({
+      still: false,
+      revealed: undefined,
+    });
+    resumed.windmillAngles.forEach((angle, i) => {
+      expect(angle).toBeCloseTo(stilled.windmillAngles[i] ?? 0, 9);
+      expect((next.windmillAngles[i] ?? 0) - angle).toBeCloseTo(turn[i] ?? 0, 6);
+    });
   });
 });

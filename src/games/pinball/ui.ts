@@ -2,7 +2,7 @@
  * 渲染层：弹球机的盘面——指针事件、rAF 循环与绘制。薄，不测。
  *
  * 状态全在弹球机机器（`./machine.ts`），几何全照 `./board.ts`。风车一直在转，rAF 常转
- * （ADR-0013）。没有键盘操作（ADR-0006）。
+ * （ADR-0013）；只有结果卡片盖住盘面时停帧，收下即起。没有键盘操作（ADR-0006）。
  */
 
 import { createById } from '../../byId';
@@ -458,7 +458,8 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   let colors = readPinballColors(canvas);
 
   function draw(view: PinballView): void {
-    // 宽度由 CSS 决定（.pinball__board）。rAF 常转，不必观察尺寸变化。
+    // 宽度由 CSS 决定（.pinball__board）。rAF 常转，不必观察尺寸变化；卡片挂着时停帧，
+    // 盘面被盖着，尺寸变了也等收下后的第一帧再画对。
     const fitted = fitCanvas(canvas, VIEW_HEIGHT / BOARD.width);
     if (!fitted) return;
     const { context, width } = fitted;
@@ -469,9 +470,22 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     drawBoard(context, view, colors);
   }
 
+  /** 停帧时留着最后一帧，换主题时重画它。 */
+  let lastView: PinballView | undefined;
+  let running = false;
+
   function frame(now: number): void {
+    lastView = machine.tick(now);
+    draw(lastView);
+    // 结果卡片盖住了盘面：停帧，抹掉时再起。
+    running = !lastView.still;
+    if (running) rafId = requestAnimationFrame(frame);
+  }
+
+  function start(): void {
+    if (running || controller.signal.aborted) return;
+    running = true;
     rafId = requestAnimationFrame(frame);
-    draw(machine.tick(now));
   }
 
   /** 画布矩形每次现量，页面滚动或改了尺寸时有效区域跟着走。 */
@@ -518,21 +532,25 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     listen,
   );
 
-  // rAF 常转，换了明暗主题只需重读颜色，下一帧自然画上。
+  // 换了明暗主题只需重读颜色，下一帧自然画上；停着帧时就地重画，卡片背后的盘面也跟着变。
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener(
     'change',
     () => {
       colors = readPinballColors(canvas);
+      if (!running && lastView) draw(lastView);
     },
     listen,
   );
 
-  rafId = requestAnimationFrame(frame);
+  start();
 
   return {
-    // rAF 常转，下一帧自然画上。
+    // 揭晓时 rAF 还在转，下一帧自然画上。
     reveal: machine.reveal,
-    erase: machine.erase,
+    erase: () => {
+      machine.erase();
+      start();
+    },
     reset: machine.reset,
     // 没有可聚焦的操作（ADR-0006），不给 returnFocusTo。
     teardown: () => {
