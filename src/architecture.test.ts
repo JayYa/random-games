@@ -103,8 +103,6 @@ const NOT_YET_MOVED: readonly string[] = [
   'gamePageHost.ts', // #179 gamePage
 
 
-  'navigation.ts', // #181 navigation
-  'address.ts', // #181 navigation
 
   'browserPage.ts', // #182 browser
   'gamePage.ts', // #182 browser
