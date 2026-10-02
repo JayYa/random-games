@@ -6,7 +6,7 @@
  */
 
 import type { Game } from '../games';
-import type { RandomSource } from '../randomIndex';
+import type { RandomSource } from '../random';
 import type { Candidate, Theme } from '../theme';
 import { drawWithCooldown } from './rule.ts';
 import { storedMemory, type RecentStorage } from './storedMemory.ts';

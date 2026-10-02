@@ -5,7 +5,7 @@
  * 等概率取一个，取完记下。池子里已经没有的名字照旧占一格，不回溯补满。
  */
 
-import { randomIndex, type RandomSource } from '../randomIndex';
+import { randomIndex, type RandomSource } from '../random';
 
 /**
  * 记着最近 N 个名字的记忆。N 由记忆自己定：读出最多 N 个，记下时挤掉最早的。
