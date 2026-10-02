@@ -13,7 +13,7 @@ src/
   style.css       样式
   vite-env.d.ts   类型声明
   architecture.test.ts  本 ADR 的架构用例
-  random.ts  angles.ts  palette.ts  byId.ts    单文件 module
+  random.ts  palette.ts  byId.ts    单文件 module
   theme/       主题、名单文件、名单、名单错误
   cooldown/    冷却
   navigation/  站内导航与地址

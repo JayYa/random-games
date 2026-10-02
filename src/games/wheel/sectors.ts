@@ -6,7 +6,14 @@
  * 指针底下的转盘自身角度就是累积旋转量对整圈取模。
  */
 
-import { normalizeAngle, TAU } from '../../angles';
+/** 一整圈的弧度。 */
+const TAU = Math.PI * 2;
+
+/** 把任意角度折回 `[0, 2π)`。`landOn` 和 `sectorAt` 共用这一处，写岔了转盘会停错格（ADR-0003）。 */
+function normalizeAngle(angle: number): number {
+  const wrapped = angle % TAU;
+  return wrapped < 0 ? wrapped + TAU : wrapped;
+}
 
 export interface Sectors {
   readonly count: number;

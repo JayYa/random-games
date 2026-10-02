@@ -4,8 +4,10 @@
  * 临时建一块全屏画布，撒完就移除；`pointer-events: none` 保证它不挡结果卡片。
  */
 
-import { TAU } from '../angles';
 import { PALETTE } from '../palette';
+
+/** 一整圈的弧度。 */
+const TAU = Math.PI * 2;
 
 const PARTICLE_COUNT = 120;
 const DURATION_MS = 2200;

@@ -1,9 +1,11 @@
 /** 扇区与角度换算的用例。只钉外部性质，不钉落点带子的具体数字。 */
 
 import { describe, expect, it } from 'vitest';
-import { TAU } from '../../angles';
 import { createSectors } from './sectors';
 import { seededRandom } from '../../testHelpers';
+
+/** 一整圈的弧度。 */
+const TAU = Math.PI * 2;
 
 const SIZES = [1, 2, 3, 5, 8, 12] as const;
 

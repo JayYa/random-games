@@ -186,8 +186,9 @@ describe('源码树的反例', () => {
       'theme/index.ts': '',
       'palette.ts': [importOf('./angles'), importOf('./theme', { typeOnly: true })].join('\n'),
     };
+    // 第一条也拼出来：照原样写，本用例扫自己的源码时会把它当成一条找不到文件的 import。
     expect(moduleBoundaryViolations(tree)).toEqual([
-      "顶层单文件 module palette.ts 的 import './angles' 引用了 angles.ts；顶层单文件 module 不引用 src/ 里的任何东西",
+      `顶层单文件 module palette.ts 的 import '${'./angles'}' 引用了 angles.ts；顶层单文件 module 不引用 src/ 里的任何东西`,
       "顶层单文件 module palette.ts 的 import './theme' 引用了 theme/index.ts；顶层单文件 module 不引用 src/ 里的任何东西",
     ]);
   });

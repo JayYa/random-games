@@ -2,10 +2,12 @@
  * 渲染层：把扇区画成转盘。薄，不测。只在揭晓时画名字（ADR-0010）。
  */
 
-import { TAU } from '../../angles';
 import { PALETTE } from '../../palette';
 import type { Reveal } from './machine';
 import type { Sectors } from './sectors';
+
+/** 一整圈的弧度。 */
+const TAU = Math.PI * 2;
 
 /** 相邻扇区不同色，包括首尾。 */
 function sectorColor(index: number, count: number): string {
