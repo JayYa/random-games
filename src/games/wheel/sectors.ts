@@ -12,7 +12,10 @@ const TAU = Math.PI * 2;
 /** 把任意角度折回 `[0, 2π)`。`landOn` 和 `sectorAt` 共用这一处，写岔了转盘会停错格（ADR-0003）。 */
 function normalizeAngle(angle: number): number {
   const wrapped = angle % TAU;
-  return wrapped < 0 ? wrapped + TAU : wrapped;
+  if (wrapped >= 0) return wrapped;
+  // 极小的负数加回一整圈会被浮点舍入成恰好 2π，那就是零。
+  const lifted = wrapped + TAU;
+  return lifted < TAU ? lifted : 0;
 }
 
 export interface Sectors {
