@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { createCooldown, type RecentStorage } from './index.ts';
 import type { Game } from '../games';
-import type { RandomSource } from '../randomIndex';
+import type { RandomSource } from '../random';
 import type { Candidate, Theme } from '../theme';
 import { fakeGames, fakeStorage, fakeThemes, rosterNames, scriptedRandom, seededRandom } from '../testHelpers';
 

@@ -17,7 +17,7 @@ import {
   slotCenterX,
   slotIndexAtX,
 } from './board';
-import { seededRandom } from '../../seededRandom';
+import { seededRandom } from '../../random';
 
 export interface PinballFrame {
   readonly x: number;

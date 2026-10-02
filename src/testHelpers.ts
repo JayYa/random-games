@@ -17,7 +17,7 @@ import {
 } from './gamePageHost';
 
 /** 与弹球模拟用同一份，用来把一条性质放在多个种子上过一遍。 */
-export { seededRandom } from './seededRandom';
+export { seededRandom } from './random';
 
 /** 按顺序吐出给定的数，用完从头循环。 */
 export function scriptedRandom(values: number[]): () => number {
