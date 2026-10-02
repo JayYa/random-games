@@ -13,14 +13,60 @@ describe('造扇区', () => {
   });
 });
 
-describe('落点角度与指针底下的扇区', () => {
-  it('任意扇区、任意随机数，要来的落点角度问回去还是那一格', () => {
+/** 把任意角度折回 `[0, 2π)`。用例自己的判据，不是被测实现。 */
+function wrap(angle: number): number {
+  const wrapped = angle % TAU;
+  return wrapped < 0 ? wrapped + TAU : wrapped;
+}
+
+describe('转到第 i 格要转多少', () => {
+  /** 出发点：零、负数、累积好几圈，再加随机的。 */
+  function startingRotations(seed: number): number[] {
+    const random = seededRandom(seed);
+    const fixed = [0, -0.3, -TAU, -7 * TAU - 1.1, 2.5, 3 * TAU + 0.7, 41 * TAU + 5.9];
+    const randomOnes = Array.from({ length: 12 }, () => (random() - 0.5) * 60 * TAU);
+    return [...fixed, ...randomOnes];
+  }
+
+  it('从任意旋转量出发，转过 travel 后指针底下就是目标扇区', () => {
     for (const size of SIZES) {
       const sectors = createSectors(size);
-      for (let index = 0; index < size; index += 1) {
-        const random = seededRandom(size * 100 + index);
-        for (let i = 0; i < 40; i += 1) {
-          expect(sectors.sectorAt(sectors.angleInSector(index, random()))).toBe(index);
+      const random = seededRandom(size * 100 + 3);
+      for (const from of startingRotations(size + 500)) {
+        for (let index = 0; index < size; index += 1) {
+          const { travel } = sectors.landOn(from, index, random());
+          expect(sectors.sectorAt(from + travel)).toBe(index);
+        }
+      }
+    }
+  });
+
+  it('travel 只往前转、不满一圈：落在 [0, 2π)', () => {
+    // 符号写反（ADR-0003）会交回负数或超过一圈。
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const random = seededRandom(size * 100 + 5);
+      for (const from of startingRotations(size + 700)) {
+        for (let index = 0; index < size; index += 1) {
+          const { travel } = sectors.landOn(from, index, random());
+          expect(travel).toBeGreaterThanOrEqual(0);
+          expect(travel).toBeLessThan(TAU);
+        }
+      }
+    }
+  });
+
+  it('landing 就是出发点加 travel 折回一圈后的值，落在 [0, 2π)', () => {
+    for (const size of SIZES) {
+      const sectors = createSectors(size);
+      const random = seededRandom(size * 100 + 9);
+      for (const from of startingRotations(size + 900)) {
+        for (let index = 0; index < size; index += 1) {
+          const { travel, landing } = sectors.landOn(from, index, random());
+          expect(landing).toBeCloseTo(wrap(from + travel), 9);
+          expect(landing).toBeGreaterThanOrEqual(0);
+          expect(landing).toBeLessThan(TAU);
+          expect(sectors.sectorAt(landing)).toBe(index);
         }
       }
     }
@@ -32,12 +78,14 @@ describe('落点角度与指针底下的扇区', () => {
     for (const size of SIZES) {
       const sectors = createSectors(size);
       const sectorAngle = TAU / size;
-      for (let index = 0; index < size; index += 1) {
-        for (let step = 0; step <= 20; step += 1) {
-          const r = Math.min(step / 20, 0.999999);
-          const withinSector = sectors.angleInSector(index, r) - index * sectorAngle;
-          expect(withinSector).toBeGreaterThanOrEqual(margin * sectorAngle);
-          expect(withinSector).toBeLessThanOrEqual((1 - margin) * sectorAngle);
+      for (const from of [0, -2.2, 9 * TAU + 1]) {
+        for (let index = 0; index < size; index += 1) {
+          for (let step = 0; step <= 20; step += 1) {
+            const r = Math.min(step / 20, 0.999999);
+            const withinSector = sectors.landOn(from, index, r).landing - index * sectorAngle;
+            expect(withinSector).toBeGreaterThanOrEqual(margin * sectorAngle);
+            expect(withinSector).toBeLessThanOrEqual((1 - margin) * sectorAngle);
+          }
         }
       }
     }
@@ -52,21 +100,7 @@ describe('落点角度与指针底下的扇区', () => {
       for (let step = 0; step <= 20; step += 1) {
         for (const nudge of [-1e-12, 0, 1e-12]) {
           const r = Math.min(Math.max(step / 20 + nudge, 0), 0.999999);
-          expect(sectors.angleInSector(index, r)).not.toBe((index + 0.5) * sectorAngle);
-        }
-      }
-    }
-  });
-
-  it('落点角度落在 [0, 2π) 内', () => {
-    for (const size of SIZES) {
-      const sectors = createSectors(size);
-      const random = seededRandom(size);
-      for (let index = 0; index < size; index += 1) {
-        for (let i = 0; i < 20; i += 1) {
-          const angle = sectors.angleInSector(index, random());
-          expect(angle).toBeGreaterThanOrEqual(0);
-          expect(angle).toBeLessThan(TAU);
+          expect(sectors.landOn(0, index, r).landing).not.toBe((index + 0.5) * sectorAngle);
         }
       }
     }
@@ -94,7 +128,7 @@ describe('指针底下是哪个扇区', () => {
       const random = seededRandom(size + 7);
       for (let index = 0; index < size; index += 1) {
         for (let i = 0; i < 20; i += 1) {
-          const angle = sectors.angleInSector(index, random());
+          const angle = sectors.landOn(0, index, random()).landing;
           for (const turns of [-5, -3, -1, 1, 4, 17]) {
             expect(sectors.sectorAt(angle + turns * TAU)).toBe(index);
           }
