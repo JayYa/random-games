@@ -2,7 +2,7 @@ import './style.css';
 import { THEMES } from 'virtual:themes';
 import { browserPage } from './browserPage';
 import type { RecentStorage } from './cooldown';
-import { GAMES } from './games/allGames';
+import { GAMES } from './games';
 import { fetchRosterCsv } from './loadRoster';
 import { createNavigation } from './navigation';
 

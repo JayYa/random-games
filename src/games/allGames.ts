@@ -3,9 +3,9 @@
  * 不给玩法起名字，也不说玩法是抽出来的（ADR-0007）。
  */
 
-import type { Game } from '../games';
-import { createWheelBoard } from './wheel/ui';
-import { createPinballBoard } from './pinball/ui';
+import type { Game } from './game';
+import { createWheelBoard } from './wheel';
+import { createPinballBoard } from './pinball';
 
 /** 全部玩法。顺序不影响概率。 */
 export const GAMES: readonly Game[] = [
