@@ -14,7 +14,7 @@ import type { Candidate, Theme } from '../theme';
 export const REVEAL_PAUSE_MS = 800;
 
 /** 已经到点再取消什么都不发生。 */
-export type CancelScheduled = () => void;
+type CancelScheduled = () => void;
 
 /** 默认是 `setTimeout`，用例注入可快进的。 */
 export type Schedule = (callback: () => void, delayMs: number) => CancelScheduled;
@@ -86,7 +86,7 @@ export interface ResultCard {
   hide(returnFocusTo: HTMLElement | undefined): void;
 }
 
-export interface WrittenGamePage {
+interface WrittenGamePage {
   readonly card: ResultCard;
   /** 盘面该挂上的元素。 */
   readonly boardRoot: HTMLElement;
