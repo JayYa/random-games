@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { REVEAL_PAUSE_MS, type Board } from '../../gamePageHost';
+import { REVEAL_PAUSE_MS, type Board } from '../../gamePage/index';
 import { BOARD, slotIndexAtX } from './board';
 import {
   FULL_PULL_PX,

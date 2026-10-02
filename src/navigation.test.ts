@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { THEME_PICKER_HASH, gameHash, themeHash } from './address';
-import type { RollHandle } from './gamePageHost';
+import type { RollHandle } from './gamePage/index';
 import type { Game } from './games';
 import { createNavigation, type NavigationPage, type PickerLinkClick } from './navigation';
 import {

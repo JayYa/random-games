@@ -10,7 +10,7 @@
 
 import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
 import { createCooldown, type RecentStorage } from './cooldown';
-import { mountGamePage, type PageAdapter } from './gamePageHost';
+import { mountGamePage, type PageAdapter } from './gamePage/index';
 import type { Game } from './games';
 import type { RandomSource } from './random';
 import { openRoster, type OpenedRoster, type RosterError, type Theme } from './theme';

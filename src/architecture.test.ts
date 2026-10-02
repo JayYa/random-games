@@ -100,7 +100,6 @@ function moduleBoundaryViolations(tree: SourceTree, notYetMoved: readonly string
 const NOT_YET_MOVED: readonly string[] = [
   'rosterFiles.ts', // #178 build
 
-  'gamePageHost.ts', // #179 gamePage
 
   'games.ts', // #180 games
   'fitCanvas.ts', // #180 games
