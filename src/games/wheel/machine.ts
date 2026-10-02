@@ -1,14 +1,16 @@
 /**
  * 转盘机器 (Wheel Machine)：转盘的全部状态，不碰 DOM。
  *
- * 转一次时先定停在哪个扇区，再反算要转到的角度（ADR-0003），按时间推进，停下时报
- * `boardStopped()`。时间只经 `tick(now)` 进来，随机只来自注入的随机源。
+ * 转一次时先定停在哪个扇区，向扇区要转多少（ADR-0003），再加上随机的整圈数，按时间推进，
+ * 停下时报 `boardStopped()`。时间只经 `tick(now)` 进来，随机只来自注入的随机源。
  */
 
-import { normalizeAngle, TAU } from '../../angles';
 import type { MountedBoard, RollHandle } from '../../gamePage';
 import { randomIndex, type RandomSource } from '../../random';
 import { createSectors, type Sectors } from './sectors';
+
+/** 一整圈的弧度。 */
+const TAU = Math.PI * 2;
 
 /** 扇区数固定，与名单大小无关（ADR-0010）。 */
 const SECTOR_COUNT = 12;
@@ -50,22 +52,14 @@ interface Spin {
   readonly sector: number;
   readonly from: number;
   readonly delta: number;
+  /** 停下后的旋转量，扇区交回的，已在一圈之内。 */
+  readonly landing: number;
   /** `spin()` 之后第一次 `tick` 的时刻。 */
   startedAt: number | undefined;
 }
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
-}
-
-/**
- * 从 `from` 出发、再转 `turns` 整圈后，指针正对转盘自身的 `targetAngle`。
- *
- * 差值折回 `[0, 2π)` 保证只往一个方向转。`targetAngle - from` 的符号写反了照样转得起来，
- * 只是揭晓写错扇区（ADR-0003），由用例守着。
- */
-function spinDelta(from: number, targetAngle: number, turns: number): number {
-  return normalizeAngle(targetAngle - from) + turns * TAU;
 }
 
 /**
@@ -77,7 +71,7 @@ export function createWheelMachine(
   random: RandomSource = Math.random,
 ): WheelMachine {
   const sectors = createSectors(SECTOR_COUNT);
-  /** 累积旋转量。停下时折回一圈之内。 */
+  /** 累积旋转量。停下时换成扇区交回的一圈之内的落点。 */
   let rotation = 0;
   let current: Spin | undefined;
   let stoppedSector = 0;
@@ -92,7 +86,7 @@ export function createWheelMachine(
       rotation = spin.from + spin.delta * easeOutCubic(t);
       return;
     }
-    rotation = normalizeAngle(spin.from + spin.delta);
+    rotation = spin.landing;
     current = undefined;
     stoppedSector = spin.sector;
     roll.boardStopped();
@@ -109,12 +103,13 @@ export function createWheelMachine(
       if (!roll.begin()) return false;
       // 停在哪个扇区此刻就定了；谁中选还没抽。
       const sector = randomIndex(random, sectors.count);
-      const targetAngle = sectors.angleInSector(sector, random());
+      const { travel, landing } = sectors.landOn(rotation, sector, random());
       const turns = MIN_TURNS + randomIndex(random, MAX_TURNS - MIN_TURNS + 1);
       current = {
         sector,
         from: rotation,
-        delta: spinDelta(rotation, targetAngle, turns),
+        delta: travel + turns * TAU,
+        landing,
         startedAt: undefined,
       };
       return true;
