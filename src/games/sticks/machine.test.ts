@@ -127,9 +127,12 @@ function waitUntil(harness: Harness, done: (view: SticksView) => boolean): Stick
 const hasDropped = (view: SticksView): boolean => view.drop !== undefined;
 const isRevealed = (view: SticksView): boolean => view.revealed !== undefined;
 
-/** 用力甩、轻轻晃各取一个速度，盘面单位每秒。 */
-const HARD = 600;
-const GENTLE = 200;
+/** 用力甩、轻轻晃的速度，取常量表里的参照（盘面单位每秒）。 */
+const HARD = STICKS.hardShake.speed;
+const GENTLE = STICKS.gentleShake.speed;
+
+/** 出签时长和目标差多少还算「附近」：样本按帧走、甩到头折返会损失一点路程。 */
+const NEAR = 0.1;
 
 describe('甩签筒', () => {
   it('甩得越快，冒头涨得越快', () => {
@@ -145,6 +148,72 @@ describe('甩签筒', () => {
     const gentle = shakeUntil(setup(), GENTLE, hasDropped);
 
     expect(hard.elapsedMs).toBeLessThan(gentle.elapsedMs);
+  });
+
+  it('持续用力甩、持续轻轻晃，都在各自的目标时长附近出签', () => {
+    const hard = shakeUntil(setup(), HARD, hasDropped);
+    const gentle = shakeUntil(setup(), GENTLE, hasDropped);
+
+    expect(Math.abs(hard.elapsedMs / STICKS.hardShake.ms - 1)).toBeLessThan(NEAR);
+    expect(Math.abs(gentle.elapsedMs / STICKS.gentleShake.ms - 1)).toBeLessThan(NEAR);
+  });
+
+  it('比轻轻晃还轻得多，只要一直晃，最终也出签', () => {
+    const { elapsedMs } = shakeUntil(setup(), GENTLE / 4, hasDropped);
+
+    expect(elapsedMs).toBeGreaterThan(STICKS.gentleShake.ms);
+  });
+});
+
+describe('冒头回落', () => {
+  it('一直在甩，冒头不下降', () => {
+    const harness = setup();
+    let previous = shake(harness, GENTLE / 4, 100).rise;
+    for (let elapsed = 0; elapsed < 3000; elapsed += FRAME_MS) {
+      const { rise } = shakeFrame(harness, GENTLE / 4);
+      expect(rise).toBeGreaterThanOrEqual(previous);
+      previous = rise;
+    }
+  });
+
+  it('松手后冒头先停一会儿，再往下落，最后归零', () => {
+    const harness = setup();
+    const { view: held } = shakeUntil(harness, HARD, (view) => view.rise > 0.5);
+    harness.machine.release(FINGER);
+
+    expect(tick(harness).rise).toBe(held.rise);
+    const falling = waitUntil(harness, (view) => view.rise < held.rise);
+    expect(falling.rise).toBeGreaterThan(0);
+    expect(waitUntil(harness, (view) => view.rise === 0).drop).toBeUndefined();
+    expect(harness.roll.locked).toBe(false);
+  });
+
+  it('按着不动也算停手：冒头照样回落', () => {
+    const harness = setup();
+    const { view: held } = shakeUntil(harness, HARD, (view) => view.rise > 0.5);
+
+    expect(waitUntil(harness, (view) => view.rise === 0).rise).toBeLessThan(held.rise);
+  });
+
+  it('回落到一半重新甩，冒头从当前高度接着涨', () => {
+    const harness = setup();
+    const { view: held } = shakeUntil(harness, HARD, (view) => view.rise > 0.5);
+    harness.machine.release(FINGER);
+    const halfway = waitUntil(harness, (view) => view.rise < held.rise / 2);
+    expect(halfway.rise).toBeGreaterThan(0);
+
+    grab(harness);
+    const resumed = shakeFrame(harness, HARD);
+    expect(resumed.rise).toBeGreaterThan(halfway.rise);
+    expect(resumed.rise).toBeLessThan(held.rise);
+  });
+
+  it('签掉出来以后不再回落：签照样立住、揭晓', () => {
+    const harness = setup();
+    shakeUntil(harness, HARD, hasDropped);
+    harness.machine.release(FINGER);
+
+    expect(waitUntil(harness, isRevealed).drop?.standing).toBe(true);
   });
 });
 
@@ -443,6 +512,33 @@ describe('摇手机', () => {
     const view = swing(harness, HARD_SWING, 500);
     expect(view.motion).toBe('supported');
     expect(view.rise).toBeGreaterThan(0);
+  });
+
+  it('持续用力摇、持续轻轻摇，都在拖着甩的目标时长附近出签', () => {
+    const swingUntilDropped = (strength: number): number => {
+      const harness = setupMotion();
+      for (let elapsed = FRAME_MS; elapsed <= FAR_MS; elapsed += FRAME_MS) {
+        if (hasDropped(swingFrame(harness, strength))) return elapsed;
+      }
+      throw new Error('摇了很久也没出签');
+    };
+
+    expect(Math.abs(swingUntilDropped(HARD_SWING) / STICKS.hardShake.ms - 1)).toBeLessThan(NEAR);
+    expect(Math.abs(swingUntilDropped(GENTLE_SWING) / STICKS.gentleShake.ms - 1)).toBeLessThan(NEAR);
+  });
+
+  it('摇手机也算在甩：一直摇冒头不下降，摇停后才回落', () => {
+    const harness = setupMotion();
+    const barely = STICKS.motionThreshold + 1;
+    let previous = swing(harness, barely, 100).rise;
+    for (let elapsed = 0; elapsed < 3000; elapsed += FRAME_MS) {
+      const { rise } = swingFrame(harness, barely);
+      expect(rise).toBeGreaterThanOrEqual(previous);
+      previous = rise;
+    }
+
+    expect(previous).toBeGreaterThan(0);
+    expect(waitUntil(harness, (view) => view.rise < previous).rise).toBeGreaterThan(0);
   });
 });
 
