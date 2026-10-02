@@ -9,7 +9,6 @@ export {
   REVEAL_PAUSE_MS,
   type Board,
   type CancelScheduled,
-  type GamePageHostOptions,
   type GamePageView,
   type MountedBoard,
   type PageAdapter,

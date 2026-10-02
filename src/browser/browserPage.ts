@@ -3,7 +3,7 @@
  * 站内导航与玩法页宿主要的接口（ADR-0012）。薄，不测。
  */
 
-import { gamePage, showRosterLoading } from './gamePage';
+import { gamePage, showRosterLoading } from './gamePageShell';
 import type { NavigationPage } from '../navigation';
 import { createResultCard, resultCardMarkup } from './resultCard';
 import { showRosterError } from './rosterErrorPage';

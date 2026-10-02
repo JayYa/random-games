@@ -6,7 +6,7 @@
  */
 
 import { escapeHtml } from './escapeHtml';
-import { gamePage } from './gamePage';
+import { gamePage } from './gamePageShell';
 import type { RosterError, RosterErrorText, Theme } from '../theme';
 
 export function showRosterError(

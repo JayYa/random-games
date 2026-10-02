@@ -20,11 +20,15 @@ function directoryOf(path: string): string {
   return dir === '.' ? '' : dir;
 }
 
-/** 照 TypeScript 的找法认出 import 落在哪个文件上；落在 `src/` 外或找不到时为 undefined。 */
-function resolveImport(tree: SourceTree, importer: string, specifier: string): string | undefined {
+/** 不在 `src/` 外的 import 落在 `src/` 里哪个文件上。 */
+type Resolution = { readonly outsideSrc: true } | { readonly outsideSrc: false; readonly file: string | undefined };
+
+/** 照 TypeScript 的找法认出 import 落在哪个文件上；`src/` 里找不到时 `file` 为 undefined。 */
+function resolveImport(tree: SourceTree, importer: string, specifier: string): Resolution {
   const path = posix.join(directoryOf(importer), specifier);
-  if (path.startsWith('../')) return undefined;
-  return [path, `${path}.ts`, `${path}/${INTERFACE_FILE}`].find((candidate) => candidate in tree);
+  if (path.startsWith('../')) return { outsideSrc: true };
+  const file = [path, `${path}.ts`, `${path}/${INTERFACE_FILE}`].find((candidate) => candidate in tree);
+  return { outsideSrc: false, file };
 }
 
 /**
@@ -42,12 +46,14 @@ function requiredInterface(importer: string, target: string): string | undefined
   return target === entry ? undefined : entry;
 }
 
+/** 顶层的入口和测试帮手：只有用例文件能引用。 */
+const TEST_ONLY_TARGETS: ReadonlySet<string> = new Set(['main.ts', 'testHelpers.ts']);
+
 /** 顶层除入口、测试帮手、类型声明和用例文件外，都是单文件 module。 */
 function isSingleFileModule(path: string): boolean {
   return (
     directoryOf(path) === '' &&
-    path !== 'main.ts' &&
-    path !== 'testHelpers.ts' &&
+    !TEST_ONLY_TARGETS.has(path) &&
     !path.endsWith('.d.ts') &&
     !path.endsWith('.test.ts')
   );
@@ -70,8 +76,17 @@ function moduleBoundaryViolations(tree: SourceTree): string[] {
   for (const [importer, source] of Object.entries(tree)) {
     if (!importer.endsWith('.ts')) continue;
     for (const [, specifier] of source.matchAll(IMPORT_SPECIFIER)) {
-      const target = resolveImport(tree, importer, specifier!);
-      if (target === undefined) continue;
+      const resolution = resolveImport(tree, importer, specifier!);
+      if (resolution.outsideSrc) continue;
+      const target = resolution.file;
+      if (target === undefined) {
+        violations.push(`${importer} 的 import '${specifier}' 在 src/ 里找不到对应的文件`);
+        continue;
+      }
+      if (TEST_ONLY_TARGETS.has(target) && !importer.endsWith('.test.ts')) {
+        violations.push(`${importer} 的 import '${specifier}' 引用了 ${target}；入口和测试帮手只有用例文件能引用`);
+        continue;
+      }
       if (isSingleFileModule(importer)) {
         violations.push(
           `顶层单文件 module ${importer} 的 import '${specifier}' 引用了 ${target}；顶层单文件 module 不引用 src/ 里的任何东西`,
@@ -188,5 +203,28 @@ describe('源码树的反例', () => {
       'angles.test.ts': [importOf('./angles'), importOf('./testHelpers')].join('\n'),
     };
     expect(moduleBoundaryViolations(tree)).toEqual([]);
+  });
+
+  it('生产代码引用入口或测试帮手被抓到，只有用例文件能引用它们', () => {
+    const tree: SourceTree = {
+      'main.ts': '',
+      'testHelpers.ts': '',
+      'browser/index.ts': [importOf('../testHelpers'), importOf('../main.ts')].join('\n'),
+    };
+    expect(moduleBoundaryViolations(tree)).toEqual([
+      "browser/index.ts 的 import '../testHelpers' 引用了 testHelpers.ts；入口和测试帮手只有用例文件能引用",
+      "browser/index.ts 的 import '../main.ts' 引用了 main.ts；入口和测试帮手只有用例文件能引用",
+    ]);
+  });
+
+  it('src/ 里找不到的相对 import 被抓到，不被悄悄跳过', () => {
+    const tree: SourceTree = {
+      'cooldown/index.ts': '',
+      'cooldown/rule.ts': '',
+      'navigation/index.ts': importOf('../cooldown/rule.js'),
+    };
+    expect(moduleBoundaryViolations(tree)).toEqual([
+      "navigation/index.ts 的 import '../cooldown/rule.js' 在 src/ 里找不到对应的文件",
+    ]);
   });
 });

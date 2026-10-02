@@ -1,4 +1,4 @@
-/** 随机源：返回 [0, 1) 的函数，生产用 `Math.random`，弹球模拟和用例用带种子的。 */
+/** 随机源：生产用 `Math.random`，弹球模拟和用例用带种子的。 */
 
 /** 返回 [0, 1) 的随机源。 */
 export type RandomSource = () => number;

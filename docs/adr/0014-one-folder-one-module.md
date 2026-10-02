@@ -4,11 +4,15 @@ status: accepted
 
 # 一个目录一个 module，目录外只从 `index.ts` 进
 
-`src/` 平铺时，一个文件属于哪个 module、是不是测试面、会不会进浏览器，只能逐个打开文件头注释才知道。因此 `src/` 下每个目录都是一个 module，`index.ts` 是它的 interface：目录及其子目录里的文件随意互相引用，目录外的只能 import `index.ts`，`import type` 也算。`src/` 顶层只放入口、测试帮手，以及没有依赖、被几个顶层目录共用的单文件 module。现在的 `src/` 就是这样：
+`src/` 平铺时，一个文件属于哪个 module、是不是测试面、会不会进浏览器，只能逐个打开文件头注释才知道。因此 `src/` 下每个目录都是一个 module，`index.ts` 是它的 interface：目录及其子目录里的文件随意互相引用，目录外的只能 import `index.ts`，`import type` 也算。`src/` 顶层只放入口 `main.ts`、测试帮手 `testHelpers.ts`、样式 `style.css`、类型声明 `vite-env.d.ts`、顶层用例文件（如本架构用例 `architecture.test.ts`），以及没有依赖、被几个顶层目录共用的单文件 module；入口和测试帮手只有用例文件能引用。现在的 `src/` 就是这样：
 
 ```
 src/
-  main.ts  testHelpers.ts  style.css  vite-env.d.ts
+  main.ts         入口
+  testHelpers.ts  测试帮手
+  style.css       样式
+  vite-env.d.ts   类型声明
+  architecture.test.ts  本 ADR 的架构用例
   random.ts  angles.ts  palette.ts  byId.ts    单文件 module
   theme/       主题、名单文件、名单、名单错误
   cooldown/    冷却
@@ -29,7 +33,7 @@ src/
 
 ## Consequences
 
-- **由 `src/architecture.test.ts` 守**，跑在 `pnpm test` 里：每个目录都有 `index.ts`；跨出目录的 import 只落在某个 `index.ts` 或顶层单文件 module 上；顶层除入口和测试帮手外不 import `src/` 里的任何东西。`e2e/` 和 `vite.config.ts` 不在 `src/` 里，不查。
+- **由 `src/architecture.test.ts` 守**，跑在 `pnpm test` 里：每个目录都有 `index.ts`；跨出目录的 import 只落在某个 `index.ts` 或顶层单文件 module 上；顶层单文件 module（顶层除入口、测试帮手、样式、类型声明和用例文件外的文件）不 import `src/` 里的任何东西；入口和测试帮手只有用例文件能 import；`src/` 里找不到的相对 import 也算违规。`e2e/` 和 `vite.config.ts` 不在 `src/` 里，不查。
 - **共用的东西放进所有使用者共同的最近目录**：对齐画布只有两个盘面用，放在 `games/` 里，不进 `games/index.ts`（ADR-0013）；`escapeHtml` 只有各屏 HTML 用，归 `browser/`。
 - **interface 归 seam 的主人**：`ResultCard`、`PageAdapter` 的类型归 `gamePage/`，`NavigationPage` 归 `navigation/`；`browser/` 只实现它们。
 - **盘面的渲染层仍归各自的玩法**：盘面自己画（ADR-0012），`browser/` 不收盘面。

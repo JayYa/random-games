@@ -6,7 +6,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ViteDevServer } from 'vite';
-import { collectThemes } from '../theme/index.ts';
+import { collectThemes } from '../theme';
 import { readRosterFiles } from './readRosterFiles.ts';
 
 /** 类型声明在 `src/vite-env.d.ts`。 */
