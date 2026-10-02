@@ -99,7 +99,6 @@ function moduleBoundaryViolations(tree: SourceTree, notYetMoved: readonly string
  */
 const NOT_YET_MOVED: readonly string[] = [
 
-  'gamePageHost.ts', // #179 gamePage
 
 
 

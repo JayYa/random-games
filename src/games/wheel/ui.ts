@@ -6,7 +6,7 @@
  */
 
 import { createById } from '../../byId';
-import type { Board, MountedBoard, RollHandle } from '../../gamePageHost';
+import type { Board, MountedBoard, RollHandle } from '../../gamePage';
 import { fitCanvas } from '../fitCanvas';
 import { createWheelMachine, type WheelView } from './machine';
 import { drawWheel } from './wheelCanvas';

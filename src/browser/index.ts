@@ -7,6 +7,3 @@
 export { browserPage } from './browserPage.ts';
 export { browserStorage } from './browserStorage.ts';
 export { fetchRosterCsv } from './loadRoster.ts';
-
-/** 过渡：结果卡片的 interface 由 #179 搬进 `gamePage/`，那时删掉这一行。 */
-export type { ResultCard } from './resultCard.ts';

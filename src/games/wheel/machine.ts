@@ -6,7 +6,7 @@
  */
 
 import { normalizeAngle, TAU } from '../../angles';
-import type { MountedBoard, RollHandle } from '../../gamePageHost';
+import type { MountedBoard, RollHandle } from '../../gamePage';
 import { randomIndex, type RandomSource } from '../../random';
 import { createSectors, type Sectors } from './sectors';
 

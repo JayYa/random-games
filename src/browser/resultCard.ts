@@ -8,6 +8,7 @@
 import { createById } from '../byId';
 import { burstConfetti } from './confetti';
 import { escapeHtml } from './escapeHtml';
+import type { ResultCard } from '../gamePage';
 import type { Candidate } from '../theme';
 
 /** @param closeLabel 收下按钮上的字，由盘面给：转盘「再来一次」，弹球机「再打一发」。 */
@@ -20,17 +21,6 @@ export function resultCardMarkup(closeLabel: string): string {
         </div>
       </div>
   `;
-}
-
-export interface ResultCard {
-  /** 写上中选的名字，撒花，焦点落到收下按钮上。 */
-  show(winner: Candidate): void;
-  /**
-   * 收起卡片。本来就没开时什么都不做。
-   *
-   * @param returnFocusTo 收起后焦点交给谁；弹球机没有可聚焦的操作，给 undefined。
-   */
-  hide(returnFocusTo: HTMLElement | undefined): void;
 }
 
 /**

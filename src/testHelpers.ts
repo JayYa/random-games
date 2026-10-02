@@ -4,7 +4,6 @@
 
 import type { RecentStorage } from './cooldown';
 import type { Game } from './games';
-import type { ResultCard } from './browser';
 import type { Candidate, RosterError, Theme } from './theme';
 import {
   mountGamePage,
@@ -12,9 +11,10 @@ import {
   type GamePageView,
   type MountedBoard,
   type PageAdapter,
+  type ResultCard,
   type RollHandle,
   type Schedule,
-} from './gamePageHost';
+} from './gamePage';
 
 /** 与弹球模拟用同一份，用来把一条性质放在多个种子上过一遍。 */
 export { seededRandom } from './random';

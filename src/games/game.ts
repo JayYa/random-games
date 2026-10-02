@@ -3,7 +3,7 @@
  * 抽玩法归冷却 module（ADR-0011）。
  */
 
-import type { Board } from '../gamePageHost';
+import type { Board } from '../gamePage';
 
 /** 一个玩法：地址里的一段，加一个盘面工厂。 */
 export interface Game {

@@ -8,8 +8,7 @@
  * 不碰 DOM，写页面经注入的页面适配器。
  */
 
-import type { ResultCard } from './browser';
-import type { Candidate, Theme } from './theme';
+import type { Candidate, Theme } from '../theme';
 
 /** 揭晓后过多久弹结果卡片。卡片是全屏遮罩，没有这一拍名字刚亮就被盖住（ADR-0010）。 */
 export const REVEAL_PAUSE_MS = 800;
@@ -75,13 +74,25 @@ export type GamePageView = Pick<Board, 'html' | 'block' | 'closeLabel'> & {
   readonly theme: Theme;
 };
 
+/** 结果卡片 (Result Card)：不论哪种玩法都是同一张。生产用 `resultCard.ts`，用例用假卡片。 */
+export interface ResultCard {
+  /** 写上中选的名字，撒花，焦点落到收下按钮上。 */
+  show(winner: Candidate): void;
+  /**
+   * 收起卡片。本来就没开时什么都不做。
+   *
+   * @param returnFocusTo 收起后焦点交给谁；弹球机没有可聚焦的操作，给 undefined。
+   */
+  hide(returnFocusTo: HTMLElement | undefined): void;
+}
+
 export interface WrittenGamePage {
   readonly card: ResultCard;
   /** 盘面该挂上的元素。 */
   readonly boardRoot: HTMLElement;
 }
 
-/** 宿主碰 DOM 的唯一出口，挂载点已经绑在里面。生产用 `browserPage.ts`，用例用假页面。 */
+/** 宿主碰 DOM 的唯一出口，挂载点已经绑在里面。生产用 `browser/browserPage.ts`，用例用假页面。 */
 export interface PageAdapter {
   /**
    * 一次写完页头、盘面和结果卡片，交回卡片和盘面的挂载点。
