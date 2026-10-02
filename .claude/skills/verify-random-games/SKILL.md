@@ -5,7 +5,7 @@ description: Verify 是但 (random-games) in a real browser, producing the PR bo
 
 # Verify 是但 (random-games)
 
-The app is a hash-routed single-page site: a theme picker at `#/`, then a game page at `#/<theme>/<game>` where the game is `wheel` (转盘) or `pinball` (弹球机). Entering a game page fetches the theme's roster CSV from `public/`, the app's only I/O. The only persistent state is `localStorage` keys prefixed `random-games:` (recent winners per theme, recent game). Read [GLOSSARY.md](../../../GLOSSARY.md) for the vocabulary (主题, 名单, 候选, 开抽, 中选, 揭晓, 冷却…).
+The app is a hash-routed single-page site: a theme picker at `#/`, then a game page at `#/<theme>/<game>` where the game is `wheel` (转盘), `pinball` (弹球机) or `sticks` (求签筒). Entering a game page fetches the theme's roster CSV from `public/`, the app's only I/O. The only persistent state is `localStorage` keys prefixed `random-games:` (recent winners per theme, recent game). Read [GLOSSARY.md](../../../GLOSSARY.md) for the vocabulary (主题, 名单, 候选, 开抽, 中选, 揭晓, 冷却…).
 
 Everything goes through one helper, `verify.mjs`, which drives headless Chromium against an isolated `vite preview` build. Run it with plain `node` from the repo root. Prerequisites: `pnpm install` done, and Playwright's Chromium present (`pnpm exec playwright install chromium` if `drive` says the browser is missing).
 
@@ -66,7 +66,8 @@ Stable handles (details per feature in [`features/`](features/README.md)):
 - Game page header: `getByRole('link', {name: '← 换个主题'})`, `getByRole('heading', {level: 1})` = theme title.
 - Wheel: `getByRole('button', {name: '转'})` (`#wheel-spin`), locked state is `aria-disabled="true"`; canvas `#wheel-canvas`.
 - Pinball: canvas `#pinball-board`; fire by mouse drag down on the board (see pinball feature).
-- Result card: `#card` (`role=dialog`), winner `#card-name`, close button `#card-close` = `再来一次` (wheel) / `再打一发` (pinball).
+- Sticks: canvas `#sticks-board`; roll by dragging the tube left and right until a stick drops (see sticks feature).
+- Result card: `#card` (`role=dialog`), winner `#card-name`, close button `#card-close` = `再来一次` (wheel) / `再打一发` (pinball) / `再抽一根` (sticks).
 - Error page: `[data-error-kind="load" | "parse-error" | "empty-file" | "all-disabled"]` (`role=alert`).
 - Storage: `random-games:recent-winners:<theme-slug>` (JSON array, newest last, max 7), `random-games:recent-games` (max 1).
 

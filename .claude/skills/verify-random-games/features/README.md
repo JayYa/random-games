@@ -22,11 +22,12 @@ Keep implementation details out of the map. Name only user paths, stable handles
 
 ## Features
 
-Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run all five with `for f in theme-picker wheel-draw pinball-draw cooldown roster-errors; do $V drive --run <id> --feature $f .claude/skills/verify-random-games/scenarios/$f.mjs; done` (Git Bash).
+Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run all six with `for f in theme-picker wheel-draw pinball-draw sticks-draw cooldown roster-errors; do $V drive --run <id> --feature $f .claude/skills/verify-random-games/scenarios/$f.mjs; done` (Git Bash).
 
 - [Theme picker and routing](./theme-picker.md) covers the picker, the game roll from `#/<theme>` (picker link or shared link), bookmarked `#/<theme>/<game>`, middle-/Ctrl-click new tabs, Back, unknown-route fallback (including wrong case and stray `/`), and `← 换个主题` (also after a reload). Scenario: `scenarios/theme-picker.mjs`.
 - [Wheel draw](./wheel-draw.md) covers 转, the lock, the reveal and card, 再来一次, the stored winner, keyboard entry, the modal card (Tab stays, Escape closes), and a direct link. Scenario: `scenarios/wheel-draw.mjs`.
 - [Pinball draw](./pinball-draw.md) covers the plunger drag (sideways doesn't fire), the slot reveal and card, 再打一发, a second shot with the mid-flight lock, closing with Escape, and a direct link. Scenario: `scenarios/pinball-draw.mjs`.
+- [Fortune sticks draw](./sticks-draw.md) covers the picker roll onto sticks, drag-shaking until a stick drops, the name on the stick (short to very long, via a roster route), the card with 再抽一根, no auto-roll, and a direct link. 摇手机 and the iOS prompt are e2e-only. Scenario: `scenarios/sticks-draw.mjs`.
 - [Cooldown](./cooldown.md) covers recent winners (7 per theme) and the recent game (1, site-wide), including thawing (repeated roster names count once), trimmed roster names, the cap on write and on read, a shared theme link, and a direct link not being recorded. Scenario: `scenarios/cooldown.mjs` (uses a roster route for the thaw, trim and read-cap cases).
 - [Roster error pages](./roster-errors.md) covers the four error kinds on both games (a dropped request and a name disabled on one of its rows included) and the escape via `← 换个主题`, both from a direct link and Back after rolling in from the picker. Scenario: `scenarios/roster-errors.mjs` (roster route throughout).
 

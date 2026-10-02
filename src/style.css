@@ -373,7 +373,7 @@ body {
   transition-timing-function: ease-out;
 }
 
-/* 结果卡片：两种玩法共用，是独立的块。整页褪成纸色，中选是一枚拍上来的大贴纸。 */
+/* 结果卡片：各玩法共用，是独立的块。整页褪成纸色，中选是一枚拍上来的大贴纸。 */
 .card[hidden] {
   display: none;
 }
