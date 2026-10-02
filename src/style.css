@@ -1,8 +1,74 @@
+/* 颜色只在这里定，深色主题只换值不换名。盘面画在画布上，作画时从这里读（两个盘面的 ui.ts）。 */
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
+  --ink: #2b2b33;
+  --muted: #6b6b7b;
+  --page: #f7f7fb;
+  --surface: #fff;
+  --border: #c8c8d4;
+  --border-soft: #d5d5df;
+  --scrim: rgba(20, 20, 28, 0.45);
+  --card-shadow: rgba(0, 0, 0, 0.2);
+  --primary-bg: #2b2b33;
+  --primary-fg: #fff;
+  --error-border: #e6b4b4;
+  --error-bg: #fff6f6;
+  --error-title: #a12f2f;
+  --error-detail: #4a3a3a;
+  /* 扇区、落格上的字和框：调色板两套主题不变，压在上面的永远是深色。 */
+  --on-palette: #2b2b33;
+  /* 两个盘面。褪淡是往台面色褪，扇区缝是露出页面底色。 */
+  --board-field: #fff;
+  --board-wall: #e8e8ef;
+  --board-wall-edge: #c8c8d4;
+  --board-metal: #8b8b9a;
+  --board-peg: #9a9aa8;
+  --board-bumper: #fff;
+  --board-ball: #2b2b33;
+  --board-ball-shine: rgba(255, 255, 255, 0.7);
+  --board-fade: rgba(255, 255, 255, 0.6);
+  --wheel-gap: rgba(255, 255, 255, 0.85);
+  --wheel-hub: #fff;
+  --wheel-hub-edge: rgba(0, 0, 0, 0.12);
+  /* 浅色下指针本来就压得住扇区，不描边。 */
+  --wheel-pointer-edge: transparent;
   font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  color: #2b2b33;
-  background: #f7f7fb;
+  color: var(--ink);
+  background: var(--page);
+}
+
+/* 深色：多半是夜里在微信里点开。盘面是比页面亮一级的机身，不是把浅色反过来。 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #ececf2;
+    --muted: #a3a3b3;
+    --page: #16161c;
+    --surface: #24242d;
+    --border: #464652;
+    --border-soft: #3a3a45;
+    --scrim: rgba(0, 0, 0, 0.5);
+    --card-shadow: rgba(0, 0, 0, 0.4);
+    --primary-bg: #ececf2;
+    --primary-fg: #1b1b22;
+    --error-border: #6e3a3e;
+    --error-bg: #2a1c20;
+    --error-title: #ff9d96;
+    --error-detail: #e3d2d4;
+    --board-field: #22222b;
+    --board-wall: #30303b;
+    --board-wall-edge: #4a4a57;
+    --board-metal: #9494a5;
+    --board-peg: #7a7a8b;
+    --board-bumper: #3a3a47;
+    --board-ball: #dcdce6;
+    --board-ball-shine: rgba(255, 255, 255, 0.95);
+    --board-fade: rgba(34, 34, 43, 0.65);
+    --wheel-gap: rgba(22, 22, 28, 0.85);
+    --wheel-hub: #24242d;
+    --wheel-hub-edge: rgba(255, 255, 255, 0.16);
+    /* 浅色指针的尖压在浅色扇区上看不清，描一圈页面底色。 */
+    --wheel-pointer-edge: #16161c;
+  }
 }
 
 * {
@@ -53,7 +119,7 @@ body {
 .page__status {
   margin: 0;
   font-size: 1rem;
-  color: #6b6b7b;
+  color: var(--muted);
   text-align: center;
 }
 
@@ -64,15 +130,15 @@ body {
   line-height: 1.2;
   white-space: nowrap;
   font-size: 0.9rem;
-  color: #6b6b7b;
+  color: var(--muted);
   text-decoration: none;
-  border-bottom: 1px solid #d5d5df;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .page__home:hover,
 .page__home:focus-visible {
-  color: #2b2b33;
-  border-bottom-color: #2b2b33;
+  color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 
 .wheel__stage {
@@ -99,8 +165,8 @@ body {
   padding: 0 32px;
   border: none;
   border-radius: 999px;
-  background: #2b2b33;
-  color: #fff;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
   font-size: 1.25rem;
   font-weight: 700;
   cursor: pointer;
@@ -125,20 +191,20 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(20, 20, 28, 0.45);
+  background: var(--scrim);
   padding: 24px calc(24px + env(safe-area-inset-right, 0px))
     calc(24px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
   overflow-y: auto;
 }
 
 .card__inner {
-  background: #fff;
+  background: var(--surface);
   border-radius: 20px;
   padding: 32px 28px;
   text-align: center;
   max-width: 360px;
   width: 100%;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 18px 48px var(--card-shadow);
 }
 
 .card__name {
@@ -153,8 +219,8 @@ body {
   padding: 0 24px;
   border: none;
   border-radius: 999px;
-  background: #2b2b33;
-  color: #fff;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
   font-size: 1rem;
   cursor: pointer;
   touch-action: manipulation;
@@ -231,9 +297,9 @@ body {
   max-width: 32rem;
   box-sizing: border-box;
   padding: 1rem 1.1rem;
-  border: 1px solid #e6b4b4;
+  border: 1px solid var(--error-border);
   border-radius: 12px;
-  background: #fff6f6;
+  background: var(--error-bg);
   text-align: left;
 }
 
@@ -241,20 +307,20 @@ body {
   margin: 0 0 0.5rem;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #a12f2f;
+  color: var(--error-title);
 }
 
 .page__error-detail {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
-  color: #4a3a3a;
+  color: var(--error-detail);
   overflow-wrap: anywhere;
 }
 
 .page__error-hint {
   margin: 0;
   font-size: 0.85rem;
-  color: #6b6b7b;
+  color: var(--muted);
 }
 
 /* 选主题页。 */
@@ -277,7 +343,7 @@ body {
 .picker__lead {
   margin: 0 0 12px;
   font-size: 0.95rem;
-  color: #6b6b7b;
+  color: var(--muted);
 }
 
 .picker__list {
@@ -297,10 +363,10 @@ body {
   justify-content: center;
   min-height: 64px;
   padding: 0 24px;
-  border: 1px solid #c8c8d4;
+  border: 1px solid var(--border);
   border-radius: 16px;
-  background: #fff;
-  color: #2b2b33;
+  background: var(--surface);
+  color: var(--ink);
   font-size: 1.1rem;
   text-decoration: none;
   touch-action: manipulation;
@@ -309,5 +375,5 @@ body {
 
 .picker__entry:hover,
 .picker__entry:focus-visible {
-  border-color: #2b2b33;
+  border-color: var(--ink);
 }
