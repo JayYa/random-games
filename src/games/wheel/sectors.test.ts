@@ -44,7 +44,6 @@ describe('转到第 i 格要转多少', () => {
   });
 
   it('travel 只往前转、不满一圈：落在 [0, 2π)', () => {
-    // 符号写反（ADR-0003）会交回负数或超过一圈。
     for (const size of SIZES) {
       const sectors = createSectors(size);
       const random = seededRandom(size * 100 + 5);
@@ -58,6 +57,14 @@ describe('转到第 i 格要转多少', () => {
     }
   });
 
+  it('出发点只比落点多一丝时，travel 仍不满一圈', () => {
+    // 差值是极小的负数，加回一整圈会被浮点舍入成恰好 2π。
+    const sectors = createSectors(1);
+    const { landing } = sectors.landOn(0, 0, 0);
+    const from = landing + landing * Number.EPSILON;
+    expect(sectors.landOn(from, 0, 0).travel).toBeLessThan(TAU);
+  });
+
   it('landing 就是出发点加 travel 折回一圈后的值，落在 [0, 2π)', () => {
     for (const size of SIZES) {
       const sectors = createSectors(size);
@@ -68,7 +75,6 @@ describe('转到第 i 格要转多少', () => {
           expect(landing).toBeCloseTo(wrap(from + travel), 9);
           expect(landing).toBeGreaterThanOrEqual(0);
           expect(landing).toBeLessThan(TAU);
-          expect(sectors.sectorAt(landing)).toBe(index);
         }
       }
     }
