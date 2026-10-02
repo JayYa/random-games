@@ -74,7 +74,7 @@ export type GamePageView = Pick<Board, 'html' | 'block' | 'closeLabel'> & {
   readonly theme: Theme;
 };
 
-/** 结果卡片 (Result Card)：不论哪种玩法都是同一张。生产用 `resultCard.ts`，用例用假卡片。 */
+/** 结果卡片 (Result Card)：不论哪种玩法都是同一张。生产用 `browser/resultCard.ts`，用例用假卡片。 */
 export interface ResultCard {
   /** 写上中选的名字，撒花，焦点落到收下按钮上。 */
   show(winner: Candidate): void;

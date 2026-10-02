@@ -1,10 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # 一个目录一个 module，目录外只从 `index.ts` 进
 
-`src/` 平铺时，一个文件属于哪个 module、是不是测试面、会不会进浏览器，只能逐个打开文件头注释才知道。因此 `src/` 下每个目录都是一个 module，`index.ts` 是它的 interface：目录及其子目录里的文件随意互相引用，目录外的只能 import `index.ts`，`import type` 也算。`src/` 顶层只放入口、测试帮手，以及没有依赖、被几个顶层目录共用的单文件 module。`theme/` 和 `cooldown/` 已按此落地，其余是目标结构，尚未搬。
+`src/` 平铺时，一个文件属于哪个 module、是不是测试面、会不会进浏览器，只能逐个打开文件头注释才知道。因此 `src/` 下每个目录都是一个 module，`index.ts` 是它的 interface：目录及其子目录里的文件随意互相引用，目录外的只能 import `index.ts`，`import type` 也算。`src/` 顶层只放入口、测试帮手，以及没有依赖、被几个顶层目录共用的单文件 module。现在的 `src/` 就是这样：
 
 ```
 src/
@@ -34,4 +34,4 @@ src/
 - **interface 归 seam 的主人**：`ResultCard`、`PageAdapter` 的类型归 `gamePage/`，`NavigationPage` 归 `navigation/`；`browser/` 只实现它们。
 - **盘面的渲染层仍归各自的玩法**：盘面自己画（ADR-0012），`browser/` 不收盘面。
 - **目录名对齐 GLOSSARY**（`theme`、`cooldown`、`games`、`gamePage`）；站内导航、玩法页宿主是代码里的叫法，不进 GLOSSARY。
-- **依赖只朝一个方向**：`navigation` → `gamePage` / `games` / `cooldown` / `theme`；`browser` → `navigation`（只引写地址的函数）/ `gamePage` / `theme`；`games` → `gamePage`；`build` → `theme`。
+- **依赖只朝一个方向**：`navigation` → `gamePage` / `games` / `cooldown` / `theme`；`browser` → `navigation`（只引写地址的函数）/ `gamePage` / `theme`；`games` → `gamePage`；`cooldown` → `games` / `theme`；`gamePage` → `theme`；`build` → `theme`。
