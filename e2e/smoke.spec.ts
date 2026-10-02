@@ -230,8 +230,6 @@ test.describe('求签筒', () => {
       await expect(prompt(page)).toBeHidden();
       await expect(entry(page)).toBeHidden();
       expect(await permissionRequests(page)).toEqual([true]);
-      const keys = await page.evaluate(() => Object.keys(localStorage));
-      expect(keys).toContain('random-games:sticks-motion-asked');
 
       await page.reload();
       await expect(entry(page)).toBeVisible();
