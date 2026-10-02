@@ -12,12 +12,14 @@ import { fitCanvas } from '../fitCanvas';
 import {
   STICKS,
   createSticksMachine,
+  type MotionOffer,
   type MotionSupport,
   type PointerSample,
   type SticksDrop,
   type SticksView,
 } from './machine';
 import { layoutStickName } from './nameLayout';
+import { browserPromptStorage, storedPromptMemory } from './promptMemory';
 
 /** 收下之后签回到筒里，真的能再抽一根。 */
 const CLOSE_LABEL = '再抽一根';
@@ -28,6 +30,12 @@ const BOARD_HTML = `
           <span class="tape"></span><span class="tape"></span>
           <canvas class="sticks__board" id="sticks-board"></canvas>
         </div>
+        <div class="sticks__offer" id="sticks-motion-prompt" hidden>
+          <p class="sticks__offer-text">摇手机也能抽</p>
+          <button class="sticks__offer-button sticks__offer-button--yes" id="sticks-motion-enable" type="button">开启</button>
+          <button class="sticks__offer-button" id="sticks-motion-decline" type="button">不用了</button>
+        </div>
+        <button class="sticks__offer-entry" id="sticks-motion-entry" type="button" hidden>开启摇手机</button>
       </div>
     `;
 
@@ -245,14 +253,40 @@ function drawBoard(ctx: CanvasRenderingContext2D, view: SticksView, colors: Stic
 }
 
 /**
- * 按平台检测能不能摇手机（#196）：有 `DeviceMotionEvent.requestPermission` 的（iOS）要先授权；
- * 别的先当读不到，收到第一个带数据的 `devicemotion` 才算能用——电脑上也有这个事件类型，但不来
- * 数据或只来空的。
+ * 按平台检测能不能摇手机（#196）。先都当读不到，收到第一个带数据的 `devicemotion` 才算能用——
+ * 电脑上也有这个事件类型，但不来数据或只来空的。
+ *
+ * 有 `DeviceMotionEvent.requestPermission` 的要先授权（iOS）。Chrome 150 起也有这个方法，但它
+ * 的运动传感器权限查得到、默认就给，所以先查权限：查到已给的不算要授权，电脑上的 Chrome 就不会
+ * 冒出摇手机的提示；查不了（Safari 不认 `accelerometer`）或没给的才算。
+ *
+ * 不能拿 `requestPermission()` 本身来探：从首页点进来时还在那一下点按的余温里，iOS 会当场弹
+ * 系统框。
  */
 function detectMotion(): { support: MotionSupport } {
-  if (typeof DeviceMotionEvent === 'undefined') return { support: 'unsupported' };
+  const motion: { support: MotionSupport } = { support: 'unsupported' };
+  if (!motionPermissionRequest()) return motion;
+  const needsPermission = (): void => {
+    // 查的时候已经收到了数据，就是能用。
+    if (motion.support === 'unsupported') motion.support = 'needs-permission';
+  };
+  try {
+    navigator.permissions.query({ name: 'accelerometer' as PermissionName }).then((status) => {
+      if (status.state !== 'granted') needsPermission();
+    }, needsPermission);
+  } catch {
+    needsPermission();
+  }
+  return motion;
+}
+
+/** `DeviceMotionEvent.requestPermission`：iOS 有，Chrome 150 起也有。 */
+type RequestPermission = () => Promise<PermissionState>;
+
+function motionPermissionRequest(): RequestPermission | undefined {
+  if (typeof DeviceMotionEvent === 'undefined') return undefined;
   const { requestPermission } = DeviceMotionEvent as unknown as { requestPermission?: unknown };
-  return { support: typeof requestPermission === 'function' ? 'needs-permission' : 'unsupported' };
+  return typeof requestPermission === 'function' ? (requestPermission.bind(DeviceMotionEvent) as RequestPermission) : undefined;
 }
 
 export function createSticksBoard(): Board {
@@ -265,9 +299,12 @@ export function createSticksBoard(): Board {
 }
 
 function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
-  const canvas = createById(root)<HTMLCanvasElement>('sticks-board');
+  const byId = createById(root);
+  const canvas = byId<HTMLCanvasElement>('sticks-board');
+  const promptBox = byId<HTMLElement>('sticks-motion-prompt');
+  const entryButton = byId<HTMLButtonElement>('sticks-motion-entry');
   const motion = detectMotion();
-  const machine = createSticksMachine(roll, { motion });
+  const machine = createSticksMachine(roll, { motion, promptMemory: storedPromptMemory(browserPromptStorage()) });
   const controller = new AbortController();
   const listen = { signal: controller.signal } as const;
   let rafId = 0;
@@ -283,6 +320,31 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     drawBoard(context, view, colors);
   }
 
+  let shownOffer: MotionOffer | undefined;
+
+  /** 签筒下方的提示或入口，跟着视图走；只在变了时碰 DOM。 */
+  function showOffer(offer: MotionOffer | undefined): void {
+    if (offer === shownOffer) return;
+    shownOffer = offer;
+    promptBox.hidden = offer !== 'prompt';
+    entryButton.hidden = offer !== 'entry';
+  }
+
+  /**
+   * 请求运动传感器授权。iOS 只认使用者点按的那一刻，所以必须在点击处理函数里同步调（#196）。
+   * 拿到授权就能摇了，下一帧提示和入口一起消失；拒绝或出错就照旧，入口留着，拖着甩照样能抽。
+   */
+  function requestMotionPermission(): void {
+    const request = motionPermissionRequest();
+    if (!request) return;
+    request().then(
+      (state) => {
+        if (state === 'granted') motion.support = 'supported';
+      },
+      () => {},
+    );
+  }
+
   /** 停帧时留着最后一帧，换主题时重画它。 */
   let lastView: SticksView | undefined;
   let running = false;
@@ -290,6 +352,7 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   function frame(now: number): void {
     lastView = machine.tick(now);
     draw(lastView);
+    showOffer(lastView.motionOffer);
     // 结果卡片盖住了盘面：停帧，抹掉时再起。
     running = !lastView.still;
     if (running) rafId = requestAnimationFrame(frame);
@@ -333,6 +396,17 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
     canvas.addEventListener(type, (event) => machine.release(event.pointerId), listen);
   }
+
+  byId<HTMLButtonElement>('sticks-motion-enable').addEventListener(
+    'click',
+    () => {
+      requestMotionPermission();
+      machine.answerMotionPrompt();
+    },
+    listen,
+  );
+  byId<HTMLButtonElement>('sticks-motion-decline').addEventListener('click', () => machine.answerMotionPrompt(), listen);
+  entryButton.addEventListener('click', requestMotionPermission, listen);
 
   if (typeof DeviceMotionEvent !== 'undefined') {
     let lastMotionAt: number | undefined;

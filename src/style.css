@@ -568,6 +568,67 @@ body {
   cursor: grab;
 }
 
+/* 签筒下方请人开启摇手机的那一处，只在要先授权的设备（iOS）上出现，出现时给它让出高度。 */
+.sticks:has(.sticks__offer:not([hidden]), .sticks__offer-entry:not([hidden])) {
+  --sticks-chrome: 262px;
+}
+
+.sticks__offer {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 10px;
+  padding: 8px 10px 8px 16px;
+  border-radius: 999px;
+  background: var(--sticker);
+  box-shadow: 0 4px 10px var(--shadow);
+}
+
+.sticks__offer[hidden],
+.sticks__offer-entry[hidden] {
+  display: none;
+}
+
+.sticks__offer-text {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: 1.15rem;
+}
+
+.sticks__offer-button,
+.sticks__offer-entry {
+  min-height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: 1.05rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sticks__offer-button--yes {
+  background: var(--accent);
+  color: var(--on-palette);
+}
+
+.sticks__offer-entry {
+  margin-top: 10px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.sticks__offer-button:active,
+.sticks__offer-entry:active {
+  transform: translateY(1px) scale(0.97);
+}
+
 /* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给盘面。 */
 @media (max-height: 560px) {
   .page {
@@ -585,6 +646,10 @@ body {
 
   .sticks {
     --sticks-chrome: 154px;
+  }
+
+  .sticks:has(.sticks__offer:not([hidden]), .sticks__offer-entry:not([hidden])) {
+    --sticks-chrome: 204px;
   }
 
   .page__title {

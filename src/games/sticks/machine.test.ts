@@ -13,6 +13,7 @@ import {
   STILL_AFTER_REVEAL_MS,
   createSticksMachine,
   type MotionCapability,
+  type MotionPromptMemory,
   type MotionSupport,
   type PointerSample,
   type SticksMachine,
@@ -51,14 +52,18 @@ interface Harness extends HostedBoard {
 }
 
 /** 在真宿主上挂一页求签筒，先 tick 一次作基准。随机源默认带固定种子，默认是摇不了手机的设备。 */
-function setup(random: RandomSource = seededRandom(7), motion: MotionCapability = { support: 'unsupported' }): Harness {
+function setup(
+  random: RandomSource = seededRandom(7),
+  motion: MotionCapability = { support: 'unsupported' },
+  promptMemory: MotionPromptMemory = freshPromptMemory(),
+): Harness {
   const machines: SticksMachine[] = [];
   const board: Board = {
     html: '<canvas class="sticks__board"></canvas>',
     block: 'sticks',
     closeLabel: '再抽一根',
     mount(_root, roll) {
-      const machine = createSticksMachine(roll, { random, motion });
+      const machine = createSticksMachine(roll, { random, motion, promptMemory });
       machines.push(machine);
       return machine;
     },
@@ -68,6 +73,17 @@ function setup(random: RandomSource = seededRandom(7), motion: MotionCapability 
   if (!machine) throw new Error('机器应当已经挂上');
   machine.tick(0);
   return { ...hosted, machine, now: 0, fingerX: MID_X, direction: 1 };
+}
+
+/** 一份还没问过的「问过没有」记忆，同一份可以交给好几台机器（相当于刷新页面）。 */
+function freshPromptMemory(): MotionPromptMemory {
+  let asked = false;
+  return {
+    asked: () => asked,
+    remember: () => {
+      asked = true;
+    },
+  };
 }
 
 function tick(harness: Harness): SticksView {
@@ -542,3 +558,60 @@ describe('摇手机', () => {
   });
 });
 
+
+describe('摇手机授权提示', () => {
+  it('要先授权的设备上，没问过时显示提示；答过（开启或不用了）以后不再显示', () => {
+    const harness = setup(seededRandom(7), { support: 'needs-permission' });
+    expect(tick(harness).motionOffer).toBe('prompt');
+
+    harness.machine.answerMotionPrompt();
+    expect(tick(harness).motionOffer).toBe('entry');
+  });
+
+  it('同一份记忆交给第二台机器（相当于刷新页面）时，提示不再出现', () => {
+    const memory = freshPromptMemory();
+    const first = setup(seededRandom(7), { support: 'needs-permission' }, memory);
+    first.machine.answerMotionPrompt();
+
+    const second = setup(seededRandom(7), { support: 'needs-permission' }, memory);
+    expect(tick(second).motionOffer).toBe('entry');
+  });
+
+  it('记忆存不进去（存储不可用）时，答过以后这一页里提示照样不再显示', () => {
+    const forgetful: MotionPromptMemory = { asked: () => false, remember: () => {} };
+    const harness = setup(seededRandom(7), { support: 'needs-permission' }, forgetful);
+    expect(tick(harness).motionOffer).toBe('prompt');
+
+    harness.machine.answerMotionPrompt();
+    expect(tick(harness).motionOffer).toBe('entry');
+  });
+
+  it('没拿到授权时，「开启摇手机」入口一直在（拒绝、失效都一样）；拿到授权之后入口消失', () => {
+    const motion: { support: MotionSupport } = { support: 'needs-permission' };
+    const harness = setup(seededRandom(7), motion);
+    harness.machine.answerMotionPrompt();
+    for (let i = 0; i < 30; i += 1) expect(tick(harness).motionOffer).toBe('entry');
+
+    motion.support = 'supported';
+    expect(tick(harness).motionOffer).toBeUndefined();
+  });
+
+  it('拒绝授权之后，拖着甩照样能出签', () => {
+    const harness = setup(seededRandom(7), { support: 'needs-permission' });
+    harness.machine.answerMotionPrompt();
+
+    const { view } = shakeUntil(harness, HARD, hasDropped);
+    expect(view.motionOffer).toBe('entry');
+    harness.machine.release(FINGER);
+    expect(NAMES).toContain(waitUntil(harness, isRevealed).revealed);
+  });
+
+  it('不用授权的设备和读不到运动传感器的设备上，提示和入口都不出现', () => {
+    for (const support of ['supported', 'unsupported'] as const) {
+      const harness = setup(seededRandom(7), { support });
+      expect(tick(harness).motionOffer, support).toBeUndefined();
+      harness.machine.answerMotionPrompt();
+      expect(tick(harness).motionOffer, support).toBeUndefined();
+    }
+  });
+});

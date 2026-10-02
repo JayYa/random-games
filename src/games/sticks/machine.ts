@@ -88,6 +88,15 @@ export interface MotionCapability {
   readonly support: MotionSupport;
 }
 
+/**
+ * 「这台浏览器问过没有摇手机」的记忆，由渲染层注入（生产包一层 localStorage）。存不了时
+ * 当作没问过。
+ */
+export interface MotionPromptMemory {
+  asked(): boolean;
+  remember(): void;
+}
+
 /** 一个手机加速度样本：`devicemotion` 里不含重力的水平加速度。 */
 export interface MotionSample {
   /** 沿手机屏幕横向的加速度，米每二次方秒，往右为正。 */
@@ -95,6 +104,9 @@ export interface MotionSample {
   /** 离上一个样本多久，毫秒。 */
   readonly intervalMs: number;
 }
+
+/** 请人开启摇手机：第一次问的站内提示，或答过以后一直留着的入口。 */
+export type MotionOffer = 'prompt' | 'entry';
 
 export interface SticksView {
   /** 签筒离正中多远（盘面单位，往右为正），不超过 `STICKS.tubeLimit`。 */
@@ -114,6 +126,12 @@ export interface SticksView {
   readonly revealed: string | undefined;
   /** 能不能摇手机；读不到运动传感器的设备上没有这一项，不出现任何跟摇手机有关的界面。 */
   readonly motion: Exclude<MotionSupport, 'unsupported'> | undefined;
+  /**
+   * 签筒下方请人开启摇手机的那一处，只在要先授权、还没拿到授权时有值：这台浏览器没问过时是
+   * 站内提示 `'prompt'`（「开启」「不用了」）；答过以后是入口 `'entry'`（「开启摇手机」），
+   * 一直留着，给选了不用了、拒绝了授权或授权失效的人重新开启。
+   */
+  readonly motionOffer: MotionOffer | undefined;
   /** 结果卡片已经盖住盘面：抹掉之前画面一帧都不再变，渲染层可以停帧。 */
   readonly still: boolean;
 }
@@ -143,6 +161,8 @@ export interface SticksMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
   release(pointerId: number): void;
   /** 摇手机：一个加速度样本，同拖着甩一样涨冒头，签筒跟着摆。只在能直接读传感器时才接。 */
   shakeBy(sample: MotionSample): void;
+  /** 使用者答了摇手机的提示（开启或不用了）：记下问过，提示不再显示。真正请求授权在渲染层。 */
+  answerMotionPrompt(): void;
   /** 推进到 `now`（毫秒，rAF 口径），交回画面。第一次只作基准。 */
   tick(now: number): SticksView;
   /** 收下之后复位：签回到筒里、冒头归零。不自动开抽。 */
@@ -177,11 +197,12 @@ export interface SticksOptions {
   /** 只用来定哪根签打头。 */
   readonly random?: RandomSource;
   readonly motion: MotionCapability;
+  readonly promptMemory: MotionPromptMemory;
 }
 
 /** @param roll 宿主交给盘面的开抽句柄。 */
 export function createSticksMachine(roll: RollHandle, options: SticksOptions): SticksMachine {
-  const { random = Math.random, motion } = options;
+  const { random = Math.random, motion, promptMemory } = options;
   let drag: Drag | undefined;
   let offset = 0;
   /** 上一次 tick 以来签筒走过的路程（盘面单位）。 */
@@ -200,6 +221,8 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
   /** 盘面停住的那一帧，抹掉前原样交回。 */
   let stillView: SticksView | undefined;
   let leadStick: number | undefined;
+  /** 这台浏览器问过没有：挂上时读一次，答了就记下。存不进去也只在这一页里不再问。 */
+  let promptAsked = promptMemory.asked();
 
   /** 签掉出筒口：此刻才开抽（ADR-0015）。正在拖的手指就此作废。 */
   function dropStick(): void {
@@ -250,6 +273,11 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
       }
     },
 
+    answerMotionPrompt() {
+      promptAsked = true;
+      promptMemory.remember();
+    },
+
     tick(now) {
       if (stillView) return stillView;
       const delta = lastTickAt === undefined ? 0 : Math.min(now - lastTickAt, MAX_FRAME_MS);
@@ -288,7 +316,19 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
       if (revealed !== undefined) revealedAt ??= now;
       const still = revealedAt !== undefined && now - revealedAt >= STILL_AFTER_REVEAL_MS;
       const motionView = motion.support === 'unsupported' ? undefined : motion.support;
-      const view: SticksView = { tubeOffset: offset, tubeTilt, leadStick, rise, drop, revealed, motion: motionView, still };
+      const motionOffer: MotionOffer | undefined =
+        motion.support !== 'needs-permission' ? undefined : promptAsked ? 'entry' : 'prompt';
+      const view: SticksView = {
+        tubeOffset: offset,
+        tubeTilt,
+        leadStick,
+        rise,
+        drop,
+        revealed,
+        motion: motionView,
+        motionOffer,
+        still,
+      };
       if (still) {
         stillView = view;
         // 停住的这段不算时间：抹掉后第一次 tick 只作基准。
