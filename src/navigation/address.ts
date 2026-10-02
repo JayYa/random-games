@@ -3,8 +3,8 @@
  * 都只在这里。认地址只在传入的清单里认，不读模块全局。
  */
 
-import type { Game } from './games';
-import type { Theme } from './theme';
+import type { Game } from '../games';
+import type { Theme } from '../theme';
 
 export type Address =
   | { readonly kind: 'picker'; readonly canonical: boolean }
