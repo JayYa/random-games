@@ -23,7 +23,7 @@ import {
   type FakeGamePage,
   type FakeStorage,
 } from './testHelpers';
-import type { Theme } from './themes';
+import type { Theme } from './theme';
 
 interface FakeEntry {
   readonly hash: string;
@@ -113,34 +113,35 @@ function pickerLinkClick(init: Partial<Omit<PickerLinkClick, 'preventDefault'>> 
   return click;
 }
 
-/** 由用例决定何时回、成败的假取数。 */
+/** 由用例决定何时回、成败的假取数，按主题交出名单原文。 */
 function fakeFetch() {
   const pending: Array<{
-    readonly file: string;
+    readonly theme: Theme;
     readonly resolve: (text: string) => void;
     readonly reject: (cause: unknown) => void;
   }> = [];
 
-  /** 取走这份文件所有在路上的请求。 */
-  function takeAll(file: string) {
-    const taken = pending.filter((request) => request.file === file);
-    if (taken.length === 0) throw new Error(`没有在路上的 ${file}`);
-    pending.splice(0, pending.length, ...pending.filter((request) => request.file !== file));
+  /** 取走这个主题所有在路上的请求。 */
+  function takeAll(theme: Theme) {
+    const isFor = (request: { readonly theme: Theme }) => request.theme.slug === theme.slug;
+    const taken = pending.filter(isFor);
+    if (taken.length === 0) throw new Error(`没有在路上的 ${theme.slug} 名单`);
+    pending.splice(0, pending.length, ...pending.filter((request) => !isFor(request)));
     return taken;
   }
 
   return {
-    fetchRoster(file: string): Promise<string> {
-      return new Promise((resolve, reject) => pending.push({ file, resolve, reject }));
+    fetchRoster(theme: Theme): Promise<string> {
+      return new Promise((resolve, reject) => pending.push({ theme, resolve, reject }));
     },
     /** 带着原文回来，等回调跑完。 */
-    async succeed(file: string, text = roster(3)): Promise<void> {
-      for (const request of takeAll(file)) request.resolve(text);
+    async succeed(theme: Theme, text = roster(3)): Promise<void> {
+      for (const request of takeAll(theme)) request.resolve(text);
       await settle();
     },
     /** 取不到，等回调跑完。 */
-    async fail(file: string): Promise<void> {
-      for (const request of takeAll(file)) request.reject(new Error('HTTP 404'));
+    async fail(theme: Theme): Promise<void> {
+      for (const request of takeAll(theme)) request.reject(new Error('HTTP 404'));
       await settle();
     },
   };
@@ -294,13 +295,13 @@ describe('带玩法的地址', () => {
 
   it('名单回来后挂上地址里的那个玩法', async () => {
     const { fetch, boards } = open(gameHash(theme, secondGame));
-    await fetch.succeed(theme.rosterFile);
+    await fetch.succeed(theme);
     expect(mountedGames(boards)).toEqual([secondGame.slug]);
   });
 
   it('盘面上揭晓的候选来自这一次取回的名单原文', async () => {
     const { fetch, boards } = open(gameHash(theme, firstGame));
-    await fetch.succeed(theme.rosterFile, '沙县小吃,true');
+    await fetch.succeed(theme, '沙县小吃,true');
     expect(revealOn(boards[0])).toBe('沙县小吃');
   });
 
@@ -318,7 +319,7 @@ describe('带玩法的地址', () => {
     ],
   ])('%s：名单错误原样交给页面，不写玩法页，不挂盘面', async (_case, csvText, error) => {
     const { fetch, log, page, boards } = open(gameHash(theme, firstGame));
-    await fetch.succeed(theme.rosterFile, csvText);
+    await fetch.succeed(theme, csvText);
     expect(log).toEqual([`loading ${theme.slug}`, `page roster-error ${error.kind}`]);
     expect(page.rosterErrors).toEqual([{ theme, error }]);
     expect(page.gamePages).toEqual([]);
@@ -327,7 +328,7 @@ describe('带玩法的地址', () => {
 
   it('取不到文件时交出没取到的名单错误，带上取不到的原因', async () => {
     const { fetch, log, page } = open(gameHash(theme, firstGame));
-    await fetch.fail(theme.rosterFile);
+    await fetch.fail(theme);
     expect(log).toEqual([`loading ${theme.slug}`, 'page roster-error load']);
     expect(page.rosterErrors).toEqual([
       { theme, error: { kind: 'load', cause: new Error('HTTP 404') } },
@@ -337,7 +338,7 @@ describe('带玩法的地址', () => {
   // 留下未处理的 rejection 时 vitest 判整轮失败。
   it('名单回来后挂盘面抛错，不当成没取到', async () => {
     const { fetch, page } = open(gameHash(theme, firstGame), { mountThrows: true });
-    await fetch.succeed(theme.rosterFile);
+    await fetch.succeed(theme);
     expect(page.rosterErrors).toEqual([]);
   });
 });
@@ -349,7 +350,7 @@ describe('只定了主题的地址', () => {
 
   it('接着只画一遍抽到的那个玩法：加载中一次，挂上一次', async () => {
     const { fetch, log } = open(themeHash(theme));
-    await fetch.succeed(theme.rosterFile);
+    await fetch.succeed(theme);
     expect(log).toEqual([`loading ${theme.slug}`, 'page game', `board mount ${firstGame.slug}`]);
   });
 });
@@ -376,10 +377,10 @@ describe('最近中选', () => {
    */
   async function revealedAfter(to: Theme, game: Game): Promise<string | undefined> {
     const { browser, fetch, boards } = open(gameHash(theme, firstGame));
-    await fetch.succeed(theme.rosterFile, roster(2));
+    await fetch.succeed(theme, roster(2));
     revealOn(boards[0]);
     browser.visit(gameHash(to, game));
-    await fetch.succeed(to.rosterFile, roster(2));
+    await fetch.succeed(to, roster(2));
     return revealOn(boards[1]);
   }
 
@@ -396,20 +397,20 @@ describe('换页', () => {
   it('名单在路上时地址变了，晚回来的名单不挂', async () => {
     const { browser, fetch, boards } = open(gameHash(theme, firstGame));
     browser.visit(gameHash(otherTheme, firstGame));
-    await fetch.succeed(theme.rosterFile);
+    await fetch.succeed(theme);
     expect(mountedGames(boards)).toEqual([]);
   });
 
   it('名单在路上时地址变了，晚回来的失败不画错误页', async () => {
     const { browser, fetch, log } = open(gameHash(theme, firstGame));
     browser.visit(gameHash(otherTheme, firstGame));
-    await fetch.fail(theme.rosterFile);
+    await fetch.fail(theme);
     expect(log).toEqual([`loading ${theme.slug}`, `loading ${otherTheme.slug}`]);
   });
 
   it('先拆上一页，再画下一页', async () => {
     const { browser, fetch, log } = open(gameHash(theme, firstGame));
-    await fetch.succeed(theme.rosterFile);
+    await fetch.succeed(theme);
     browser.visit(THEME_PICKER_HASH);
     expect(log.slice(-2)).toEqual([`board teardown ${firstGame.slug}`, 'picker']);
   });

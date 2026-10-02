@@ -12,9 +12,7 @@ import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
 import { rollGame, type Game } from './games';
 import { recentGamesMemory, recentWinnersMemory, type RecentStorage } from './recentStorage';
-import { createRosterSession, type RosterSession } from './roster';
-import type { RosterError } from './rosterError';
-import type { Theme } from './themes';
+import { createRosterSession, type RosterError, type RosterSession, type Theme } from './theme';
 
 /** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上补齐站内导航自己画的几屏。 */
 export interface NavigationPage extends PageAdapter {
@@ -43,8 +41,8 @@ export interface PickerLinkClick {
 export interface NavigationOptions {
   readonly history: Pick<History, 'state' | 'replaceState' | 'back'>;
   readonly location: Pick<Location, 'hash' | 'replace'>;
-  /** 取回 `public/` 下某份名单文件的原文，失败时抛错。 */
-  readonly fetchRoster: (rosterFile: string) => Promise<string>;
+  /** 取回这个主题的名单原文，失败时抛错。 */
+  readonly fetchRoster: (theme: Theme) => Promise<string>;
   /** 存最近玩法与最近中选（ADR-0011），拿不到就是 `undefined`。 */
   readonly storage: RecentStorage | undefined;
   /** 抽玩法和抽中选共用。 */
@@ -139,7 +137,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
     page.showRosterLoading(theme);
 
     // 只有取不到才是「没取到」；挂玩法页抛错是程序写错，由链尾报到控制台。
-    fetchRoster(theme.rosterFile)
+    fetchRoster(theme)
       .then(
         (csvText): OpenedRoster =>
           createRosterSession({

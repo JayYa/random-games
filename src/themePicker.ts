@@ -4,7 +4,10 @@
 
 import { themeHash } from './address';
 import { escapeHtml } from './escapeHtml';
-import { SITE_TITLE, type Theme } from './themes';
+import type { Theme } from './theme';
+
+/** 站名，也是选主题页的 `document.title`。 */
+export const SITE_TITLE = '是但';
 
 export function renderThemePicker(root: HTMLElement, themes: readonly Theme[]): void {
   const entries = themes.map(

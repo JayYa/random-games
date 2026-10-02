@@ -1,10 +1,10 @@
 /** 名单的用例，全部经过创建名单会话：解析、四种结果、抽中选、冷却。 */
 
 import { describe, expect, it } from 'vitest';
-import type { RandomSource } from './randomIndex';
-import { createRosterSession } from './roster';
-import type { RecentMemory } from './cooldown';
-import { csv, fakeRecentMemory, roster, rosterNames, scriptedRandom, seededRandom } from './testHelpers';
+import type { RandomSource } from '../randomIndex';
+import { createRosterSession } from './index';
+import type { RecentMemory } from '../cooldown';
+import { csv, fakeRecentMemory, roster, rosterNames, scriptedRandom, seededRandom } from '../testHelpers';
 
 interface SessionOptions {
   csvText: string;

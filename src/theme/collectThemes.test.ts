@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectThemes } from './collectThemes';
+import { collectThemes, rosterFileName } from './index';
 
 /**
  * 名单头部的说明文字。前半段照搬 `public/` 下名单的头部；后半段补几行宽松实现会误认的：
@@ -10,7 +10,7 @@ const PROSE_HEADER = [
   '#',
   '# name    候选的名字。名字里有逗号时用双引号包起来，例如 "老王烧烤, 二店"；',
   '#         名字里要写双引号时，把它双写成 ""。',
-  '# enabled 只有写 false / 0 / no（不区分大小写）才算停用，停用的候选不上转盘；',
+  '# enabled 只有写 false / 0 / no（不区分大小写）才算停用，停用的候选永远不会中选；',
   '#         其余一切取值——包括留空和整列缺失——都算启用。',
   '#',
   '# 空行和 # 开头的注释行会被跳过，可以拿来给名单分组。',
@@ -32,7 +32,6 @@ describe('collectThemes', () => {
     expect(themes).toEqual([
       {
         slug: 'drink',
-        rosterFile: 'drink.csv',
         title: '今天喝哪杯',
         entryLabel: '今天喝什么',
       },
@@ -48,7 +47,6 @@ describe('collectThemes', () => {
     expect(themes).toEqual([
       {
         slug: 'drink',
-        rosterFile: 'drink.csv',
         title: '今天喝什么',
         entryLabel: '今天喝什么',
       },
@@ -68,7 +66,6 @@ describe('collectThemes', () => {
     expect(themes).toEqual([
       {
         slug: 'drink',
-        rosterFile: 'drink.csv',
         title: '今天喝哪杯',
         entryLabel: '今天喝什么',
       },
@@ -174,7 +171,6 @@ describe('collectThemes', () => {
     expect(themes).toEqual([
       {
         slug: 'eat',
-        rosterFile: 'eat.csv',
         title: '今天吃哪家',
         entryLabel: '今天吃什么',
       },
@@ -194,5 +190,14 @@ describe('collectThemes', () => {
     ]);
 
     expect(themes.map((theme) => theme.slug)).toEqual(['drink', 'eat', 'play', 'work']);
+  });
+
+  it('被发现的主题问回来的名单文件就是它来源的那份', () => {
+    const fileNames = ['drink.csv', 'go-out.csv', 'day2.csv'];
+    const { themes } = collectThemes(
+      fileNames.map((fileName) => ({ fileName, csvText: '# entry: 今天做什么\n' })),
+    );
+
+    expect(themes.map(rosterFileName)).toEqual([...fileNames].sort());
   });
 });

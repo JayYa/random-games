@@ -2,7 +2,9 @@
  * 从一组名单文件得出主题清单（ADR-0009）。无头：跳过的原因作为返回值交出，由调用方打印。
  */
 
-import type { Theme } from './themes.ts';
+import type { Theme } from './theme.ts';
+import { ROSTER_FILE_EXTENSION } from './rosterFile.ts';
+import { rosterLines } from './rosterFormat.ts';
 
 export interface SkippedRoster {
   /** 例如 `Eat.csv`。 */
@@ -22,8 +24,17 @@ export interface CollectThemesResult {
   readonly warnings: readonly SkippedRoster[];
 }
 
-/** 不接受大写、中文、空格。扩展名也在这里校验，`Drink.CSV` 才会变成一条 warning 而不是无声消失。 */
-const FILE_NAME_PATTERN = /^([a-z0-9-]+)\.csv$/;
+/** 主名即 slug，不接受大写、中文、空格。 */
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
+
+/**
+ * 认得出就是它的 slug。扩展名也在这里校验，`Drink.CSV` 才会变成一条 warning 而不是无声消失。
+ */
+function slugOf(fileName: string): string | undefined {
+  if (!fileName.endsWith(ROSTER_FILE_EXTENSION)) return undefined;
+  const slug = fileName.slice(0, -ROSTER_FILE_EXTENSION.length);
+  return SLUG_PATTERN.test(slug) ? slug : undefined;
+}
 
 /** 封闭的两个键；其余 `#` 行当说明文字跳过。 */
 const METADATA_KEYS = ['entry', 'title'] as const;
@@ -41,17 +52,16 @@ function isMetadataKey(key: string): key is MetadataKey {
 }
 
 /**
- * 从注释行里取出元数据。同一个键写了多次以先写的为准；写了键没写值也算写过，笔误
- * 不会被下面一行悄悄兜住。
+ * 从注释行里取出元数据（ADR-0009）。同一个键写了多次以先写的为准；写了键没写值也算写过，
+ * 笔误不会被下面一行悄悄兜住。
  */
 function readMetadata(csvText: string): RosterMetadata {
   const metadata: RosterMetadata = {};
 
-  for (const line of csvText.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith('#')) continue;
+  for (const line of rosterLines(csvText)) {
+    if (line.kind !== 'comment') continue;
 
-    const match = METADATA_PATTERN.exec(trimmed.slice(1).trim());
+    const match = METADATA_PATTERN.exec(line.body);
     if (match === null) continue;
 
     const key = match[1] ?? '';
@@ -76,11 +86,11 @@ export function collectThemes(files: readonly RosterFile[]): CollectThemesResult
   const sorted = [...files].sort((a, b) => (a.fileName < b.fileName ? -1 : a.fileName > b.fileName ? 1 : 0));
 
   for (const { fileName, csvText } of sorted) {
-    const match = FILE_NAME_PATTERN.exec(fileName);
-    if (match === null) {
+    const slug = slugOf(fileName);
+    if (slug === undefined) {
       warnings.push({
         fileName,
-        reason: '文件名不合规：主名只能用小写字母、数字和连字符，扩展名必须是 .csv',
+        reason: `文件名不合规：主名只能用小写字母、数字和连字符，扩展名必须是 ${ROSTER_FILE_EXTENSION}`,
       });
       continue;
     }
@@ -105,8 +115,7 @@ export function collectThemes(files: readonly RosterFile[]): CollectThemesResult
     }
 
     themes.push({
-      slug: match[1] ?? '',
-      rosterFile: fileName,
+      slug,
       title: valueOr(metadata.title, entryLabel),
       entryLabel,
     });

@@ -4,7 +4,7 @@
  */
 
 import type { Game } from './games';
-import type { Theme } from './themes';
+import type { Theme } from './theme';
 
 export type Address =
   | { readonly kind: 'picker'; readonly canonical: boolean }
