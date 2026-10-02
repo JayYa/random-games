@@ -2,7 +2,7 @@
  * 渲染层：玩法页共用的外壳（页头）和加载态。薄，不测。
  */
 
-import { THEME_PICKER_HASH } from './address';
+import { THEME_PICKER_HASH } from './navigation';
 import { escapeHtml } from './escapeHtml';
 import type { Theme } from './theme';
 
