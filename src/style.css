@@ -171,10 +171,11 @@ body {
   min-height: 100svh;
 }
 
-/* 高屏上盘面连同操作在页头以下的空间里居中，不全挤在顶上。 */
-.wheel__stage,
-.pinball__stage {
+/* 高屏上标题、盘面连同操作在页头以下的空间里居中，不全挤在顶上。标题紧贴盘面，跟着它走。 */
+.wheel .page__title,
+.pinball .page__title {
   margin-top: auto;
+  margin-bottom: 6px;
 }
 
 .wheel__spin,
@@ -184,22 +185,18 @@ body {
 
 .wheel {
   /* 转盘之外的部件大致占掉的高度，让转盘和「转」同在首屏内。 */
-  --wheel-chrome: 236px;
+  --wheel-chrome: 290px;
 }
 
-/* 页头：入口靠左、标题居中，同占一行。左右两列等宽，标题才相对整行居中。 */
+/* 页头：只有入口，靠左。 */
 .page__header {
   width: 100%;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 8px;
+  display: flex;
 }
 
 /* 标题是手写的，底下划一道荧光笔。 */
 .page__title {
   margin: 0;
-  grid-column: 2;
   padding: 0 6px;
   font-family: var(--hand);
   font-size: 1.85rem;
@@ -305,7 +302,8 @@ body {
 .wheel__spin {
   --rest: rotate(-1.5deg);
   position: relative;
-  width: min(100%, 300px);
+  /* 跟着屏宽走：手机上约六成宽，宽屏封顶 300px。 */
+  width: min(100%, clamp(180px, 60vw, 300px));
   min-height: 76px;
   padding: 0 32px;
   border: 5px solid var(--sticker);
@@ -459,7 +457,7 @@ body {
 
 .pinball {
   /* 盘面之外的部件大致占掉的高度，让整块盘面连同柱塞在首屏内。 */
-  --pinball-chrome: 150px;
+  --pinball-chrome: 204px;
 }
 
 .pinball__stage {
@@ -517,11 +515,11 @@ body {
   }
 
   .wheel {
-    --wheel-chrome: 150px;
+    --wheel-chrome: 194px;
   }
 
   .pinball {
-    --pinball-chrome: 110px;
+    --pinball-chrome: 154px;
   }
 
   .page__title {

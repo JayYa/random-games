@@ -41,7 +41,7 @@ function shuffled<T>(items: readonly T[]): T[] {
  * 每一页都带这两样（ADR-0005）。选主题页不套。
  *
  * 入口是真链接，好让中键新开、长按菜单照常可用；普通左键单击由站内导航改成后退
- * （ADR-0007）。它与标题同占一行，不挤占盘面的高度。
+ * （ADR-0007）。入口单独贴在左上角；标题不跟它同行，而是跟着下面的盘面走，贴在盘面正上方。
  *
  * `block` 是这一页的 BEM 块名（如 `wheel`），挂玩法自己的样式；加载态和错误页没有盘面，不传。
  */
@@ -51,8 +51,8 @@ function pageShell(theme: Theme, body: string, block?: string): string {
     <main class="page${blockClass}">
       <header class="page__header">
         <a class="page__home" data-to-picker href="${THEME_PICKER_HASH}"><span class="tape" style="--tape:${anyOf(PALETTE)}"></span>← 换个主题</a>
-        <h1 class="page__title">${escapeHtml(theme.title)}</h1>
       </header>
+      <h1 class="page__title">${escapeHtml(theme.title)}</h1>
       ${body}
     </main>
   `;
@@ -94,7 +94,7 @@ export function browserPage(root: HTMLElement): NavigationPage {
       root.innerHTML = `
     <main class="picker">
       <h1 class="picker__title" aria-label="${escapeHtml(SITE_TITLE)}">${letters}</h1>
-      <p class="picker__lead">今天随机决定点什么？</p>
+      <p class="picker__lead">今天来点什么呢？</p>
       <ul class="picker__list">${entries}</ul>
     </main>
   `;
