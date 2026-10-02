@@ -1,5 +1,5 @@
 /**
- * 渲染层：求签筒的盘面——指针事件、rAF 循环与绘制。薄，不测。
+ * 渲染层：求签筒的盘面——指针事件、`devicemotion`、rAF 循环与绘制。薄，不测。
  *
  * 状态全在求签筒机器（`./machine.ts`），几何与手感参数全照它的常量表 `STICKS`。帧循环同
  * 弹球机（ADR-0013）：rAF 常转，只有结果卡片盖住盘面时停帧，收下即起。没有键盘操作
@@ -12,6 +12,7 @@ import { fitCanvas } from '../fitCanvas';
 import {
   STICKS,
   createSticksMachine,
+  type MotionSupport,
   type PointerSample,
   type SticksDrop,
   type SticksView,
@@ -268,6 +269,17 @@ function drawBoard(ctx: CanvasRenderingContext2D, view: SticksView, colors: Stic
   if (view.drop) drawDroppedStick(ctx, view.drop, view.revealed, colors);
 }
 
+/**
+ * 按平台检测能不能摇手机（#196）：有 `DeviceMotionEvent.requestPermission` 的（iOS）要先授权；
+ * 别的先当读不到，收到第一个带数据的 `devicemotion` 才算能用——电脑上也有这个事件类型，但不来
+ * 数据或只来空的。
+ */
+function detectMotion(): { support: MotionSupport } {
+  if (typeof DeviceMotionEvent === 'undefined') return { support: 'unsupported' };
+  const { requestPermission } = DeviceMotionEvent as unknown as { requestPermission?: unknown };
+  return { support: typeof requestPermission === 'function' ? 'needs-permission' : 'unsupported' };
+}
+
 export function createSticksBoard(): Board {
   return {
     html: BOARD_HTML,
@@ -279,7 +291,8 @@ export function createSticksBoard(): Board {
 
 function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   const canvas = createById(root)<HTMLCanvasElement>('sticks-board');
-  const machine = createSticksMachine(roll);
+  const motion = detectMotion();
+  const machine = createSticksMachine(roll, { motion });
   const controller = new AbortController();
   const listen = { signal: controller.signal } as const;
   let rafId = 0;
@@ -346,6 +359,24 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     canvas.addEventListener(type, (event) => machine.release(event.pointerId), listen);
   }
 
+  if (typeof DeviceMotionEvent !== 'undefined') {
+    let lastMotionAt: number | undefined;
+    window.addEventListener(
+      'devicemotion',
+      (event) => {
+        // 不含重力的加速度；只有含重力的那份或全是空值的设备当读不到。
+        const x = event.acceleration?.x;
+        if (x === null || x === undefined) return;
+        motion.support = 'supported';
+        // 间隔按事件时间戳现量：`interval` 的单位各家不一。
+        const intervalMs = lastMotionAt === undefined ? event.interval : event.timeStamp - lastMotionAt;
+        lastMotionAt = event.timeStamp;
+        machine.shakeBy({ x, intervalMs });
+      },
+      listen,
+    );
+  }
+
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener(
     'change',
     () => {
@@ -365,7 +396,7 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
       start();
     },
     reset: machine.reset,
-    // 没有可聚焦的操作（ADR-0015），不给 returnFocusTo。
+    // 没有可聚焦的操作（ADR-0015），不给 returnFocusTo。撤掉 window 上的监听含 `devicemotion`。
     teardown: () => {
       cancelAnimationFrame(rafId);
       controller.abort();

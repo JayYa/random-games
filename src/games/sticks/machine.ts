@@ -1,11 +1,11 @@
 /**
  * 求签筒机器 (Fortune Sticks Machine)：求签筒的全部状态，不碰 DOM。
  *
- * 管拖着签筒甩、冒头（ADR-0015）、出签与揭晓。指针只以普通数据的样本进来，时间只经
- * `tick(now)` 进来。
+ * 管拖着签筒甩、摇手机、冒头（ADR-0015）、出签与揭晓。指针样本和加速度样本都只以普通数据
+ * 进来，时间只经 `tick(now)` 进来。
  *
  * 签掉出筒口那一刻才 `begin()`，签在筒前立住时 `boardStopped()`。之前的甩都不经开抽句柄：
- * 签没掉出来之前随时可以停、可以离开（ADR-0015）。锁着时指针样本一律不接。
+ * 签没掉出来之前随时可以停、可以离开（ADR-0015）。锁着时指针样本和加速度样本一律不接。
  *
  * 冒头这张票只涨不降；停手后回落见 #198。
  */
@@ -36,6 +36,18 @@ export const STICKS = {
    * 冒头 0 到 1，1 即出签。用力甩（约 600 单位/秒）约 2 秒出签，轻轻晃（约 200 单位/秒）约 6 秒。
    */
   risePerUnit: 1 / 1200,
+  /**
+   * 摇手机：水平加速度（米每二次方秒）不到这个数的不算，免得拿着手机走路时签自己冒出来。
+   * 起点值，在真 Android 手机上调（#200）。
+   */
+  motionThreshold: 4,
+  /**
+   * 摇手机按超出门槛的加速度涨冒头：超出 1 米每二次方秒、摇 1 秒，折合签筒走这么多盘面单位，
+   * 再按 `risePerUnit` 涨。用力摇（约 15）约 2 秒出签，轻轻摇（约 7）约 6 秒，同拖着甩。
+   */
+  motionUnitsPerAccelSecond: 55,
+  /** 摇手机时签筒摆多远：超出门槛的加速度每 1 米每二次方秒摆这么多盘面单位，不超过限位。 */
+  motionSwingPerAccel: 6,
   /** 签从掉出筒口到在筒前立住要多久：掉下来、弹一下、立住。立住才报盘面停下。 */
   dropMs: 900,
 } as const;
@@ -57,6 +69,25 @@ export interface SticksDrop {
   readonly standing: boolean;
 }
 
+/** 这台设备能不能摇手机：能直接读运动传感器（Android）、要先授权（iOS）、读不到（电脑）。 */
+export type MotionSupport = 'supported' | 'needs-permission' | 'unsupported';
+
+/**
+ * 摇手机的能力，由渲染层按平台检测后注入。机器每次用时现读：Android 要收到第一个带数据的
+ * `devicemotion` 才知道能用，iOS 授权以后也会变。
+ */
+export interface MotionCapability {
+  readonly support: MotionSupport;
+}
+
+/** 一个手机加速度样本：`devicemotion` 里不含重力的水平加速度。 */
+export interface MotionSample {
+  /** 沿手机屏幕横向的加速度，米每二次方秒，往右为正。 */
+  readonly x: number;
+  /** 离上一个样本多久，毫秒。 */
+  readonly intervalMs: number;
+}
+
 export interface SticksView {
   /** 签筒离正中多远（盘面单位，往右为正），不超过 `STICKS.tubeLimit`。 */
   readonly tubeOffset: number;
@@ -73,6 +104,8 @@ export interface SticksView {
   readonly drop: SticksDrop | undefined;
   /** 写在立着的签上的名字，只在揭晓到抹掉之间有值。 */
   readonly revealed: string | undefined;
+  /** 能不能摇手机；读不到运动传感器的设备上没有这一项，不出现任何跟摇手机有关的界面。 */
+  readonly motion: Exclude<MotionSupport, 'unsupported'> | undefined;
   /** 结果卡片已经盖住盘面：抹掉之前画面一帧都不再变，渲染层可以停帧。 */
   readonly still: boolean;
 }
@@ -100,6 +133,8 @@ export interface SticksMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
   move(sample: PointerSample): void;
   /** 松手，签筒回正。 */
   release(pointerId: number): void;
+  /** 摇手机：一个加速度样本，同拖着甩一样涨冒头，签筒跟着摆。只在能直接读传感器时才接。 */
+  shakeBy(sample: MotionSample): void;
   /** 推进到 `now`（毫秒，rAF 口径），交回画面。第一次只作基准。 */
   tick(now: number): SticksView;
   /** 收下之后复位：签回到筒里、冒头归零。不自动开抽。 */
@@ -118,11 +153,15 @@ function unitsPerPx(rect: CanvasRect): number {
   return width > 0 ? STICKS.width / width : 1;
 }
 
-/**
- * @param roll 宿主交给盘面的开抽句柄。
- * @param random 只用来定哪根签打头。
- */
-export function createSticksMachine(roll: RollHandle, random: RandomSource = Math.random): SticksMachine {
+export interface SticksOptions {
+  /** 只用来定哪根签打头。 */
+  readonly random?: RandomSource;
+  readonly motion: MotionCapability;
+}
+
+/** @param roll 宿主交给盘面的开抽句柄。 */
+export function createSticksMachine(roll: RollHandle, options: SticksOptions): SticksMachine {
+  const { random = Math.random, motion } = options;
   let drag: Drag | undefined;
   let offset = 0;
   /** 上一次 tick 以来签筒走过的路程（盘面单位）。 */
@@ -174,6 +213,21 @@ export function createSticksMachine(roll: RollHandle, random: RandomSource = Mat
       if (drag?.pointerId === pointerId) drag = undefined;
     },
 
+    shakeBy(sample) {
+      if (motion.support !== 'supported' || roll.locked) return;
+      const excess = Math.abs(sample.x) - STICKS.motionThreshold;
+      if (excess <= 0) return;
+      const ms = Math.min(Math.max(sample.intervalMs, 0), MAX_FRAME_MS);
+      // 第一下甩时定哪根签打头，与谁中选无关（ADR-0015）。
+      leadStick ??= randomIndex(random, STICKS.stickCount);
+      travel += (excess * STICKS.motionUnitsPerAccelSecond * ms) / 1000;
+      // 手指拖着时签筒听手指的。没拖时筒像有惯性，往手机加速的反方向甩，停了就照常回正。
+      if (!drag) {
+        const swing = Math.min(STICKS.tubeLimit, excess * STICKS.motionSwingPerAccel);
+        offset = -Math.sign(sample.x) * swing;
+      }
+    },
+
     tick(now) {
       if (stillView) return stillView;
       const delta = lastTickAt === undefined ? 0 : Math.min(now - lastTickAt, MAX_FRAME_MS);
@@ -202,7 +256,8 @@ export function createSticksMachine(roll: RollHandle, random: RandomSource = Mat
       const tubeTilt = offset === 0 ? 0 : (offset / STICKS.tubeLimit) * STICKS.tubeMaxTilt;
       if (revealed !== undefined) revealedAt ??= now;
       const still = revealedAt !== undefined && now - revealedAt >= STILL_AFTER_REVEAL_MS;
-      const view: SticksView = { tubeOffset: offset, tubeTilt, leadStick, rise, drop, revealed, still };
+      const motionView = motion.support === 'unsupported' ? undefined : motion.support;
+      const view: SticksView = { tubeOffset: offset, tubeTilt, leadStick, rise, drop, revealed, motion: motionView, still };
       if (still) {
         stillView = view;
         // 停住的这段不算时间：抹掉后第一次 tick 只作基准。

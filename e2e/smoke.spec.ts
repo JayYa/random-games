@@ -166,6 +166,26 @@ test.describe('求签筒', () => {
     // 收下之后能再抽一根。
     await shakeUntilCard(page);
   });
+
+  test('摇手机（能直接读运动传感器的设备）也能摇出签', async ({ page }) => {
+    await page.goto(`#/${THEME}/sticks`);
+    await expect(page.locator('#sticks-board')).toBeVisible();
+
+    // 模拟 Android：左右来回的水平加速度，60Hz。
+    await page.evaluate(() => {
+      let i = 0;
+      setInterval(() => {
+        i += 1;
+        const x = i % 2 === 0 ? 15 : -15;
+        window.dispatchEvent(
+          new DeviceMotionEvent('devicemotion', { acceleration: { x, y: 0, z: 0 }, interval: 16 }),
+        );
+      }, 16);
+    });
+
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+    await expect(page.locator('#card-name')).not.toBeEmpty();
+  });
 });
 
 test.describe('名单写坏时只画错误页、不挂盘面', () => {
