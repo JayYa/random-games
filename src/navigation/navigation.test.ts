@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { THEME_PICKER_HASH, gameHash, themeHash } from './address';
+import type { RecentStorage } from '../cooldown';
 import type { RollHandle } from '../gamePage';
 import type { Game } from '../games';
 import { createNavigation, type NavigationPage, type PickerLinkClick } from './navigation';
@@ -21,7 +22,6 @@ import {
   scriptedRandom,
   type FakeBoard,
   type FakeGamePage,
-  type FakeStorage,
 } from '../testHelpers';
 import type { Theme } from '../theme';
 
@@ -230,7 +230,7 @@ function revealOn(record: BoardRecord | undefined): string | undefined {
 
 interface StartOptions {
   /** 同一份再交一次就是刷新页面。 */
-  readonly storage?: FakeStorage;
+  readonly storage?: RecentStorage;
   /** 盘面挂载时抛错。 */
   readonly mountThrows?: boolean;
 }

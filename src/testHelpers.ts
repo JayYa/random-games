@@ -7,6 +7,7 @@ import type { Game } from './games';
 import type { Candidate, RosterError, Theme } from './theme';
 import {
   mountGamePage,
+  REVEAL_PAUSE_MS,
   type Board,
   type GamePageView,
   type MountedBoard,
@@ -44,9 +45,7 @@ export function rosterNames(count: number): string[] {
 }
 
 /** 内存里的 localStorage。同一份交给第二个站内导航，就是刷新了页面。 */
-export type FakeStorage = RecentStorage;
-
-export function fakeStorage(): FakeStorage {
+export function fakeStorage(): RecentStorage {
   const entries = new Map<string, string>();
   return {
     getItem: (key) => entries.get(key) ?? null,
@@ -324,6 +323,10 @@ export interface HostedBoard {
   readonly drawnWinners: readonly string[];
   /** 宿主交给盘面的开抽句柄，在 `board.mount` 里截下。 */
   readonly roll: RollHandle;
+  /** 走完揭晓那一拍。不在揭晓时什么都不发生。 */
+  readonly finishReveal: () => void;
+  /** 收下：先走完揭晓那一拍，再按结果卡片上的收下按钮。卡片没挂着时按不到。 */
+  readonly accept: () => void;
 }
 
 /**
@@ -365,5 +368,11 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
   // 宿主当场挂盘面；没截到句柄是宿主写错了。
   if (!roll) throw new Error('宿主应当当场挂上盘面');
   // 交出活的数组而不是 getter：用例常把挂载结果展开进自己的 harness。
-  return { teardown, page, timer, drawnWinners, roll };
+  // 那一拍只有揭晓时排着；不在揭晓时拨过去，没有到点的回调。
+  const finishReveal = (): void => timer.advance(REVEAL_PAUSE_MS);
+  const accept = (): void => {
+    finishReveal();
+    page.pressClose();
+  };
+  return { teardown, page, timer, drawnWinners, roll, finishReveal, accept };
 }

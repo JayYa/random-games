@@ -8,12 +8,10 @@ export {
   mountGamePage,
   REVEAL_PAUSE_MS,
   type Board,
-  type CancelScheduled,
   type GamePageView,
   type MountedBoard,
   type PageAdapter,
   type ResultCard,
   type RollHandle,
   type Schedule,
-  type WrittenGamePage,
 } from './gamePageHost.ts';

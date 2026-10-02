@@ -1,12 +1,12 @@
 /**
  * 弹球机机器的用例。机器经 `mountOnHost` 挂在真宿主上，物理模拟也是真的，种子固定。
  *
- * 机器的时间只经 `tick(now)` 进来；宿主停的那一拍只经假计时器走。
+ * 机器的时间只经 `tick(now)` 进来；宿主停的那一拍只经宿主替身的 `finishReveal()` 走。
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { REVEAL_PAUSE_MS, type Board } from '../../gamePage';
+import type { Board } from '../../gamePage';
 import { BOARD, slotIndexAtX } from './board';
 import {
   FULL_PULL_PX,
@@ -92,12 +92,6 @@ function fire({ machine }: Harness): Frame {
   pull(machine);
   machine.release(pointerAt(MID_X, PULLED_Y));
   return { at: START_MS, view: machine.tick(START_MS) };
-}
-
-/** 停完那一拍，按收下。机器的时间不动。 */
-function accept({ timer, page }: Harness): void {
-  timer.advance(REVEAL_PAUSE_MS);
-  page.pressClose();
 }
 
 function cardShows({ page }: Harness): number {
@@ -357,7 +351,7 @@ describe('回放与揭晓的时刻', () => {
     const { reached } = stepUntil(harness.machine, fire(harness), isRevealed);
     stepFor(harness.machine, reached.at, FAR_MS);
 
-    harness.timer.advance(REVEAL_PAUSE_MS);
+    harness.finishReveal();
 
     expect(cardShows(harness)).toBe(1);
   });
@@ -377,7 +371,7 @@ describe('回放与揭晓的时刻', () => {
     harness.machine.tick(START_MS + FAR_MS);
     harness.machine.tick(START_MS + FAR_MS + FRAME_MS);
 
-    harness.timer.advance(REVEAL_PAUSE_MS);
+    harness.finishReveal();
 
     expect(cardShows(harness)).toBe(1);
   });
@@ -425,7 +419,7 @@ describe('球摆在哪', () => {
     fire(harness);
     harness.machine.tick(START_MS + FAR_MS);
 
-    accept(harness);
+    harness.accept();
     const ready = harness.machine.tick(START_MS + FAR_MS + FRAME_MS);
 
     expect(ballOf(ready)).toEqual(ballOf(atRest));
@@ -450,7 +444,7 @@ describe('揭晓', () => {
     fire(harness);
     harness.machine.tick(START_MS + FAR_MS);
 
-    accept(harness);
+    harness.accept();
 
     expect(harness.machine.tick(START_MS + FAR_MS + FRAME_MS).revealed).toBeUndefined();
   });
@@ -487,7 +481,7 @@ describe('风车', () => {
     // 刚揭晓，球还在落格里弹。
     const { reached: revealed } = stepUntil(machine, launched, isRevealed);
 
-    accept(harness);
+    harness.accept();
     const next = machine.tick(revealed.at + FRAME_MS);
 
     expect(ballOf(next)).toEqual(ballOf(atRest));
