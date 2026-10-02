@@ -1,12 +1,12 @@
 /**
  * 转盘机器的用例。机器经 `mountOnHost` 挂在真宿主上，随机源用种子随机源。
  *
- * 机器的时间只经 `tick(now)` 进来；宿主停的那一拍只经假计时器走。
+ * 机器的时间只经 `tick(now)` 进来；宿主停的那一拍只经宿主替身的 `finishReveal()` 走。
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { REVEAL_PAUSE_MS, type Board } from '../../gamePage';
+import type { Board } from '../../gamePage';
 import {
   SPIN_DURATION_MS,
   createWheelMachine,
@@ -54,12 +54,6 @@ function setup({ seed = 7, winners }: SetupOptions = {}): Harness {
   return { ...hosted, machine };
 }
 
-/** 停完那一拍，按收下。机器的时间不动。 */
-function accept({ timer, page }: Harness): void {
-  timer.advance(REVEAL_PAUSE_MS);
-  page.pressClose();
-}
-
 /** 刚挂上的机器起转，走到动画起点那一帧。 */
 function startSpin(machine: WheelMachine): void {
   machine.tick(FIRST_TICK_MS);
@@ -95,7 +89,7 @@ describe('指针底下就是揭晓的那一格（ADR-0003）', () => {
         const stopped = spinThrough(harness.machine, START_MS + spin * 2 * SPIN_DURATION_MS);
         pointed.push(harness.machine.sectors.sectorAt(stopped.rotation));
         revealed.push(stopped.reveal?.sector);
-        accept(harness);
+        harness.accept();
       }
     }
 
@@ -119,9 +113,9 @@ describe('一次开抽就是一次', () => {
     ],
     [
       '卡片挂着时',
-      ({ machine, timer }) => {
+      ({ machine, finishReveal }) => {
         machine.tick(START_MS + SPIN_DURATION_MS);
-        timer.advance(REVEAL_PAUSE_MS);
+        finishReveal();
       },
     ],
   ];
@@ -195,7 +189,7 @@ describe('走到终点才揭晓', () => {
     spinThrough(harness.machine, START_MS);
     stepEvery(harness.machine, START_MS + SPIN_DURATION_MS, FRAME_MS, START_MS + 2 * SPIN_DURATION_MS);
 
-    harness.timer.advance(REVEAL_PAUSE_MS);
+    harness.finishReveal();
 
     expect(cardShows(harness)).toBe(1);
   });
@@ -206,7 +200,7 @@ describe('走到终点才揭晓', () => {
     harness.machine.spin();
     stepEvery(harness.machine, START_MS - FRAME_MS, FRAME_MS, START_MS + 2 * SPIN_DURATION_MS);
 
-    harness.timer.advance(REVEAL_PAUSE_MS);
+    harness.finishReveal();
 
     expect(cardShows(harness)).toBe(1);
   });
@@ -238,7 +232,7 @@ describe('收下之后', () => {
     harness.machine.tick(FIRST_TICK_MS);
     spinThrough(harness.machine, START_MS);
 
-    accept(harness);
+    harness.accept();
     const after = harness.machine.tick(START_MS + 2 * SPIN_DURATION_MS);
 
     expect(after.reveal).toBeUndefined();
@@ -249,7 +243,7 @@ describe('收下之后', () => {
     harness.machine.tick(FIRST_TICK_MS);
     const stopped = spinThrough(harness.machine, START_MS);
 
-    accept(harness);
+    harness.accept();
     const after = harness.machine.tick(START_MS + 2 * SPIN_DURATION_MS);
 
     expect(after.rotation).toBe(stopped.rotation);
@@ -260,7 +254,7 @@ describe('收下之后', () => {
     const { machine } = harness;
     machine.tick(FIRST_TICK_MS);
     const stopped = spinThrough(machine, START_MS);
-    accept(harness);
+    harness.accept();
     const secondStart = START_MS + 2 * SPIN_DURATION_MS;
 
     machine.spin();
@@ -326,7 +320,7 @@ describe('补画不推进时间', () => {
     const harness = setup();
     harness.machine.tick(FIRST_TICK_MS);
     spinThrough(harness.machine, START_MS);
-    accept(harness);
+    harness.accept();
 
     const viewed = harness.machine.view();
 
