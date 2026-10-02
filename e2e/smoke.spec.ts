@@ -59,6 +59,26 @@ test.describe('转盘', () => {
     await expect(card(page)).toBeHidden();
   });
 
+  test('卡片挂着时 Tab 出不了卡片；按 Esc 等于收下', async ({ page }) => {
+    await page.goto(`#/${THEME}/wheel`);
+    const spin = page.locator('#wheel-spin');
+    await spin.click();
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+    const close = page.locator('#card-close');
+    await expect(close).toBeFocused();
+
+    // 卡片后面的「换个主题」和「转」都 Tab 不到，焦点一直在收下按钮上。
+    for (const key of ['Tab', 'Tab', 'Shift+Tab']) {
+      await page.keyboard.press(key);
+      await expect(close).toBeFocused();
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(card(page)).toBeHidden();
+    await expect(spin).toBeFocused();
+    await expect(spin).toHaveAttribute('aria-disabled', 'false');
+  });
+
   test('揭晓那一拍里换页，卡片不会在下一页上弹出来', async ({ page }) => {
     // 接管并停住时钟才停得进那一拍：转盘转完（3.5 秒）之后、卡片弹出（再过 0.8 秒）
     // 之前。停住之后时间只随 runFor 走，断言重试时撒花也不会自己播完。
