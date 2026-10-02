@@ -6,3 +6,8 @@ dist/
 test-results/
 playwright-report/
 *.tsbuildinfo
+# 手写字体的子集，构建时由 src/build/handFont.ts 现裁。
+fonts/build/
+# impeccable 的审查截图和问答日志，临时产物。
+.impeccable/review/
+.impeccable/questions/

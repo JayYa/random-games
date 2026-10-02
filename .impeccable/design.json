@@ -1,0 +1,971 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-02T12:15:13.958Z",
+  "title": "Design System: 是但",
+  "extensions": {
+    "seedKey": "202c587b",
+    "colorMeta": {
+      "tomato": {
+        "role": "primary",
+        "displayName": "番茄贴纸 Tomato Sticker",
+        "canonical": "#ff7a5c",
+        "oklch": "oklch(72.9% 0.169 34.1)",
+        "source": "--accent (PALETTE[0])",
+        "tonalRamp": [
+          "oklch(15.0% 0.169 34.1)",
+          "oklch(26.4% 0.169 34.1)",
+          "oklch(37.9% 0.169 34.1)",
+          "oklch(49.3% 0.169 34.1)",
+          "oklch(60.7% 0.169 34.1)",
+          "oklch(72.1% 0.169 34.1)",
+          "oklch(83.6% 0.169 34.1)",
+          "oklch(95.0% 0.169 34.1)"
+        ]
+      },
+      "sunflower": {
+        "role": "secondary",
+        "displayName": "向日葵贴纸 Sunflower Sticker",
+        "canonical": "#ffcf3d",
+        "oklch": "oklch(87.3% 0.161 89.5)",
+        "source": "PALETTE[1]",
+        "tonalRamp": [
+          "oklch(15.0% 0.161 89.5)",
+          "oklch(26.4% 0.161 89.5)",
+          "oklch(37.9% 0.161 89.5)",
+          "oklch(49.3% 0.161 89.5)",
+          "oklch(60.7% 0.161 89.5)",
+          "oklch(72.1% 0.161 89.5)",
+          "oklch(83.6% 0.161 89.5)",
+          "oklch(95.0% 0.161 89.5)"
+        ]
+      },
+      "mint": {
+        "role": "secondary",
+        "displayName": "薄荷贴纸 Mint Sticker",
+        "canonical": "#3fd0a8",
+        "oklch": "oklch(77.1% 0.135 170.3)",
+        "source": "PALETTE[2]",
+        "tonalRamp": [
+          "oklch(15.0% 0.135 170.3)",
+          "oklch(26.4% 0.135 170.3)",
+          "oklch(37.9% 0.135 170.3)",
+          "oklch(49.3% 0.135 170.3)",
+          "oklch(60.7% 0.135 170.3)",
+          "oklch(72.1% 0.135 170.3)",
+          "oklch(83.6% 0.135 170.3)",
+          "oklch(95.0% 0.135 170.3)"
+        ]
+      },
+      "sky": {
+        "role": "secondary",
+        "displayName": "天空贴纸 Sky Sticker",
+        "canonical": "#6f9bff",
+        "oklch": "oklch(70.3% 0.155 264.8)",
+        "source": "PALETTE[3]",
+        "tonalRamp": [
+          "oklch(15.0% 0.155 264.8)",
+          "oklch(26.4% 0.155 264.8)",
+          "oklch(37.9% 0.155 264.8)",
+          "oklch(49.3% 0.155 264.8)",
+          "oklch(60.7% 0.155 264.8)",
+          "oklch(72.1% 0.155 264.8)",
+          "oklch(83.6% 0.155 264.8)",
+          "oklch(95.0% 0.155 264.8)"
+        ]
+      },
+      "pink": {
+        "role": "secondary",
+        "displayName": "粉色贴纸 Pink Sticker",
+        "canonical": "#ff8cc0",
+        "oklch": "oklch(77.9% 0.150 352.6)",
+        "source": "PALETTE[4]",
+        "tonalRamp": [
+          "oklch(15.0% 0.150 352.6)",
+          "oklch(26.4% 0.150 352.6)",
+          "oklch(37.9% 0.150 352.6)",
+          "oklch(49.3% 0.150 352.6)",
+          "oklch(60.7% 0.150 352.6)",
+          "oklch(72.1% 0.150 352.6)",
+          "oklch(83.6% 0.150 352.6)",
+          "oklch(95.0% 0.150 352.6)"
+        ]
+      },
+      "lilac": {
+        "role": "secondary",
+        "displayName": "丁香贴纸 Lilac Sticker",
+        "canonical": "#b294ff",
+        "oklch": "oklch(73.7% 0.153 295.3)",
+        "source": "PALETTE[5]",
+        "tonalRamp": [
+          "oklch(15.0% 0.153 295.3)",
+          "oklch(26.4% 0.153 295.3)",
+          "oklch(37.9% 0.153 295.3)",
+          "oklch(49.3% 0.153 295.3)",
+          "oklch(60.7% 0.153 295.3)",
+          "oklch(72.1% 0.153 295.3)",
+          "oklch(83.6% 0.153 295.3)",
+          "oklch(95.0% 0.153 295.3)"
+        ]
+      },
+      "on-palette": {
+        "role": "neutral",
+        "displayName": "贴纸墨 Sticker Ink",
+        "canonical": "#22253a",
+        "oklch": "oklch(27.2% 0.039 277.2)",
+        "source": "--on-palette",
+        "tonalRamp": [
+          "oklch(15.0% 0.039 277.2)",
+          "oklch(26.4% 0.039 277.2)",
+          "oklch(37.9% 0.039 277.2)",
+          "oklch(49.3% 0.039 277.2)",
+          "oklch(60.7% 0.039 277.2)",
+          "oklch(72.1% 0.039 277.2)",
+          "oklch(83.6% 0.039 277.2)",
+          "oklch(95.0% 0.039 277.2)"
+        ]
+      },
+      "sticker-white": {
+        "role": "neutral",
+        "displayName": "贴纸白 Sticker White",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 0.0)",
+        "source": "--sticker (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
+      "sticker-white-night": {
+        "role": "neutral",
+        "displayName": "夜间贴纸白 Night Sticker White",
+        "canonical": "#f6f3ec",
+        "oklch": "oklch(96.5% 0.010 87.5)",
+        "source": "--sticker (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 87.5)",
+          "oklch(26.4% 0.010 87.5)",
+          "oklch(37.9% 0.010 87.5)",
+          "oklch(49.3% 0.010 87.5)",
+          "oklch(60.7% 0.010 87.5)",
+          "oklch(72.1% 0.010 87.5)",
+          "oklch(83.6% 0.010 87.5)",
+          "oklch(95.0% 0.010 87.5)"
+        ]
+      },
+      "note-yellow": {
+        "role": "tertiary",
+        "displayName": "便利贴黄 Sticky-Note Yellow",
+        "canonical": "#fff1a6",
+        "oklch": "oklch(95.2% 0.095 98.9)",
+        "source": "--note",
+        "tonalRamp": [
+          "oklch(15.0% 0.095 98.9)",
+          "oklch(26.4% 0.095 98.9)",
+          "oklch(37.9% 0.095 98.9)",
+          "oklch(49.3% 0.095 98.9)",
+          "oklch(60.7% 0.095 98.9)",
+          "oklch(72.1% 0.095 98.9)",
+          "oklch(83.6% 0.095 98.9)",
+          "oklch(95.0% 0.095 98.9)"
+        ]
+      },
+      "note-title": {
+        "role": "tertiary",
+        "displayName": "便利贴砖红 Note Brick Red",
+        "canonical": "#b4321f",
+        "oklch": "oklch(51.4% 0.170 31.4)",
+        "source": "--note-title",
+        "tonalRamp": [
+          "oklch(15.0% 0.170 31.4)",
+          "oklch(26.4% 0.170 31.4)",
+          "oklch(37.9% 0.170 31.4)",
+          "oklch(49.3% 0.170 31.4)",
+          "oklch(60.7% 0.170 31.4)",
+          "oklch(72.1% 0.170 31.4)",
+          "oklch(83.6% 0.170 31.4)",
+          "oklch(95.0% 0.170 31.4)"
+        ]
+      },
+      "note-ink": {
+        "role": "tertiary",
+        "displayName": "便利贴褐墨 Note Brown Ink",
+        "canonical": "#3b3320",
+        "oklch": "oklch(32.4% 0.033 87.7)",
+        "source": "--note-ink",
+        "tonalRamp": [
+          "oklch(15.0% 0.033 87.7)",
+          "oklch(26.4% 0.033 87.7)",
+          "oklch(37.9% 0.033 87.7)",
+          "oklch(49.3% 0.033 87.7)",
+          "oklch(60.7% 0.033 87.7)",
+          "oklch(72.1% 0.033 87.7)",
+          "oklch(83.6% 0.033 87.7)",
+          "oklch(95.0% 0.033 87.7)"
+        ]
+      },
+      "graph-paper": {
+        "role": "neutral",
+        "displayName": "蓝格子纸 Blue Graph Paper",
+        "canonical": "#eef3fb",
+        "oklch": "oklch(96.3% 0.012 259.8)",
+        "source": "--page (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.012 259.8)",
+          "oklch(26.4% 0.012 259.8)",
+          "oklch(37.9% 0.012 259.8)",
+          "oklch(49.3% 0.012 259.8)",
+          "oklch(60.7% 0.012 259.8)",
+          "oklch(72.1% 0.012 259.8)",
+          "oklch(83.6% 0.012 259.8)",
+          "oklch(95.0% 0.012 259.8)"
+        ]
+      },
+      "graph-line": {
+        "role": "neutral",
+        "displayName": "格线 Graph Line",
+        "canonical": "#d3dff3",
+        "oklch": "oklch(90.1% 0.030 260.7)",
+        "source": "--grid (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.030 260.7)",
+          "oklch(26.4% 0.030 260.7)",
+          "oklch(37.9% 0.030 260.7)",
+          "oklch(49.3% 0.030 260.7)",
+          "oklch(60.7% 0.030 260.7)",
+          "oklch(72.1% 0.030 260.7)",
+          "oklch(83.6% 0.030 260.7)",
+          "oklch(95.0% 0.030 260.7)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "铅笔墨 Pencil Ink",
+        "canonical": "#22253a",
+        "oklch": "oklch(27.2% 0.039 277.2)",
+        "source": "--ink (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.039 277.2)",
+          "oklch(26.4% 0.039 277.2)",
+          "oklch(37.9% 0.039 277.2)",
+          "oklch(49.3% 0.039 277.2)",
+          "oklch(60.7% 0.039 277.2)",
+          "oklch(72.1% 0.039 277.2)",
+          "oklch(83.6% 0.039 277.2)",
+          "oklch(95.0% 0.039 277.2)"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "淡铅笔墨 Muted Pencil Ink",
+        "canonical": "#555d80",
+        "oklch": "oklch(48.6% 0.057 274.2)",
+        "source": "--muted (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.057 274.2)",
+          "oklch(26.4% 0.057 274.2)",
+          "oklch(37.9% 0.057 274.2)",
+          "oklch(49.3% 0.057 274.2)",
+          "oklch(60.7% 0.057 274.2)",
+          "oklch(72.1% 0.057 274.2)",
+          "oklch(83.6% 0.057 274.2)",
+          "oklch(95.0% 0.057 274.2)"
+        ]
+      },
+      "highlighter": {
+        "role": "tertiary",
+        "displayName": "荧光笔黄 Highlighter Yellow",
+        "canonical": "rgba(255, 207, 61, 0.6)",
+        "oklch": "oklch(87.3% 0.161 89.5 / 0.6)",
+        "source": "--highlight (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.161 89.5)",
+          "oklch(26.4% 0.161 89.5)",
+          "oklch(37.9% 0.161 89.5)",
+          "oklch(49.3% 0.161 89.5)",
+          "oklch(60.7% 0.161 89.5)",
+          "oklch(72.1% 0.161 89.5)",
+          "oklch(83.6% 0.161 89.5)",
+          "oklch(95.0% 0.161 89.5)"
+        ]
+      },
+      "focus": {
+        "role": "neutral",
+        "displayName": "焦点蓝 Focus Blue",
+        "canonical": "#3a5cff",
+        "oklch": "oklch(55.8% 0.243 267.9)",
+        "source": "--focus (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.243 267.9)",
+          "oklch(26.4% 0.243 267.9)",
+          "oklch(37.9% 0.243 267.9)",
+          "oklch(49.3% 0.243 267.9)",
+          "oklch(60.7% 0.243 267.9)",
+          "oklch(72.1% 0.243 267.9)",
+          "oklch(83.6% 0.243 267.9)",
+          "oklch(95.0% 0.243 267.9)"
+        ]
+      },
+      "scrim": {
+        "role": "neutral",
+        "displayName": "纸色褪色层 Paper Scrim",
+        "canonical": "rgba(238, 243, 251, 0.8)",
+        "oklch": "oklch(96.3% 0.012 259.8 / 0.8)",
+        "source": "--scrim (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.012 259.8)",
+          "oklch(26.4% 0.012 259.8)",
+          "oklch(37.9% 0.012 259.8)",
+          "oklch(49.3% 0.012 259.8)",
+          "oklch(60.7% 0.012 259.8)",
+          "oklch(72.1% 0.012 259.8)",
+          "oklch(83.6% 0.012 259.8)",
+          "oklch(95.0% 0.012 259.8)"
+        ]
+      },
+      "shadow": {
+        "role": "neutral",
+        "displayName": "墨色影子 Ink Shadow",
+        "canonical": "rgba(30, 42, 90, 0.2)",
+        "oklch": "oklch(30.3% 0.087 270.0 / 0.2)",
+        "source": "--shadow (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.087 270.0)",
+          "oklch(26.4% 0.087 270.0)",
+          "oklch(37.9% 0.087 270.0)",
+          "oklch(49.3% 0.087 270.0)",
+          "oklch(60.7% 0.087 270.0)",
+          "oklch(72.1% 0.087 270.0)",
+          "oklch(83.6% 0.087 270.0)",
+          "oklch(95.0% 0.087 270.0)"
+        ]
+      },
+      "shadow-lift": {
+        "role": "neutral",
+        "displayName": "拿起影子 Lift Shadow",
+        "canonical": "rgba(30, 42, 90, 0.3)",
+        "oklch": "oklch(30.3% 0.087 270.0 / 0.3)",
+        "source": "--shadow-lift (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.087 270.0)",
+          "oklch(26.4% 0.087 270.0)",
+          "oklch(37.9% 0.087 270.0)",
+          "oklch(49.3% 0.087 270.0)",
+          "oklch(60.7% 0.087 270.0)",
+          "oklch(72.1% 0.087 270.0)",
+          "oklch(83.6% 0.087 270.0)",
+          "oklch(95.0% 0.087 270.0)"
+        ]
+      },
+      "board-field": {
+        "role": "neutral",
+        "displayName": "台面 Board Field",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 0.0)",
+        "source": "--board-field (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
+      "board-wall": {
+        "role": "neutral",
+        "displayName": "机身墙 Board Wall",
+        "canonical": "#d9e2f3",
+        "oklch": "oklch(91.1% 0.025 263.3)",
+        "source": "--board-wall (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.025 263.3)",
+          "oklch(26.4% 0.025 263.3)",
+          "oklch(37.9% 0.025 263.3)",
+          "oklch(49.3% 0.025 263.3)",
+          "oklch(60.7% 0.025 263.3)",
+          "oklch(72.1% 0.025 263.3)",
+          "oklch(83.6% 0.025 263.3)",
+          "oklch(95.0% 0.025 263.3)"
+        ]
+      },
+      "board-wall-edge": {
+        "role": "neutral",
+        "displayName": "墙描边 Wall Edge",
+        "canonical": "#b4c3e0",
+        "oklch": "oklch(81.5% 0.044 263.7)",
+        "source": "--board-wall-edge (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.044 263.7)",
+          "oklch(26.4% 0.044 263.7)",
+          "oklch(37.9% 0.044 263.7)",
+          "oklch(49.3% 0.044 263.7)",
+          "oklch(60.7% 0.044 263.7)",
+          "oklch(72.1% 0.044 263.7)",
+          "oklch(83.6% 0.044 263.7)",
+          "oklch(95.0% 0.044 263.7)"
+        ]
+      },
+      "board-metal": {
+        "role": "neutral",
+        "displayName": "柱塞金属 Plunger Metal",
+        "canonical": "#6c7699",
+        "oklch": "oklch(57.1% 0.055 272.2)",
+        "source": "--board-metal (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.055 272.2)",
+          "oklch(26.4% 0.055 272.2)",
+          "oklch(37.9% 0.055 272.2)",
+          "oklch(49.3% 0.055 272.2)",
+          "oklch(60.7% 0.055 272.2)",
+          "oklch(72.1% 0.055 272.2)",
+          "oklch(83.6% 0.055 272.2)",
+          "oklch(95.0% 0.055 272.2)"
+        ]
+      },
+      "board-fade": {
+        "role": "neutral",
+        "displayName": "落格褪色 Slot Fade",
+        "canonical": "rgba(255, 255, 255, 0.68)",
+        "oklch": "oklch(100.0% 0.000 0.0 / 0.68)",
+        "source": "--board-fade (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
+      "wheel-fade": {
+        "role": "neutral",
+        "displayName": "扇区褪色 Sector Fade",
+        "canonical": "rgba(238, 243, 251, 0.66)",
+        "oklch": "oklch(96.3% 0.012 259.8 / 0.66)",
+        "source": "--wheel-fade (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.012 259.8)",
+          "oklch(26.4% 0.012 259.8)",
+          "oklch(37.9% 0.012 259.8)",
+          "oklch(49.3% 0.012 259.8)",
+          "oklch(60.7% 0.012 259.8)",
+          "oklch(72.1% 0.012 259.8)",
+          "oklch(83.6% 0.012 259.8)",
+          "oklch(95.0% 0.012 259.8)"
+        ]
+      },
+      "night-paper": {
+        "role": "neutral",
+        "displayName": "黑卡纸 Black Card Paper",
+        "canonical": "#17171c",
+        "oklch": "oklch(20.7% 0.010 285.5)",
+        "source": "--page (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 285.5)",
+          "oklch(26.4% 0.010 285.5)",
+          "oklch(37.9% 0.010 285.5)",
+          "oklch(49.3% 0.010 285.5)",
+          "oklch(60.7% 0.010 285.5)",
+          "oklch(72.1% 0.010 285.5)",
+          "oklch(83.6% 0.010 285.5)",
+          "oklch(95.0% 0.010 285.5)"
+        ]
+      },
+      "night-dots": {
+        "role": "neutral",
+        "displayName": "白点阵 White Dot Grid",
+        "canonical": "rgba(255, 255, 255, 0.13)",
+        "oklch": "oklch(100.0% 0.000 0.0 / 0.13)",
+        "source": "--grid (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
+      "gel-ink": {
+        "role": "neutral",
+        "displayName": "白色中性笔 White Gel Pen",
+        "canonical": "#f3f0e8",
+        "oklch": "oklch(95.5% 0.011 89.7)",
+        "source": "--ink (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.011 89.7)",
+          "oklch(26.4% 0.011 89.7)",
+          "oklch(37.9% 0.011 89.7)",
+          "oklch(49.3% 0.011 89.7)",
+          "oklch(60.7% 0.011 89.7)",
+          "oklch(72.1% 0.011 89.7)",
+          "oklch(83.6% 0.011 89.7)",
+          "oklch(95.0% 0.011 89.7)"
+        ]
+      },
+      "gel-ink-muted": {
+        "role": "neutral",
+        "displayName": "淡中性笔 Muted Gel Pen",
+        "canonical": "#aaa5bb",
+        "oklch": "oklch(73.3% 0.032 296.0)",
+        "source": "--muted (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.032 296.0)",
+          "oklch(26.4% 0.032 296.0)",
+          "oklch(37.9% 0.032 296.0)",
+          "oklch(49.3% 0.032 296.0)",
+          "oklch(60.7% 0.032 296.0)",
+          "oklch(72.1% 0.032 296.0)",
+          "oklch(83.6% 0.032 296.0)",
+          "oklch(95.0% 0.032 296.0)"
+        ]
+      },
+      "highlighter-night": {
+        "role": "tertiary",
+        "displayName": "丁香荧光笔 Lilac Highlighter",
+        "canonical": "rgba(178, 148, 255, 0.45)",
+        "oklch": "oklch(73.7% 0.153 295.3 / 0.45)",
+        "source": "--highlight (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.153 295.3)",
+          "oklch(26.4% 0.153 295.3)",
+          "oklch(37.9% 0.153 295.3)",
+          "oklch(49.3% 0.153 295.3)",
+          "oklch(60.7% 0.153 295.3)",
+          "oklch(72.1% 0.153 295.3)",
+          "oklch(83.6% 0.153 295.3)",
+          "oklch(95.0% 0.153 295.3)"
+        ]
+      },
+      "focus-night": {
+        "role": "neutral",
+        "displayName": "夜间焦点 Night Focus",
+        "canonical": "#b294ff",
+        "oklch": "oklch(73.7% 0.153 295.3)",
+        "source": "--focus (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.153 295.3)",
+          "oklch(26.4% 0.153 295.3)",
+          "oklch(37.9% 0.153 295.3)",
+          "oklch(49.3% 0.153 295.3)",
+          "oklch(60.7% 0.153 295.3)",
+          "oklch(72.1% 0.153 295.3)",
+          "oklch(83.6% 0.153 295.3)",
+          "oklch(95.0% 0.153 295.3)"
+        ]
+      },
+      "scrim-night": {
+        "role": "neutral",
+        "displayName": "夜间褪色层 Night Scrim",
+        "canonical": "rgba(23, 23, 28, 0.82)",
+        "oklch": "oklch(20.7% 0.010 285.5 / 0.82)",
+        "source": "--scrim (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 285.5)",
+          "oklch(26.4% 0.010 285.5)",
+          "oklch(37.9% 0.010 285.5)",
+          "oklch(49.3% 0.010 285.5)",
+          "oklch(60.7% 0.010 285.5)",
+          "oklch(72.1% 0.010 285.5)",
+          "oklch(83.6% 0.010 285.5)",
+          "oklch(95.0% 0.010 285.5)"
+        ]
+      },
+      "shadow-night": {
+        "role": "neutral",
+        "displayName": "夜间影子 Night Shadow",
+        "canonical": "rgba(0, 0, 0, 0.5)",
+        "oklch": "oklch(0.0% 0.000 0.0 / 0.5)",
+        "source": "--shadow (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
+      "shadow-lift-night": {
+        "role": "neutral",
+        "displayName": "夜间拿起影子 Night Lift Shadow",
+        "canonical": "rgba(0, 0, 0, 0.6)",
+        "oklch": "oklch(0.0% 0.000 0.0 / 0.6)",
+        "source": "--shadow-lift (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
+      "board-field-night": {
+        "role": "neutral",
+        "displayName": "夜间台面 Night Board Field",
+        "canonical": "#23232b",
+        "oklch": "oklch(26.0% 0.015 285.3)",
+        "source": "--board-field (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.015 285.3)",
+          "oklch(26.4% 0.015 285.3)",
+          "oklch(37.9% 0.015 285.3)",
+          "oklch(49.3% 0.015 285.3)",
+          "oklch(60.7% 0.015 285.3)",
+          "oklch(72.1% 0.015 285.3)",
+          "oklch(83.6% 0.015 285.3)",
+          "oklch(95.0% 0.015 285.3)"
+        ]
+      },
+      "board-wall-night": {
+        "role": "neutral",
+        "displayName": "夜间机身墙 Night Board Wall",
+        "canonical": "#31313d",
+        "oklch": "oklch(31.8% 0.021 285.1)",
+        "source": "--board-wall (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.021 285.1)",
+          "oklch(26.4% 0.021 285.1)",
+          "oklch(37.9% 0.021 285.1)",
+          "oklch(49.3% 0.021 285.1)",
+          "oklch(60.7% 0.021 285.1)",
+          "oklch(72.1% 0.021 285.1)",
+          "oklch(83.6% 0.021 285.1)",
+          "oklch(95.0% 0.021 285.1)"
+        ]
+      },
+      "board-wall-edge-night": {
+        "role": "neutral",
+        "displayName": "夜间墙描边 Night Wall Edge",
+        "canonical": "#4a4a5c",
+        "oklch": "oklch(41.6% 0.030 285.0)",
+        "source": "--board-wall-edge (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.030 285.0)",
+          "oklch(26.4% 0.030 285.0)",
+          "oklch(37.9% 0.030 285.0)",
+          "oklch(49.3% 0.030 285.0)",
+          "oklch(60.7% 0.030 285.0)",
+          "oklch(72.1% 0.030 285.0)",
+          "oklch(83.6% 0.030 285.0)",
+          "oklch(95.0% 0.030 285.0)"
+        ]
+      },
+      "board-metal-night": {
+        "role": "neutral",
+        "displayName": "夜间柱塞金属 Night Plunger Metal",
+        "canonical": "#a3a0b4",
+        "oklch": "oklch(71.5% 0.029 292.5)",
+        "source": "--board-metal (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.029 292.5)",
+          "oklch(26.4% 0.029 292.5)",
+          "oklch(37.9% 0.029 292.5)",
+          "oklch(49.3% 0.029 292.5)",
+          "oklch(60.7% 0.029 292.5)",
+          "oklch(72.1% 0.029 292.5)",
+          "oklch(83.6% 0.029 292.5)",
+          "oklch(95.0% 0.029 292.5)"
+        ]
+      },
+      "board-fade-night": {
+        "role": "neutral",
+        "displayName": "夜间落格褪色 Night Slot Fade",
+        "canonical": "rgba(35, 35, 43, 0.8)",
+        "oklch": "oklch(26.0% 0.015 285.3 / 0.8)",
+        "source": "--board-fade (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.015 285.3)",
+          "oklch(26.4% 0.015 285.3)",
+          "oklch(37.9% 0.015 285.3)",
+          "oklch(49.3% 0.015 285.3)",
+          "oklch(60.7% 0.015 285.3)",
+          "oklch(72.1% 0.015 285.3)",
+          "oklch(83.6% 0.015 285.3)",
+          "oklch(95.0% 0.015 285.3)"
+        ]
+      },
+      "wheel-fade-night": {
+        "role": "neutral",
+        "displayName": "夜间扇区褪色 Night Sector Fade",
+        "canonical": "rgba(23, 23, 28, 0.8)",
+        "oklch": "oklch(20.7% 0.010 285.5 / 0.8)",
+        "source": "--wheel-fade (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 285.5)",
+          "oklch(26.4% 0.010 285.5)",
+          "oklch(37.9% 0.010 285.5)",
+          "oklch(49.3% 0.010 285.5)",
+          "oklch(60.7% 0.010 285.5)",
+          "oklch(72.1% 0.010 285.5)",
+          "oklch(83.6% 0.010 285.5)",
+          "oklch(95.0% 0.010 285.5)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display 字母贴纸",
+        "purpose": "选主题页的「是但」，一字一枚字母贴纸。"
+      },
+      "headline": {
+        "displayName": "Headline 中选名字",
+        "purpose": "结果贴纸上的中选名字，字号由字数定，铺满贴纸的宽。"
+      },
+      "title": {
+        "displayName": "Title 手写标题",
+        "purpose": "玩法页的主题标题，下面划荧光笔。"
+      },
+      "label-xl": {
+        "displayName": "Label XL 「转」",
+        "purpose": "「转」大贴纸上的一个字。"
+      },
+      "label-lg": {
+        "displayName": "Label LG 主题贴纸",
+        "purpose": "选主题页三枚主题贴纸上的字。"
+      },
+      "label": {
+        "displayName": "Label 手写按钮",
+        "purpose": "「再来一次 / 再打一发」、加载态、引导语。"
+      },
+      "label-sm": {
+        "displayName": "Label SM 胶带条",
+        "purpose": "「← 换个主题」胶带条。"
+      },
+      "body": {
+        "displayName": "Body 便利贴正文",
+        "purpose": "名单错误的说明，系统字体。"
+      },
+      "body-sm": {
+        "displayName": "Body SM 便利贴提示",
+        "purpose": "名单错误的修改提示，系统字体。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "rest",
+        "value": "0 6px 14px var(--shadow)",
+        "purpose": "贴纸贴住时的影子（「转」；主题贴纸 0 7px 14px，字母贴纸 0 8px 16px，盘面贴纸 0 8px 18px，便利贴 0 10px 20px）。"
+      },
+      {
+        "name": "hover-lift",
+        "value": "0 12px 22px var(--shadow-lift)",
+        "purpose": "有悬停的设备上贴纸被抬起（「转」用 0 10px 20px）。"
+      },
+      {
+        "name": "pressed",
+        "value": "0 1px 2px var(--shadow)",
+        "purpose": "按下时把贴纸按进纸里。"
+      },
+      {
+        "name": "taped-shut",
+        "value": "0 2px 4px var(--shadow)",
+        "purpose": "被胶带封住的「转」，贴得更平。"
+      },
+      {
+        "name": "slap-lift",
+        "value": "0 40px 56px var(--shadow-lift)",
+        "purpose": "--lift-shadow：「啪」落下前悬空的影子；结果贴纸自己给 0 56px 80px。"
+      },
+      {
+        "name": "result-sticker",
+        "value": "0 20px 44px var(--shadow-lift)",
+        "purpose": "结果贴纸落定后浮在褪色层之上。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "slap-ease",
+        "value": "cubic-bezier(0.2, 1.4, 0.4, 1)",
+        "purpose": "「啪」：东西落到纸上，压过头再回弹。只用于落下（进场贴纸、结果贴纸、便利贴、封住「转」的胶带）。"
+      },
+      {
+        "name": "slap",
+        "value": "520ms var(--slap-ease)；从 translateY(-36px) scale(1.25) 带 --lift-shadow 落到 --rest，70% 处 scale(0.96)",
+        "purpose": "签名动作。便利贴 480ms；结果贴纸延迟 70ms 等褪色层铺好；字母贴纸间隔 70ms，主题贴纸 200ms 起间隔 90ms。"
+      },
+      {
+        "name": "press-ease",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "松手弹回与悬停，240ms。"
+      },
+      {
+        "name": "press-in",
+        "value": "60ms ease-out",
+        "purpose": "按下几乎即刻到位。"
+      },
+      {
+        "name": "tape-seal",
+        "value": "opacity 120ms ease-out, transform 260ms var(--slap-ease)",
+        "purpose": "锁住「转」时胶带拍上来。"
+      },
+      {
+        "name": "scrim-in",
+        "value": "120ms ease-out",
+        "purpose": "结果卡片的纸色褪色层淡入。"
+      },
+      {
+        "name": "confetti-peel",
+        "value": "180ms ease-out",
+        "purpose": "收下时撕掉撒花。"
+      },
+      {
+        "name": "wobble",
+        "value": "1.4s ease-in-out infinite，±2deg 摆动、上浮 4px",
+        "purpose": "加载态的手写字。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "short",
+        "value": "(max-height: 560px)",
+        "purpose": "矮屏（横屏手机）：压掉标题与留白，把高度让给盘面。"
+      },
+      {
+        "name": "hover",
+        "value": "(hover: hover)",
+        "purpose": "只在有悬停的设备上给贴纸抬起效果。"
+      },
+      {
+        "name": "night",
+        "value": "(prefers-color-scheme: dark)",
+        "purpose": "换成黑卡纸本：只换纸、墨水、影子、褪色层和盘面，贴纸不变。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "「转」大贴纸",
+      "kind": "button",
+      "refersTo": "spin-sticker",
+      "description": "转盘的主操作：一枚番茄色大贴纸，按下按进纸里，松手弹回。",
+      "html": "<button class=\"ds-spin\" type=\"button\"><span class=\"ds-tape\"></span>转</button>",
+      "css": ".ds-tape { position: absolute; pointer-events: none; height: 24px; background-color: var(--tape, #6f9bff); background-image: radial-gradient(rgba(255,255,255,0.55) 1.4px, transparent 1.8px); background-size: 8px 8px; opacity: 0.82; -webkit-mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; } .ds-spin { --rest: rotate(-1.5deg); position: relative; width: min(100%, 300px); min-height: 76px; padding: 0 32px; border: 5px solid var(--sticker, #fff); border-radius: 22px; background: var(--accent, #ff7a5c); color: var(--on-palette, #22253a); font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 2.2rem; letter-spacing: 0.2em; text-indent: 0.2em; cursor: pointer; transform: var(--rest); box-shadow: 0 6px 14px var(--shadow, rgba(30,42,90,0.2)); transition: transform 240ms var(--press-ease, cubic-bezier(0.25,1,0.5,1)), box-shadow 240ms var(--press-ease, cubic-bezier(0.25,1,0.5,1)); } .ds-spin .ds-tape { left: -18px; right: -18px; top: calc(50% - 15px); height: 30px; opacity: 0; transform: rotate(-9deg) scale(1.15); } .ds-spin:hover { transform: rotate(0deg) translateY(-3px); box-shadow: 0 10px 20px var(--shadow-lift, rgba(30,42,90,0.3)); } .ds-spin:active { transform: var(--rest) translateY(3px) scale(0.97); box-shadow: 0 1px 2px var(--shadow, rgba(30,42,90,0.2)); transition-duration: 60ms; transition-timing-function: ease-out; } .ds-spin:focus-visible { outline: 3px solid var(--focus, #3a5cff); outline-offset: 4px; }"
+    },
+    {
+      "name": "「转」锁住（胶带封住）",
+      "kind": "button",
+      "refersTo": "spin-sticker-locked",
+      "description": "锁住时一条天空色胶带横着拍上来，影子收平，不变淡；按钮留在 Tab 序里。",
+      "html": "<button class=\"ds-spin-locked\" type=\"button\" aria-disabled=\"true\"><span class=\"ds-tape\"></span>转</button>",
+      "css": ".ds-tape { position: absolute; pointer-events: none; height: 24px; background-color: var(--tape, #6f9bff); background-image: radial-gradient(rgba(255,255,255,0.55) 1.4px, transparent 1.8px); background-size: 8px 8px; opacity: 0.82; -webkit-mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; } .ds-spin-locked { position: relative; width: min(100%, 300px); min-height: 76px; padding: 0 32px; border: 5px solid var(--sticker, #fff); border-radius: 22px; background: var(--accent, #ff7a5c); color: var(--on-palette, #22253a); font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 2.2rem; letter-spacing: 0.2em; text-indent: 0.2em; cursor: default; transform: rotate(-1.5deg); box-shadow: 0 2px 4px var(--shadow, rgba(30,42,90,0.2)); } .ds-spin-locked .ds-tape { left: -18px; right: -18px; top: calc(50% - 15px); height: 30px; --tape: #6f9bff; opacity: 0.88; transform: rotate(-9deg); } .ds-spin-locked:focus-visible { outline: 3px solid var(--focus, #3a5cff); outline-offset: 4px; }"
+    },
+    {
+      "name": "主题贴纸",
+      "kind": "custom",
+      "refersTo": "theme-sticker",
+      "description": "选主题页整块可点的大贴纸；颜色、歪度、错位、胶带每次打开重发。",
+      "html": "<a class=\"ds-theme-sticker\" href=\"#\" style=\"--color:#3fd0a8;--tilt:-2.6deg;--shift:-9px;--tape-color:#ff8cc0;--tape-tilt:11deg\"><span class=\"ds-tape\"></span>早餐吃什么</a>",
+      "css": ".ds-tape { position: absolute; pointer-events: none; height: 24px; background-color: var(--tape, #6f9bff); background-image: radial-gradient(rgba(255,255,255,0.55) 1.4px, transparent 1.8px); background-size: 8px 8px; opacity: 0.82; -webkit-mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; } .ds-theme-sticker { --rest: translateX(var(--shift)) rotate(var(--tilt)); position: relative; display: flex; align-items: center; justify-content: center; min-height: 84px; padding: 12px 28px; border: 6px solid var(--sticker, #fff); border-radius: 24px; background: var(--color); color: var(--on-palette, #22253a); font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 1.75rem; text-decoration: none; transform: var(--rest); box-shadow: 0 7px 14px var(--shadow, rgba(30,42,90,0.2)); transition: transform 240ms var(--press-ease, cubic-bezier(0.25,1,0.5,1)), box-shadow 240ms var(--press-ease, cubic-bezier(0.25,1,0.5,1)); } .ds-theme-sticker .ds-tape { top: -14px; right: 14px; width: 70px; --tape: var(--tape-color); transform: rotate(var(--tape-tilt)); } .ds-theme-sticker:hover { transform: translateX(var(--shift)) translateY(-4px) rotate(calc(var(--tilt) * 0.4)); box-shadow: 0 12px 22px var(--shadow-lift, rgba(30,42,90,0.3)); } .ds-theme-sticker:active { transform: translateX(var(--shift)) translateY(3px) rotate(var(--tilt)) scale(0.97); box-shadow: 0 1px 3px var(--shadow, rgba(30,42,90,0.2)); transition-duration: 60ms; transition-timing-function: ease-out; } .ds-theme-sticker:focus-visible { outline: 3px solid var(--focus, #3a5cff); outline-offset: 4px; }"
+    },
+    {
+      "name": "字母贴纸（是但）",
+      "kind": "custom",
+      "refersTo": "letter-sticker",
+      "description": "站名一字一枚贴纸，交替歪 5° 到 10°，互相压住 10px，进场是「啪」。",
+      "html": "<h1 class=\"ds-letters\"><span class=\"ds-letter\" style=\"--color:#ff7a5c;--rest:rotate(-7deg)\">是</span><span class=\"ds-letter\" style=\"--color:#3fd0a8;--rest:rotate(6deg)\">但</span></h1>",
+      "css": ".ds-letters { margin: 0; display: flex; font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: clamp(4rem, 22.5vw, 5.5rem); line-height: 1; } .ds-letter { display: grid; place-items: center; width: 1.55em; height: 1.55em; padding-bottom: 0.06em; border: 6px solid var(--sticker, #fff); border-radius: 22px; background: var(--color); color: var(--on-palette, #22253a); box-shadow: 0 8px 16px var(--shadow, rgba(30,42,90,0.2)); transform: var(--rest); animation: ds-slap 520ms var(--slap-ease, cubic-bezier(0.2,1.4,0.4,1)) backwards; } .ds-letter + .ds-letter { margin-left: -10px; animation-delay: 70ms; } @keyframes ds-slap { 0% { opacity: 0; transform: var(--rest) translateY(-36px) scale(1.25); box-shadow: 0 40px 56px var(--shadow-lift, rgba(30,42,90,0.3)); } 15% { opacity: 1; } 40% { box-shadow: 0 40px 56px var(--shadow-lift, rgba(30,42,90,0.3)); } 70% { transform: var(--rest) scale(0.96); } 100% { transform: var(--rest); } }"
+    },
+    {
+      "name": "结果贴纸",
+      "kind": "card",
+      "refersTo": "result-sticker",
+      "description": "中选：铺满中选格颜色的大贴纸，「啪」地拍下来；名字铺满贴纸的宽；底下一枚白色胶囊小贴纸收下。",
+      "html": "<div class=\"ds-result\" style=\"--win:#ffcf3d;--card-tape:#ff8cc0\"><span class=\"ds-tape\"></span><p class=\"ds-result__name\" style=\"--len:2\">炒饭</p><button class=\"ds-result__close\" type=\"button\">再来一次</button></div>",
+      "css": ".ds-tape { position: absolute; pointer-events: none; height: 24px; background-color: var(--tape, #6f9bff); background-image: radial-gradient(rgba(255,255,255,0.55) 1.4px, transparent 1.8px); background-size: 8px 8px; opacity: 0.82; -webkit-mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; } .ds-result { --rest: rotate(-2.5deg); position: relative; width: 100%; max-width: 360px; padding: 44px 22px 28px; border: 8px solid var(--sticker, #fff); border-radius: 28px; background: var(--win, var(--accent, #ff7a5c)); color: var(--on-palette, #22253a); text-align: center; transform: var(--rest); box-shadow: 0 20px 44px var(--shadow-lift, rgba(30,42,90,0.3)); animation: ds-result-slap 520ms var(--slap-ease, cubic-bezier(0.2,1.4,0.4,1)) 70ms both; } .ds-result .ds-tape { top: -20px; left: calc(50% - 56px); width: 112px; height: 30px; --tape: var(--card-tape, #6f9bff); transform: rotate(4deg); } .ds-result__name { margin: 0 0 26px; font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: clamp(2rem, calc((min(100vw, 408px) - 124px) / var(--len, 4)), 6rem); line-height: 1.1; overflow-wrap: anywhere; } .ds-result__close { min-height: 52px; padding: 0 28px; border: none; border-radius: 999px; background: var(--sticker, #fff); color: var(--on-palette, #22253a); font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 1.25rem; cursor: pointer; box-shadow: 0 4px 10px var(--shadow, rgba(30,42,90,0.22)); transition: transform 240ms var(--press-ease, cubic-bezier(0.25,1,0.5,1)), box-shadow 240ms var(--press-ease, cubic-bezier(0.25,1,0.5,1)); } .ds-result__close:active { transform: translateY(2px) scale(0.96); box-shadow: 0 1px 2px var(--shadow, rgba(30,42,90,0.22)); transition-duration: 60ms; transition-timing-function: ease-out; } .ds-result__close:focus-visible { outline: 3px solid var(--on-palette, #22253a); outline-offset: 4px; } @keyframes ds-result-slap { 0% { opacity: 0; transform: var(--rest) translateY(-36px) scale(1.25); box-shadow: 0 56px 80px var(--shadow-lift, rgba(30,42,90,0.3)); } 15% { opacity: 1; } 40% { box-shadow: 0 56px 80px var(--shadow-lift, rgba(30,42,90,0.3)); } 70% { transform: var(--rest) scale(0.96); } 100% { transform: var(--rest); } }"
+    },
+    {
+      "name": "「← 换个主题」胶带条",
+      "kind": "nav",
+      "refersTo": "tape-tab",
+      "description": "回到选主题页的入口：一截撕下来的随机色胶带，上面是手写字，可点区域撑到 48px 高。",
+      "html": "<a class=\"ds-tape-tab\" href=\"#\"><span class=\"ds-tape\" style=\"--tape:#6f9bff\"></span>← 换个主题</a>",
+      "css": ".ds-tape { position: absolute; pointer-events: none; height: 24px; background-color: var(--tape, #6f9bff); background-image: radial-gradient(rgba(255,255,255,0.55) 1.4px, transparent 1.8px); background-size: 8px 8px; opacity: 0.82; -webkit-mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; } .ds-tape-tab { position: relative; display: inline-block; padding: 5px 12px; line-height: 1.2; white-space: nowrap; font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 0.95rem; color: var(--on-palette, #22253a); text-decoration: none; isolation: isolate; transform: rotate(-4deg); transition: transform 240ms var(--press-ease, cubic-bezier(0.25,1,0.5,1)); } .ds-tape-tab .ds-tape { inset: 0; height: auto; z-index: -1; opacity: 0.92; } .ds-tape-tab::before { content: ''; position: absolute; inset: calc(50% - 24px) -4px; } .ds-tape-tab:hover { transform: rotate(-1deg) translateX(-2px); } .ds-tape-tab:active { transform: rotate(-4deg) translateX(-6px); transition-duration: 60ms; transition-timing-function: ease-out; } .ds-tape-tab:focus-visible { outline: 3px solid var(--focus, #3a5cff); outline-offset: 4px; }"
+    },
+    {
+      "name": "便利贴（名单出错）",
+      "kind": "card",
+      "refersTo": "error-note",
+      "description": "名单开不了抽时「啪」地贴上来一张黄色便利贴；深色主题也还是黄的。",
+      "html": "<div class=\"ds-note\" role=\"alert\"><span class=\"ds-tape\" style=\"--tape:#b294ff\"></span><p class=\"ds-note__title\">名单读不懂</p><p class=\"ds-note__detail\">第 3 行少了一列。</p><p class=\"ds-note__hint\">改好 CSV 推到 master 就行。</p></div>",
+      "css": ".ds-tape { position: absolute; pointer-events: none; height: 24px; background-color: var(--tape, #6f9bff); background-image: radial-gradient(rgba(255,255,255,0.55) 1.4px, transparent 1.8px); background-size: 8px 8px; opacity: 0.82; -webkit-mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; } .ds-note { --rest: rotate(-1.5deg); position: relative; width: 100%; max-width: 32rem; padding: 26px 20px 20px; background: var(--note, #fff1a6); color: var(--note-ink, #3b3320); text-align: left; transform: var(--rest); box-shadow: 0 10px 20px var(--shadow, rgba(30,42,90,0.2)); } .ds-note .ds-tape { top: -12px; left: calc(50% - 48px); width: 96px; transform: rotate(-3deg); } .ds-note__title { margin: 0 0 0.6rem; font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 1.35rem; color: var(--note-title, #b4321f); } .ds-note__detail { margin: 0 0 0.6rem; font-size: 0.95rem; line-height: 1.55; } .ds-note__hint { margin: 0; font-size: 0.85rem; line-height: 1.5; opacity: 0.8; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "手帐贴纸本",
+    "overview": "整站是她的一本手帐。浅色是一本蓝格子本：淡蓝纸面、22px 的浅蓝方格。深色是一本黑卡纸本：近黑的纸、白色点阵、白色中性笔写的字。纸上的东西都是实物：模切贴纸带一圈白边和柔和的偏移影子，半透明的和纸胶带两头是锯齿撕口，名单出错时贴上来一张黄色便利贴。主题是三枚歪着贴的贴纸，盘面是用胶带贴进本子里的一张贴纸，中选是一枚铺满中选颜色、从上方「啪」地拍下来的大贴纸。\n\n这个世界拒绝这一类小工具的默认长相：粉彩圆角卡片、渐变按钮、白色弹窗加彩带。它的密度很低，一屏只有几样东西，每样都是大块的、歪一点的、能用拇指按的实物。随机性是装饰的一部分：贴纸的歪度、错位、颜色和胶带每次打开都重新发一遍（直接调 `Math.random`，只管装饰，不经过抽签的代码路径），所以每次翻开本子都略有不同。\n\n动效只有两种语法：东西落到纸上用一个「啪」（从上方 1.25 倍大、带一大圈悬空影子落下，压过头一点再回弹），按下去用 60ms 按进、240ms 弹回。锁住的控件被一条胶带横着封上，从不变淡。",
+    "keyCharacteristics": [
+      "纸会变，贴纸不变：明暗主题只换纸和墨水，贴纸、胶带、便利贴两套都是同一种颜色。",
+      "六色和纸调色板（番茄、向日葵、薄荷、天空、粉、丁香），扇区、落格、贴纸、胶带、撒花、结果卡片共用一套。",
+      "贴纸上的字永远是深色墨水。",
+      "站酷快乐体（构建时现裁的子集）是唯一的展示字体，正文留在系统字体。",
+      "一个签名动作：「啪」。",
+      "装饰随机、每次重发；抽签逻辑另算。"
+    ],
+    "rules": [
+      {
+        "name": "The Physical Sticker Rule",
+        "body": "贴纸、胶带、便利贴是实物，明暗主题都不换色；换主题只换纸（graph-paper ↔ night-paper）和墨水（ink ↔ gel-ink）。唯一的例外是贴纸白：深色下用 sticker-white-night 而不是纯白，夜里在微信里打开不刺眼。",
+        "section": "colors"
+      },
+      {
+        "name": "The Dark Ink Rule",
+        "body": "贴纸上的字永远是 on-palette 深墨。调色板每一色对它都在 5:1 以上（最低的是天空色 5.6:1、番茄 5.9:1），所以任何一格、任何一枚贴纸上都不需要判断用浅字还是深字。加新颜色进调色板之前先验这个比。",
+        "section": "colors"
+      },
+      {
+        "name": "The Shared Palette Rule",
+        "body": "扇区、落格、贴纸、胶带、撒花和结果卡片只从 `PALETTE` 取色，不在别处另起贴纸色。结果卡片的颜色就是盘面上停下那一格的颜色。",
+        "section": "colors"
+      },
+      {
+        "name": "The One Hand Rule",
+        "body": "手写体只有一个字重（400），永远不加粗、不合成粗体；层级靠字号和贴纸大小拉开。正文永远是系统字体，不用手写体排段落。",
+        "section": "typography"
+      },
+      {
+        "name": "The Paper Depth Rule",
+        "body": "一枚东西离纸面越高，影子越大越远；贴住时影子小而近，按下时几乎没有。任何新的抬起或落下都沿这条轴走，不另造发光或描边。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** 让贴纸、胶带、便利贴在两套主题里保持同一种颜色，只翻转纸（graph-paper / night-paper）和墨水（ink / gel-ink）。",
+      "**Do** 深色主题下的贴纸白用 sticker-white-night（#f6f3ec），不用纯白。",
+      "**Do** 贴纸、扇区、落格上的字一律用 on-palette 深墨；往调色板里加颜色前先验它对 on-palette 至少 5:1。",
+      "**Do** 东西落到纸上一律用「啪」：从上方 36px、1.25 倍大、带 `--lift-shadow` 落下，`--slap-ease` 压过头再回弹，480 到 520ms。",
+      "**Do** 按压用 60ms 按进（ease-out）、240ms 弹回（`--press-ease`），按下时影子收到 `0 1px 2px`。",
+      "**Do** 锁住一个控件时用一条胶带把它封住，并保留它的 Tab 序。",
+      "**Do** 贴纸的歪度、颜色、胶带每次打开直接用 `Math.random` 重发，不经过抽签注入的随机源（`RandomSource`）。",
+      "**Do** 画布上的颜色和字体从 style.css 的自定义属性读取，跟着主题重读。",
+      "**Do** 保留格子纸背景和「啪」的回弹缓动：前者是这个世界的材料，后者是它的签名动作。审查工具把它们标出来时按有意的例外处理，不要「修掉」。"
+    ],
+    "donts": [
+      "**Don't** 把锁住的控件做成变淡、变灰或降低不透明度。",
+      "**Don't** 在「啪」以外的地方用压过头的回弹缓动；按压、悬停、褪色层都不回弹。",
+      "**Don't** 在贴纸表面打渐变；渐变只用来画纸的材料（格线、点阵、胶带白点、荧光笔那一道）。",
+      "**Don't** 在贴纸上用浅色字，或按底色切换字色。",
+      "**Don't** 给手写体加粗，或用手写体排正文段落。",
+      "**Don't** 在 `PALETTE` 之外另起贴纸色、扇区色或撒花色。",
+      "**Don't** 用硬边偏移影子或纯黑影子做浅色主题的深度；浅色影子是带蓝的墨色。",
+      "**Don't** 把装饰随机接进抽签的代码路径，或让任何装饰影响中选。"
+    ]
+  }
+}

@@ -48,6 +48,8 @@ interface PinballColors {
   readonly onPalette: string;
   readonly labelBg: string;
   readonly labelFg: string;
+  readonly shadow: string;
+  readonly hand: string;
 }
 
 /** 画布读不了 CSS 变量，只能读算好的值。换主题后要重读。 */
@@ -61,14 +63,16 @@ function readPinballColors(element: Element): PinballColors {
     metal: token('--board-metal'),
     peg: token('--board-peg'),
     bumper: token('--board-bumper'),
-    windmill: token('--muted'),
-    pivot: token('--ink'),
+    windmill: token('--board-windmill'),
+    pivot: token('--accent'),
     ball: token('--board-ball'),
     ballShine: token('--board-ball-shine'),
     fade: token('--board-fade'),
     onPalette: token('--on-palette'),
-    labelBg: token('--primary-bg'),
-    labelFg: token('--primary-fg'),
+    labelBg: token('--sticker'),
+    labelFg: token('--on-palette'),
+    shadow: token('--shadow'),
+    hand: token('--hand'),
   };
 }
 
@@ -85,7 +89,6 @@ const LANE_INNER_RIGHT = BOARD.laneRight;
 /** 揭晓标签：字号从大往小试，最小还放不下就折行。 */
 const LABEL_FONT_MAX = 20;
 const LABEL_FONT_MIN = 13;
-const LABEL_FONT_FAMILY = 'system-ui, sans-serif';
 /** 标签气泡的内边距、圆角、行距，以及底下那个指向落格的小尖角的高度。 */
 const LABEL_PADDING_X = 10;
 const LABEL_PADDING_Y = 6;
@@ -97,7 +100,10 @@ const LABEL_EDGE_MARGIN = 6;
 
 const BOARD_HTML = `
       <div class="pinball__stage">
-        <canvas class="pinball__board" id="pinball-board"></canvas>
+        <div class="pinball__frame">
+          <span class="tape"></span><span class="tape"></span>
+          <canvas class="pinball__board" id="pinball-board"></canvas>
+        </div>
       </div>
     `;
 
@@ -144,8 +150,8 @@ interface LabelLayout {
   readonly textWidth: number;
 }
 
-function labelFont(size: number): string {
-  return `700 ${size}px ${LABEL_FONT_FAMILY}`;
+function labelFont(size: number, family: string): string {
+  return `${size}px ${family}`;
 }
 
 /**
@@ -156,14 +162,15 @@ function layoutLabel(
   name: string,
   maxWidth: number,
   maxLines: number,
+  family: string,
 ): LabelLayout {
   for (let size = LABEL_FONT_MAX; size >= LABEL_FONT_MIN; size -= 1) {
-    ctx.font = labelFont(size);
+    ctx.font = labelFont(size, family);
     const width = ctx.measureText(name).width;
     if (width <= maxWidth) return { fontSize: size, lines: [name], textWidth: width };
   }
 
-  ctx.font = labelFont(LABEL_FONT_MIN);
+  ctx.font = labelFont(LABEL_FONT_MIN, family);
   // 按码点切，别把一个表情字符劈成两半。
   const lines: string[] = [];
   let line = '';
@@ -205,7 +212,7 @@ function drawRevealLabel(
   const lineHeight = LABEL_FONT_MIN * LABEL_LINE_HEIGHT;
   const maxLines = Math.max(1, Math.floor(maxTextHeight / lineHeight));
 
-  const layout = layoutLabel(ctx, reveal.name, maxTextWidth, maxLines);
+  const layout = layoutLabel(ctx, reveal.name, maxTextWidth, maxLines, colors.hand);
   const linePx = layout.fontSize * LABEL_LINE_HEIGHT;
   const width = layout.textWidth + 2 * LABEL_PADDING_X;
   const height = layout.lines.length * linePx + 2 * LABEL_PADDING_Y;
@@ -215,9 +222,15 @@ function drawRevealLabel(
   );
   const top = bubbleBottom - height;
 
+  // 白标签贴纸，带一点影子浮在落格上方。
+  ctx.save();
+  ctx.shadowColor = colors.shadow;
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
   roundedRectPath(ctx, left, top, width, height, LABEL_RADIUS);
   ctx.fillStyle = colors.labelBg;
   ctx.fill();
+  ctx.restore();
 
   // 尖角夹在气泡的圆角以内，气泡被挪到一边时它也还长在气泡底边上。
   const pointerX = Math.min(
@@ -231,7 +244,7 @@ function drawRevealLabel(
   ctx.closePath();
   ctx.fill();
 
-  ctx.font = labelFont(layout.fontSize);
+  ctx.font = labelFont(layout.fontSize, colors.hand);
   ctx.fillStyle = colors.labelFg;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -319,19 +332,20 @@ function drawBoard(
   }
 
   // 弹力柱。
-  for (const bumper of BOARD.bumperPositions) {
+  // 弹力柱：一枚枚白边的圆贴纸。
+  BOARD.bumperPositions.forEach((bumper, i) => {
     ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius, 0, Math.PI * 2);
-    ctx.fillStyle = colors.bumper;
+    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius - 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = PALETTE[(i * 2 + 1) % PALETTE.length]!;
     ctx.fill();
-    ctx.strokeStyle = colors.metal;
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = colors.bumper;
+    ctx.lineWidth = 3.5;
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius * 0.45, 0, Math.PI * 2);
-    ctx.fillStyle = colors.metal;
+    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius * 0.32, 0, Math.PI * 2);
+    ctx.fillStyle = colors.onPalette;
     ctx.fill();
-  }
+  });
 
   // 钉阵。
   ctx.fillStyle = colors.peg;
@@ -474,9 +488,18 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   let lastView: PinballView | undefined;
   let running = false;
 
+  /** 结果卡片照中选落格的颜色铺色（style.css 的 .card__inner）。 */
+  let winColor: string | undefined;
+
   function frame(now: number): void {
     lastView = machine.tick(now);
     draw(lastView);
+    const revealedColor = lastView.revealed ? slotColor(lastView.revealed.slotIndex) : undefined;
+    if (revealedColor !== winColor) {
+      winColor = revealedColor;
+      if (winColor) root.style.setProperty('--win', winColor);
+      else root.style.removeProperty('--win');
+    }
     // 结果卡片盖住了盘面：停帧，抹掉时再起。
     running = !lastView.still;
     if (running) rafId = requestAnimationFrame(frame);
@@ -556,6 +579,7 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     teardown: () => {
       cancelAnimationFrame(rafId);
       controller.abort();
+      root.style.removeProperty('--win');
     },
   };
 }
