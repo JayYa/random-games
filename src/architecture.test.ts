@@ -103,14 +103,6 @@ const NOT_YET_MOVED: readonly string[] = [
 
 
 
-  'browserPage.ts', // #182 browser
-  'gamePage.ts', // #182 browser
-  'resultCard.ts', // #182 browser
-  'rosterErrorPage.ts', // #182 browser
-  'themePicker.ts', // #182 browser
-  'confetti.ts', // #182 browser
-  'escapeHtml.ts', // #182 browser
-  'loadRoster.ts', // #182 browser
 ];
 
 const SRC = fileURLToPath(new URL('.', import.meta.url));

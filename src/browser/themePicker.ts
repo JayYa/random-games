@@ -2,9 +2,9 @@
  * 选主题页。不发网络请求；入口是真链接，能中键新开、能收藏。
  */
 
-import { themeHash } from './navigation';
+import { themeHash } from '../navigation';
 import { escapeHtml } from './escapeHtml';
-import type { Theme } from './theme';
+import type { Theme } from '../theme';
 
 /** 站名，也是选主题页的 `document.title`。 */
 export const SITE_TITLE = '是但';
