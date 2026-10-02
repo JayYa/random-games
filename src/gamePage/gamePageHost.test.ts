@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { REVEAL_PAUSE_MS } from './gamePageHost';
+import { REVEAL_PAUSE_MS } from './index.ts';
 import {
   fakeBoard,
   hostTheme as theme,
@@ -13,7 +13,7 @@ import {
   type FakeBoardOptions,
   type HostedBoard,
   type MountOnHostOptions,
-} from './testHelpers';
+} from '../testHelpers';
 
 /** 假焦点去向，只比对身份。 */
 const spinButton = {} as HTMLElement;

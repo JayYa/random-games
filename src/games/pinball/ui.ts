@@ -6,8 +6,8 @@
  */
 
 import { createById } from '../../byId';
-import type { Board, MountedBoard, RollHandle } from '../../gamePageHost';
-import { fitCanvas } from '../../fitCanvas';
+import type { Board, MountedBoard, RollHandle } from '../../gamePage';
+import { fitCanvas } from '../fitCanvas';
 import { PALETTE } from '../../palette';
 import {
   BOARD,

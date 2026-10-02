@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { readRosterFiles } from '../rosterFiles';
-import { collectThemes, describeRosterError, openRoster, rosterFileName } from './index';
+import { readRosterFiles } from './readRosterFiles';
+import { collectThemes, describeRosterError, openRoster, rosterFileName } from '../theme';
 
 /** 构建时插件扫的同一个目录。 */
 const publicDir = fileURLToPath(new URL('../../public', import.meta.url));

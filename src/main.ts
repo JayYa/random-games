@@ -1,23 +1,12 @@
 import './style.css';
 import { THEMES } from 'virtual:themes';
-import { browserPage } from './browserPage';
-import type { RecentStorage } from './cooldown';
-import { GAMES } from './games/allGames';
-import { fetchRosterCsv } from './loadRoster';
+import { browserPage, browserStorage, fetchRosterCsv } from './browser';
+import { GAMES } from './games';
 import { createNavigation } from './navigation';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('缺少 #app 挂载点');
 const root: HTMLDivElement = app;
-
-/** 这台浏览器的 localStorage（ADR-0011）。禁用存储时连取值都会抛错，拿不到就当没有记忆。 */
-function browserStorage(): RecentStorage | undefined {
-  try {
-    return window.localStorage;
-  } catch {
-    return undefined;
-  }
-}
 
 const navigation = createNavigation({
   history,

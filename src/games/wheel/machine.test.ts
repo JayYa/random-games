@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { REVEAL_PAUSE_MS, type Board } from '../../gamePageHost';
+import { REVEAL_PAUSE_MS, type Board } from '../../gamePage';
 import {
   SPIN_DURATION_MS,
   createWheelMachine,

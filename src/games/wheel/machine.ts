@@ -6,8 +6,8 @@
  */
 
 import { normalizeAngle, TAU } from '../../angles';
-import type { MountedBoard, RollHandle } from '../../gamePageHost';
-import { randomIndex, type RandomSource } from '../../randomIndex';
+import type { MountedBoard, RollHandle } from '../../gamePage';
+import { randomIndex, type RandomSource } from '../../random';
 import { createSectors, type Sectors } from './sectors';
 
 /** 扇区数固定，与名单大小无关（ADR-0010）。 */

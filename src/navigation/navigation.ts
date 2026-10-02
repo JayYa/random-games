@@ -9,11 +9,11 @@
  */
 
 import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
-import { createCooldown, type RecentStorage } from './cooldown';
-import { mountGamePage, type PageAdapter } from './gamePageHost';
-import type { Game } from './games';
-import type { RandomSource } from './randomIndex';
-import { openRoster, type OpenedRoster, type RosterError, type Theme } from './theme';
+import { createCooldown, type RecentStorage } from '../cooldown';
+import { mountGamePage, type PageAdapter } from '../gamePage';
+import type { Game } from '../games';
+import type { RandomSource } from '../random';
+import { openRoster, type OpenedRoster, type RosterError, type Theme } from '../theme';
 
 /** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上补齐站内导航自己画的几屏。 */
 export interface NavigationPage extends PageAdapter {

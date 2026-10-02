@@ -3,11 +3,11 @@
  * 站内导航与玩法页宿主要的接口（ADR-0012）。薄，不测。
  */
 
-import { gamePage, showRosterLoading } from './gamePage';
-import type { NavigationPage } from './navigation';
+import { gamePage, showRosterLoading } from './gamePageShell';
+import type { NavigationPage } from '../navigation';
 import { createResultCard, resultCardMarkup } from './resultCard';
 import { showRosterError } from './rosterErrorPage';
-import { describeRosterError } from './theme';
+import { describeRosterError } from '../theme';
 import { SITE_TITLE, renderThemePicker } from './themePicker';
 
 /** 整页都画在 `root` 里的页面适配器，盘面也挂在它上面。每一屏自己设标签标题。 */

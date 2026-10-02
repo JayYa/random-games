@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameHash, resolveAddress, themeHash } from './address';
-import { fakeGames, fakeThemes } from './testHelpers';
+import { fakeGames, fakeThemes } from '../testHelpers';
 
 const games = fakeGames(['spin', 'drop']);
 

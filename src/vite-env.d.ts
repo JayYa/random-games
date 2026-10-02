@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-/** `vite.config.ts` 的 discoverThemes 插件生成的主题清单。 */
+/** `build` module 的主题发现插件（`src/build/discoverThemes.ts`）生成的主题清单。 */
 declare module 'virtual:themes' {
   import type { Theme } from './theme';
 

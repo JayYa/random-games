@@ -1,10 +1,10 @@
 /**
- * 列出 `public/` 下的名单文件并读出原文（ADR-0009）。构建期专用，Vite 插件和冒烟测试共用，
+ * 列出 `public/` 下的名单文件并读出原文（ADR-0009）。构建期专用，主题发现插件和构建关卡共用，
  * 测试看到的文件才与构建一致。
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
-import type { RosterFile } from './theme/index.ts';
+import type { RosterFile } from '../theme';
 
 /**
  * 不做判断，合不合规归 `collectThemes`。大小写不敏感地收 `.csv`，`Drink.CSV` 才会被报出来。
