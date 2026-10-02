@@ -8,7 +8,7 @@
  * 不碰 DOM，写页面经注入的页面适配器。
  */
 
-import type { ResultCard } from './resultCard';
+import type { ResultCard } from './browser';
 import type { Candidate, Theme } from './theme';
 
 /** 揭晓后过多久弹结果卡片。卡片是全屏遮罩，没有这一拍名字刚亮就被盖住（ADR-0010）。 */

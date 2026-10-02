@@ -4,7 +4,7 @@
 
 import type { RecentStorage } from './cooldown';
 import type { Game } from './games';
-import type { ResultCard } from './resultCard';
+import type { ResultCard } from './browser';
 import type { Candidate, RosterError, Theme } from './theme';
 import {
   mountGamePage,

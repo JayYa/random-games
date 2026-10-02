@@ -7,7 +7,7 @@
 
 import { escapeHtml } from './escapeHtml';
 import { gamePage } from './gamePage';
-import type { RosterError, RosterErrorText, Theme } from './theme';
+import type { RosterError, RosterErrorText, Theme } from '../theme';
 
 export function showRosterError(
   root: HTMLElement,
