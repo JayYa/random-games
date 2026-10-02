@@ -323,9 +323,15 @@ export interface HostedBoard {
   readonly drawnWinners: readonly string[];
   /** 宿主交给盘面的开抽句柄，在 `board.mount` 里截下。 */
   readonly roll: RollHandle;
-  /** 走完揭晓那一拍。不在揭晓时什么都不发生。 */
+  /**
+   * 走完揭晓那一拍：把 `timer` 拨过那一拍。不在揭晓时什么都不发生。
+   * `realSchedule` 为真时宿主不用 `timer`，这里在揭晓中也什么都不做，由用例自己的假时钟走那一拍。
+   */
   readonly finishReveal: () => void;
-  /** 收下：先走完揭晓那一拍，再按结果卡片上的收下按钮。卡片没挂着时按不到。 */
+  /**
+   * 收下：先走完揭晓那一拍，再按结果卡片上的收下按钮。卡片没挂着时按不到。
+   * `realSchedule` 为真时走不了那一拍（同 `finishReveal`），揭晓中卡片还没挂上，按不到。
+   */
   readonly accept: () => void;
 }
 
@@ -368,7 +374,8 @@ export function mountOnHost(board: Board, options: MountOnHostOptions = {}): Hos
   // 宿主当场挂盘面；没截到句柄是宿主写错了。
   if (!roll) throw new Error('宿主应当当场挂上盘面');
   // 交出活的数组而不是 getter：用例常把挂载结果展开进自己的 harness。
-  // 那一拍只有揭晓时排着；不在揭晓时拨过去，没有到点的回调。
+  // 那一拍只有揭晓时排在 `timer` 上；不在揭晓时，或 `realSchedule` 下宿主根本没用 `timer`，
+  // 拨过去都没有到点的回调。
   const finishReveal = (): void => timer.advance(REVEAL_PAUSE_MS);
   const accept = (): void => {
     finishReveal();
