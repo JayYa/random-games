@@ -1,7 +1,7 @@
 // Feature: pinball-draw (features/pinball-draw.md). From the theme picker, through the
 // game roll, pull the plunger, reveal, 再打一发, a sideways drag that must not fire, and a
 // second shot with a mid-flight pull that must be ignored; checks stored winners.
-// Ends with a direct-link shot.
+// Closes that card with Escape, then ends with a direct-link shot.
 //
 //   node .claude/skills/verify-random-games/verify.mjs drive --run <RUN> --feature pinball-draw \
 //     .claude/skills/verify-random-games/scenarios/pinball-draw.mjs
@@ -97,6 +97,15 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     const mem = await recentMemory();
     expect(mem['random-games:recent-winners:breakfast']).toEqual([first, second]);
     return mem;
+  });
+
+  await step('Escape closes the card; no auto-fire', async () => {
+    await expect(page.getByRole('button', { name: '再打一发' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(card).toBeHidden();
+    await page.waitForTimeout(1_500);
+    await expect(card).toBeHidden();
+    expect((await recentMemory())['random-games:recent-winners:breakfast']).toEqual([first, second]);
   });
 
   // Direct link entry: clearing storage stands in for a fresh browser; about:blank

@@ -15,6 +15,7 @@ import {
   dividerPositions,
   pegPositions,
   slotCenterX,
+  slotLeftX,
   slotWidth,
 } from './board';
 import {
@@ -48,6 +49,8 @@ interface PinballColors {
   readonly onPalette: string;
   readonly labelBg: string;
   readonly labelFg: string;
+  readonly shadow: string;
+  readonly hand: string;
 }
 
 /** 画布读不了 CSS 变量，只能读算好的值。换主题后要重读。 */
@@ -61,14 +64,16 @@ function readPinballColors(element: Element): PinballColors {
     metal: token('--board-metal'),
     peg: token('--board-peg'),
     bumper: token('--board-bumper'),
-    windmill: token('--muted'),
-    pivot: token('--ink'),
+    windmill: token('--board-windmill'),
+    pivot: token('--accent'),
     ball: token('--board-ball'),
     ballShine: token('--board-ball-shine'),
     fade: token('--board-fade'),
     onPalette: token('--on-palette'),
-    labelBg: token('--primary-bg'),
-    labelFg: token('--primary-fg'),
+    labelBg: token('--sticker'),
+    labelFg: token('--on-palette'),
+    shadow: token('--shadow'),
+    hand: token('--hand'),
   };
 }
 
@@ -76,16 +81,21 @@ function readPinballColors(element: Element): PinballColors {
 const VIEW_TOP = BOARD.ceilingY - 30;
 const VIEW_HEIGHT = BOARD.height - VIEW_TOP;
 
-/** 柱塞头的高度与弹簧圈数。静止位置与行程在 `machine.ts`，机器摆球也要用。 */
-const PLUNGER_HEAD_HEIGHT = 8;
-const PLUNGER_COILS = 5;
+/** 柱塞头、底座的高度与弹簧圈数。静止位置与行程在 `machine.ts`，机器摆球也要用。 */
+const PLUNGER_HEAD_HEIGHT = 7;
+const PLUNGER_BASE_HEIGHT = 4;
+const PLUNGER_COILS = 7;
+
+/** 墙内沿那道轨的粗细与左上角的圆角；落格顶上的圆角。 */
+const RAIL_WIDTH = 2;
+const RAIL_CORNER = 14;
+const SLOT_CORNER = 4;
 const LANE_INNER_LEFT = BOARD.laneWallX + BOARD.laneWallWidth;
 const LANE_INNER_RIGHT = BOARD.laneRight;
 
 /** 揭晓标签：字号从大往小试，最小还放不下就折行。 */
 const LABEL_FONT_MAX = 20;
 const LABEL_FONT_MIN = 13;
-const LABEL_FONT_FAMILY = 'system-ui, sans-serif';
 /** 标签气泡的内边距、圆角、行距，以及底下那个指向落格的小尖角的高度。 */
 const LABEL_PADDING_X = 10;
 const LABEL_PADDING_Y = 6;
@@ -97,7 +107,10 @@ const LABEL_EDGE_MARGIN = 6;
 
 const BOARD_HTML = `
       <div class="pinball__stage">
-        <canvas class="pinball__board" id="pinball-board"></canvas>
+        <div class="pinball__frame">
+          <span class="tape"></span><span class="tape"></span>
+          <canvas class="pinball__board" id="pinball-board"></canvas>
+        </div>
       </div>
     `;
 
@@ -125,16 +138,22 @@ function roundedRectPath(
   ctx.closePath();
 }
 
-function fillRect(
+/** 只修圆上面两个角的矩形：落格坐在底面上，底下是直角。 */
+function topRoundedRectPath(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   width: number,
   height: number,
-  color: string,
+  radius: number,
 ): void {
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, width, height);
+  const r = Math.min(radius, width / 2, height);
+  ctx.beginPath();
+  ctx.moveTo(x, y + height);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.lineTo(x + width, y + height);
+  ctx.closePath();
 }
 
 interface LabelLayout {
@@ -144,8 +163,8 @@ interface LabelLayout {
   readonly textWidth: number;
 }
 
-function labelFont(size: number): string {
-  return `700 ${size}px ${LABEL_FONT_FAMILY}`;
+function labelFont(size: number, family: string): string {
+  return `${size}px ${family}`;
 }
 
 /**
@@ -156,14 +175,15 @@ function layoutLabel(
   name: string,
   maxWidth: number,
   maxLines: number,
+  family: string,
 ): LabelLayout {
   for (let size = LABEL_FONT_MAX; size >= LABEL_FONT_MIN; size -= 1) {
-    ctx.font = labelFont(size);
+    ctx.font = labelFont(size, family);
     const width = ctx.measureText(name).width;
     if (width <= maxWidth) return { fontSize: size, lines: [name], textWidth: width };
   }
 
-  ctx.font = labelFont(LABEL_FONT_MIN);
+  ctx.font = labelFont(LABEL_FONT_MIN, family);
   // 按码点切，别把一个表情字符劈成两半。
   const lines: string[] = [];
   let line = '';
@@ -205,7 +225,7 @@ function drawRevealLabel(
   const lineHeight = LABEL_FONT_MIN * LABEL_LINE_HEIGHT;
   const maxLines = Math.max(1, Math.floor(maxTextHeight / lineHeight));
 
-  const layout = layoutLabel(ctx, reveal.name, maxTextWidth, maxLines);
+  const layout = layoutLabel(ctx, reveal.name, maxTextWidth, maxLines, colors.hand);
   const linePx = layout.fontSize * LABEL_LINE_HEIGHT;
   const width = layout.textWidth + 2 * LABEL_PADDING_X;
   const height = layout.lines.length * linePx + 2 * LABEL_PADDING_Y;
@@ -215,9 +235,15 @@ function drawRevealLabel(
   );
   const top = bubbleBottom - height;
 
+  // 白标签贴纸，带一点影子浮在落格上方。
+  ctx.save();
+  ctx.shadowColor = colors.shadow;
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
   roundedRectPath(ctx, left, top, width, height, LABEL_RADIUS);
   ctx.fillStyle = colors.labelBg;
   ctx.fill();
+  ctx.restore();
 
   // 尖角夹在气泡的圆角以内，气泡被挪到一边时它也还长在气泡底边上。
   const pointerX = Math.min(
@@ -231,7 +257,7 @@ function drawRevealLabel(
   ctx.closePath();
   ctx.fill();
 
-  ctx.font = labelFont(layout.fontSize);
+  ctx.font = labelFont(layout.fontSize, colors.hand);
   ctx.fillStyle = colors.labelFg;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -248,98 +274,108 @@ function drawBoard(
 ): void {
   ctx.clearRect(0, VIEW_TOP, BOARD.width, VIEW_HEIGHT);
 
-  // 台面与机身外框。
-  roundedRectPath(ctx, 0.5, VIEW_TOP + 0.5, BOARD.width - 1, VIEW_HEIGHT - 1, 18);
+  // 台面一整张，墙不再涂成厚色带：墙外就是贴纸的白边，只沿墙的内沿描一道细轨。
   ctx.fillStyle = colors.field;
-  ctx.fill();
+  ctx.fillRect(0, VIEW_TOP, BOARD.width, VIEW_HEIGHT);
 
-  // 墙：左、右、底、天花板以上，还有把柱塞通道隔开的那道墙。
-  fillRect(ctx, 0, VIEW_TOP, BOARD.playLeft, VIEW_HEIGHT, colors.wall);
-  fillRect(ctx, BOARD.laneRight, VIEW_TOP, BOARD.width - BOARD.laneRight, VIEW_HEIGHT, colors.wall);
-  fillRect(ctx, 0, SLOT_FLOOR_Y, BOARD.width, BOARD.height - SLOT_FLOOR_Y, colors.wall);
-  fillRect(ctx, 0, VIEW_TOP, BOARD.arcCenterX, BOARD.ceilingY - VIEW_TOP, colors.wall);
-  fillRect(
+  // 内沿轨：左墙、天花板、斜挡板、右墙、底面，一笔连起来。左上角顺手修圆。
+  ctx.beginPath();
+  ctx.moveTo(BOARD.playLeft, SLOT_FLOOR_Y);
+  ctx.arcTo(BOARD.playLeft, BOARD.ceilingY, BOARD.deflectorLeftX, BOARD.ceilingY, RAIL_CORNER);
+  ctx.lineTo(BOARD.deflectorLeftX, BOARD.ceilingY);
+  ctx.lineTo(BOARD.laneRight, BOARD.deflectorRightY);
+  ctx.lineTo(BOARD.laneRight, SLOT_FLOOR_Y);
+  ctx.closePath();
+  ctx.strokeStyle = colors.wallEdge;
+  ctx.lineWidth = RAIL_WIDTH;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // 把柱塞通道隔开的那道墙：一根圆头的细杆。
+  roundedRectPath(
     ctx,
     BOARD.laneWallX,
     BOARD.laneWallTopY,
     BOARD.laneWallWidth,
     SLOT_FLOOR_Y - BOARD.laneWallTopY,
-    colors.wall,
+    BOARD.laneWallWidth / 2,
   );
-
-  // 顶弧右上角：弧线以外是机身，弧线以内是球绕过来的那条通道。
-  ctx.beginPath();
-  ctx.moveTo(BOARD.arcCenterX, VIEW_TOP);
-  ctx.lineTo(BOARD.width, VIEW_TOP);
-  ctx.lineTo(BOARD.width, BOARD.arcCenterY);
-  ctx.lineTo(BOARD.arcCenterX + BOARD.arcRadius + BOARD.wallThickness / 2, BOARD.arcCenterY);
-  ctx.arc(
-    BOARD.arcCenterX,
-    BOARD.arcCenterY,
-    BOARD.arcRadius + BOARD.wallThickness / 2,
-    0,
-    -Math.PI / 2,
-    true,
-  );
-  ctx.closePath();
-  ctx.fillStyle = colors.wall;
+  ctx.fillStyle = colors.wallEdge;
   ctx.fill();
 
-  // 落格只有颜色。揭晓时其余几格褪淡。
+  // 落格是一排等宽的色块，揭晓时其余几格褪淡。
   const width = slotWidth(BOARD.slotCount);
   const slotTop = BOARD.dividerTopY;
   const slotHeight = SLOT_FLOOR_Y - slotTop;
   for (let i = 0; i < BOARD.slotCount; i += 1) {
-    const left = BOARD.playLeft + i * width;
-    fillRect(ctx, left, slotTop, width, slotHeight, slotColor(i));
+    const left = slotLeftX(i, BOARD.slotCount);
+    topRoundedRectPath(ctx, left, slotTop, width, slotHeight, SLOT_CORNER);
+    ctx.fillStyle = slotColor(i);
+    ctx.fill();
     if (view.revealed && view.revealed.slotIndex !== i) {
-      fillRect(ctx, left, slotTop, width, slotHeight, colors.fade);
+      ctx.fillStyle = colors.fade;
+      ctx.fill();
     }
   }
 
-  // 隔板。
+  // 隔板：跟通道墙一样的圆头细杆，坐在底面上。
+  ctx.fillStyle = colors.wallEdge;
   for (const x of dividerPositions(BOARD.slotCount)) {
-    fillRect(ctx, x - BOARD.dividerWidth / 2, slotTop, BOARD.dividerWidth, slotHeight, colors.wall);
-    ctx.strokeStyle = colors.wallEdge;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x - BOARD.dividerWidth / 2, slotTop, BOARD.dividerWidth, slotHeight);
+    topRoundedRectPath(
+      ctx,
+      x - BOARD.dividerWidth / 2,
+      slotTop,
+      BOARD.dividerWidth,
+      slotHeight,
+      BOARD.dividerWidth / 2,
+    );
+    ctx.fill();
   }
 
-  // 高亮框描在隔板之后，才不会被隔板压掉半边。
+  // 中选落格的高亮框。
   if (view.revealed) {
-    const inset = BOARD.dividerWidth / 2 + 1.5;
+    const inset = 1.5;
+    topRoundedRectPath(
+      ctx,
+      slotLeftX(view.revealed.slotIndex, BOARD.slotCount) + inset,
+      slotTop + inset,
+      width - 2 * inset,
+      slotHeight - inset,
+      SLOT_CORNER - inset,
+    );
     ctx.strokeStyle = colors.onPalette;
     ctx.lineWidth = 3;
-    ctx.strokeRect(
-      BOARD.playLeft + view.revealed.slotIndex * width + inset,
-      slotTop + 1.5,
-      width - 2 * inset,
-      slotHeight - 3,
-    );
+    ctx.stroke();
   }
 
   // 弹力柱。
-  for (const bumper of BOARD.bumperPositions) {
+  // 弹力柱：一枚枚白边的圆贴纸。
+  BOARD.bumperPositions.forEach((bumper, i) => {
     ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius, 0, Math.PI * 2);
-    ctx.fillStyle = colors.bumper;
+    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius - 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = PALETTE[(i * 2 + 1) % PALETTE.length]!;
     ctx.fill();
-    ctx.strokeStyle = colors.metal;
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = colors.bumper;
+    ctx.lineWidth = 3.5;
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius * 0.45, 0, Math.PI * 2);
-    ctx.fillStyle = colors.metal;
+    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius * 0.32, 0, Math.PI * 2);
+    ctx.fillStyle = colors.onPalette;
     ctx.fill();
-  }
+  });
 
-  // 钉阵。
+  // 钉阵。墙上那颗只露出盘面里的半颗。
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOARD.playLeft, VIEW_TOP, BOARD.playRight - BOARD.playLeft, VIEW_HEIGHT);
+  ctx.clip();
   ctx.fillStyle = colors.peg;
   for (const peg of pegPositions()) {
     ctx.beginPath();
     ctx.arc(peg.x, peg.y, BOARD.pegRadius, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
 
   // 风车。
   BOARD.windmillPivots.forEach((pivot, i) => {
@@ -384,37 +420,34 @@ function drawBoard(
 
   // 揭晓标签在落格上方，遮不到球。
   if (view.revealed) drawRevealLabel(ctx, view.revealed, colors);
-
-  // 外框描边压在最上面，机身边缘才干净。
-  roundedRectPath(ctx, 0.5, VIEW_TOP + 0.5, BOARD.width - 1, VIEW_HEIGHT - 1, 18);
-  ctx.strokeStyle = colors.wallEdge;
-  ctx.lineWidth = 1;
-  ctx.stroke();
 }
 
 /** 柱塞：头加弹簧。压下去的样子就是力度指示，盘面上没有数字。 */
 function drawPlunger(ctx: CanvasRenderingContext2D, power: number, colors: PinballColors): void {
   const headTop = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL;
   const headBottom = headTop + PLUNGER_HEAD_HEIGHT;
-  const left = LANE_INNER_LEFT + 2;
-  const right = LANE_INNER_RIGHT - 2;
+  const left = LANE_INNER_LEFT + 4;
+  const right = LANE_INNER_RIGHT - 4;
+  const baseTop = SLOT_FLOOR_Y - PLUNGER_BASE_HEIGHT;
 
-  roundedRectPath(ctx, left, headTop, right - left, PLUNGER_HEAD_HEIGHT, 3);
-  ctx.fillStyle = colors.metal;
-  ctx.fill();
-
-  // 弹簧：圈数不变，被压得越扁力度越大。
+  // 弹簧：圈数不变，被压得越扁力度越大。先画，头和底座压住两端的线头。
   ctx.beginPath();
   ctx.moveTo(left, headBottom);
-  for (let i = 1; i <= PLUNGER_COILS; i += 1) {
-    const y = headBottom + ((SLOT_FLOOR_Y - headBottom) * i) / PLUNGER_COILS;
+  for (let i = 1; i <= PLUNGER_COILS * 2; i += 1) {
+    const y = headBottom + ((baseTop - headBottom) * i) / (PLUNGER_COILS * 2);
     ctx.lineTo(i % 2 === 1 ? right : left, y);
   }
   ctx.strokeStyle = colors.metal;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.stroke();
+
+  roundedRectPath(ctx, left - 2, headTop, right - left + 4, PLUNGER_HEAD_HEIGHT, 3);
+  ctx.fillStyle = colors.metal;
+  ctx.fill();
+  roundedRectPath(ctx, left - 2, baseTop, right - left + 4, PLUNGER_BASE_HEIGHT, 2);
+  ctx.fill();
 }
 
 export function createPinballBoard(): Board {
@@ -474,9 +507,18 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   let lastView: PinballView | undefined;
   let running = false;
 
+  /** 结果卡片照中选落格的颜色铺色（style.css 的 .card__inner）。 */
+  let winColor: string | undefined;
+
   function frame(now: number): void {
     lastView = machine.tick(now);
     draw(lastView);
+    const revealedColor = lastView.revealed ? slotColor(lastView.revealed.slotIndex) : undefined;
+    if (revealedColor !== winColor) {
+      winColor = revealedColor;
+      if (winColor) root.style.setProperty('--win', winColor);
+      else root.style.removeProperty('--win');
+    }
     // 结果卡片盖住了盘面：停帧，抹掉时再起。
     running = !lastView.still;
     if (running) rafId = requestAnimationFrame(frame);
@@ -556,6 +598,7 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     teardown: () => {
       cancelAnimationFrame(rafId);
       controller.abort();
+      root.style.removeProperty('--win');
     },
   };
 }

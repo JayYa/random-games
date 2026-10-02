@@ -6,4 +6,5 @@
  */
 
 export { discoverThemes } from './discoverThemes.ts';
+export { handFont } from './handFont.ts';
 export { readRosterFiles } from './readRosterFiles.ts';

@@ -74,7 +74,7 @@ function wall(x: number, y: number, width: number, height: number, restitution: 
   });
 }
 
-/** 把盘面搭出来：墙、顶弧、钉阵、风车、弹力柱、隔板，最后放球。 */
+/** 把盘面搭出来：墙、斜挡板、钉阵、风车、弹力柱、隔板，最后放球。 */
 function buildWorld(input: {
   slotCount: number;
   power: number;
@@ -108,12 +108,12 @@ function buildWorld(input: {
       BOARD.slotFloorRestitution,
     ),
   );
-  // 天花板：从左墙一直铺到顶弧的最高点。
+  // 天花板：从左墙一直铺到斜挡板的上端。
   bodies.push(
     wall(
-      BOARD.arcCenterX / 2,
+      BOARD.deflectorLeftX / 2,
       BOARD.ceilingY - half,
-      BOARD.arcCenterX + BOARD.wallThickness,
+      BOARD.deflectorLeftX + BOARD.wallThickness,
       BOARD.wallThickness,
       BOARD.ceilingRestitution,
     ),
@@ -130,28 +130,28 @@ function buildWorld(input: {
     ),
   );
 
-  // 顶弧：一串静止小方块拼成，把竖直上行的球拧成向左的水平飞行。
-  const arcStep = Math.PI / 2 / BOARD.arcSegments;
-  const chord = 2 * BOARD.arcRadius * Math.sin(arcStep / 2);
-  for (let i = 0; i < BOARD.arcSegments; i += 1) {
-    const theta = (i + 0.5) * arcStep;
-    const r = BOARD.arcRadius + half;
-    bodies.push(
-      Bodies.rectangle(
-        BOARD.arcCenterX + r * Math.cos(theta),
-        BOARD.arcCenterY - r * Math.sin(theta),
-        chord * 1.8,
-        BOARD.wallThickness,
-        {
-          isStatic: true,
-          angle: -theta,
-          restitution: BOARD.ceilingRestitution,
-          friction: 0.02,
-          collisionFilter: STATIC_FILTER,
-        },
-      ),
-    );
-  }
+  // 右上角的斜挡板：一块斜放的厚板，内侧面正好落在两端点的连线上，两头各多伸出一截封住角。
+  const dx = BOARD.deflectorLeftX - BOARD.laneRight;
+  const dy = BOARD.ceilingY - BOARD.deflectorRightY;
+  const length = Math.hypot(dx, dy);
+  // 连线朝左上走，它的右上侧（盘面外）是 (-dy, dx) / length。
+  const outX = -dy / length;
+  const outY = dx / length;
+  bodies.push(
+    Bodies.rectangle(
+      (BOARD.laneRight + BOARD.deflectorLeftX) / 2 + outX * half,
+      (BOARD.deflectorRightY + BOARD.ceilingY) / 2 + outY * half,
+      length + BOARD.wallThickness * 2,
+      BOARD.wallThickness,
+      {
+        isStatic: true,
+        angle: Math.atan2(dy, dx),
+        restitution: BOARD.ceilingRestitution,
+        friction: 0.02,
+        collisionFilter: STATIC_FILTER,
+      },
+    ),
+  );
 
   // 钉阵。
   for (const peg of pegPositions()) {
@@ -318,8 +318,8 @@ function nextSeed(seed: number, attempt: number): number {
   return (Math.trunc(seed) + (attempt + 1) * 0x9e3779b9) >>> 0;
 }
 
-/** 兜底补出来的落格收尾，约 0.4 秒。 */
-const FALLBACK_DROP_FRAMES = 48;
+/** 兜底补出来的落格收尾，约 0.5 秒。从天花板附近掉到底，每帧也挪不到一个球身。 */
+const FALLBACK_DROP_FRAMES = 60;
 
 /** matter 的角速度按 16.67ms 基准步计，换算成每个固定步长。 */
 const WINDMILL_RADIANS_PER_STEP =

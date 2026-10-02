@@ -6,8 +6,9 @@
  */
 
 import { createById } from '../byId';
-import { burstConfetti } from './confetti';
+import { burstConfetti, peelConfetti } from './confetti';
 import { escapeHtml } from './escapeHtml';
+import { PALETTE } from '../palette';
 import type { ResultCard } from '../gamePage';
 import type { Candidate } from '../theme';
 
@@ -20,6 +21,7 @@ export function resultCardMarkup(closeLabel: string): string {
   return `
       <div class="card" id="card" hidden role="dialog" aria-live="polite" tabindex="-1">
         <div class="card__inner">
+          <span class="tape"></span>
           <p class="card__name" id="card-name"></p>
           <button class="card__close" id="card-close" type="button">${escapeHtml(closeLabel)}</button>
         </div>
@@ -65,15 +67,22 @@ export function createResultCard(root: HTMLElement, onClose: () => void): Result
   return {
     show(winner: Candidate): void {
       cardName.textContent = winner.name;
+      // 名字越短字越大，铺满贴纸的宽（.card__name 照它定字号）。
+      cardName.style.setProperty('--len', String(Math.max(2, Array.from(winner.name).length)));
+      // 顶上那截胶带每次换个颜色，不和卡片撞色（卡片铺的是盘面写进 --win 的颜色）。
+      const win = getComputedStyle(card).getPropertyValue('--win').trim().toLowerCase();
+      const tapes = PALETTE.filter((color) => color !== win);
+      card.style.setProperty('--card-tape', tapes[Math.floor(Math.random() * tapes.length)]!);
       setBehindInert(true);
       card.hidden = false;
-      burstConfetti();
+      burstConfetti(root);
       cardClose.focus();
     },
     hide(returnFocusTo: HTMLElement | undefined): void {
       // 没开时不动，免得抢走当前的焦点。
       if (card.hidden) return;
       card.hidden = true;
+      peelConfetti();
       // 先解开再交焦点：`inert` 里的元素聚焦不了。
       setBehindInert(false);
       returnFocusTo?.focus();

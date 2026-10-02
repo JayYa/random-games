@@ -9,7 +9,7 @@ import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePage';
 import { fitCanvas } from '../fitCanvas';
 import { createWheelMachine, type WheelView } from './machine';
-import { drawWheel, readWheelColors } from './wheelCanvas';
+import { drawWheel, readWheelColors, sectorColor } from './wheelCanvas';
 
 /** 收下只收卡片，转不转由使用者再按「转」。 */
 const CLOSE_LABEL = '再来一次';
@@ -17,8 +17,9 @@ const CLOSE_LABEL = '再来一次';
 const BOARD_HTML = `
       <div class="wheel__stage">
         <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
+        <span class="tape wheel__tape"></span>
       </div>
-      <button class="wheel__spin" id="wheel-spin" type="button">转</button>
+      <button class="wheel__spin" id="wheel-spin" type="button"><span class="tape"></span>转</button>
     `;
 
 export function createWheelBoard(): Board {
@@ -94,16 +95,21 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   return {
     reveal: (winner) => {
       machine.reveal(winner);
+      // 结果卡片照停下那一格的颜色铺色（style.css 的 .card__inner）。
+      const shown = machine.view().reveal;
+      if (shown) root.style.setProperty('--win', sectorColor(shown.sector, machine.sectors.count));
       redraw();
     },
     erase: () => {
       machine.erase();
+      root.style.removeProperty('--win');
       redraw();
     },
     // 焦点回到「转」，键盘用户敲 Enter 就是下一次开抽。
     returnFocusTo: spinButton,
     teardown: () => {
       if (rafId !== undefined) cancelAnimationFrame(rafId);
+      root.style.removeProperty('--win');
       controller.abort();
       resizeObserver?.disconnect();
     },

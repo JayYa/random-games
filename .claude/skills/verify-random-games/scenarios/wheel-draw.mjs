@@ -1,6 +1,6 @@
 // Feature: wheel-draw (features/wheel-draw.md). One full 开抽 on the wheel, from the
 // theme picker, through the game roll, to the result card, 再来一次, and the stored
-// recent winner; then a keyboard spin, and a direct-link draw.
+// recent winner; then a keyboard spin, an Escape close, and a direct-link draw.
 //
 //   node .claude/skills/verify-random-games/verify.mjs drive --run <RUN> --feature wheel-draw \
 //     .claude/skills/verify-random-games/scenarios/wheel-draw.mjs
@@ -83,6 +83,24 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     const mem = await recentMemory();
     expect(mem['random-games:recent-winners:breakfast']).toEqual([winner, second]);
     return mem;
+  });
+
+  // The card is modal: Tab can't leave 再来一次, and Escape closes it like the button does.
+  await step('keyboard: Tab stays on 再来一次; Escape closes the card', async () => {
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#card')).toBeVisible({ timeout: 20_000 });
+    const close = page.getByRole('button', { name: '再来一次' });
+    await page.keyboard.press('Tab');
+    await expect(close).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(close).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#card')).toBeHidden();
+    await expect(spin).toBeFocused();
+    await expect(spin).toHaveAttribute('aria-disabled', 'false');
+    await page.waitForTimeout(1_500);
+    await expect(page.locator('#card')).toBeHidden();
+    return (await recentMemory())['random-games:recent-winners:breakfast'];
   });
 
   // Direct link entry: a first-time visitor opens a shared link. Clearing
