@@ -25,9 +25,9 @@ export const BOARD = {
   gravityY: 1,
   gravityScale: 0.0006,
 
-  /** 可玩区域（不含右侧柱塞通道）的左右内壁。 */
+  /** 可玩区域（不含右侧柱塞通道）的左右内壁。右内壁就是柱塞通道左壁的左沿。 */
   playLeft: 20,
-  playRight: 310,
+  playRight: 313,
 
   /** 柱塞通道：左壁把它跟可玩区域隔开，右侧到 `laneRight` 为止。 */
   laneWallX: 313,
@@ -35,15 +35,16 @@ export const BOARD = {
   laneWallTopY: 200,
   laneRight: 350,
 
-  /** 顶部天花板所在的水平线，球绕过弧顶之后贴着它往左飞。 */
+  /** 顶部天花板所在的水平线。 */
   ceilingY: 150,
-  /** 顶部弧线：把竖直上行的球拧成向左的水平飞行。 */
-  arcCenterX: 300,
-  arcCenterY: 200,
-  arcRadius: 50,
-  /** 弧线由多少段静止小方块拼成。段数越多越圆，也越慢。 */
-  arcSegments: 12,
-  /** 天花板与弧线的恢复系数：撞一下要留住大部分速度，否则大力度打不远。 */
+  /**
+   * 右上角的斜挡板：从通道右壁 `(laneRight, deflectorRightY)` 斜到天花板 `(deflectorLeftX, ceilingY)`。
+   * 不用圆弧——圆弧会把每一发都拧成贴着天花板的水平飞行，一路撞到左墙落进最左一格。
+   * 端点是扫出来的：再往下或往左挪几像素，弱球就会被弹回柱塞通道。
+   */
+  deflectorRightY: 195,
+  deflectorLeftX: 285,
+  /** 天花板与斜挡板的恢复系数：撞一下要留住大部分速度，否则大力度打不远。 */
   ceilingRestitution: 0.65,
 
   /** 钉 (Peg)：钉阵负责把力度上的细微差别打散。 */
@@ -53,6 +54,11 @@ export const BOARD = {
   pegSpacingX: 42,
   /** 钉阵的行 y 坐标：上片两行在风车之前，下片两行在弹力柱之后。 */
   pegRowsY: [252, 294, 486, 522] as const,
+  /**
+   * 左墙上补半颗钉的那一行（下标对应 `pegRowsY`）。球多半是从右上往左飞，撞了左墙就贴着它往下溜；
+   * 这一颗把它顶回盘面。只补这一颗：下片再补会把球全顶进第二格，右墙补了右边那格更难进。
+   */
+  leftWallPegRow: 1,
 
   /** 风车 (Windmill)：两片匀速反向旋转的叶片。 */
   windmillPivots: [
@@ -81,15 +87,15 @@ export const BOARD = {
   slotCount: 8,
   /** 隔板顶部所在的水平线——「进格即定」判定的就是它（ADR-0006）。 */
   dividerTopY: 556,
-  dividerWidth: 10,
+  dividerWidth: 6,
   /** 落格底面的恢复系数：低，球进了格就别再蹦出去。 */
   slotFloorRestitution: 0.05,
 
-  /** 柱塞 (Plunger)：力度 0 与 1 的出球速度。最轻的一发也要绕得过顶弧。 */
+  /** 柱塞 (Plunger)：力度 0 与 1 的出球速度。最轻的一发也要打得上斜挡板、弹进盘面。 */
   launchSpeedMin: 14.5,
   launchSpeedMax: 21,
   /** 球在柱塞通道里的出发高度。 */
-  launchY: 600,
+  launchY: 560,
 
   /** 固定步长（毫秒）。手动步进，绝不交给 matter 自己的 runner。 */
   stepMs: 1000 / 120,
@@ -128,34 +134,45 @@ export function pegPositions(): readonly Point[] {
     ) {
       pegs.push({ x, y });
     }
+    if (row === BOARD.leftWallPegRow) pegs.push({ x: BOARD.playLeft, y });
   });
   return pegs;
 }
 
-/** 可玩区域的宽度。落格平分它。 */
+/** 可玩区域的宽度。落格与隔板一起铺满它。 */
 export const PLAY_WIDTH = BOARD.playRight - BOARD.playLeft;
 
-/** 一个落格的宽度。 */
+/** 一个落格加一块隔板的步距。首尾两格贴着墙、没有隔板，所以按「多一块隔板」来分。 */
+function slotPitch(slotCount: number): number {
+  return (PLAY_WIDTH + BOARD.dividerWidth) / slotCount;
+}
+
+/** 一个落格的净宽（隔板之间的开口）。每一格都一样宽，贴墙的两格也不例外。 */
 export function slotWidth(slotCount: number): number {
-  return PLAY_WIDTH / slotCount;
+  return slotPitch(slotCount) - BOARD.dividerWidth;
+}
+
+/** 落格 i 的左沿。 */
+export function slotLeftX(index: number, slotCount: number): number {
+  return BOARD.playLeft + index * slotPitch(slotCount);
 }
 
 /** 落格 i 的中线横坐标。 */
 export function slotCenterX(index: number, slotCount: number): number {
-  return BOARD.playLeft + (index + 0.5) * slotWidth(slotCount);
+  return slotLeftX(index, slotCount) + slotWidth(slotCount) / 2;
 }
 
-/** 横坐标落在哪个落格里，结果永远被夹在 `[0, slotCount)` 内。 */
+/** 横坐标落在哪个落格里（以隔板中线为界），结果永远被夹在 `[0, slotCount)` 内。 */
 export function slotIndexAtX(x: number, slotCount: number): number {
-  const raw = Math.floor((x - BOARD.playLeft) / slotWidth(slotCount));
+  const raw = Math.floor((x - BOARD.playLeft + BOARD.dividerWidth / 2) / slotPitch(slotCount));
   return Math.min(slotCount - 1, Math.max(0, raw));
 }
 
-/** 隔板的横坐标：`slotCount - 1` 块，夹在相邻两个落格之间。 */
+/** 隔板的中线横坐标：`slotCount - 1` 块，夹在相邻两个落格之间。 */
 export function dividerPositions(slotCount: number): readonly number[] {
   const xs: number[] = [];
   for (let i = 1; i < slotCount; i += 1) {
-    xs.push(BOARD.playLeft + i * slotWidth(slotCount));
+    xs.push(slotLeftX(i, slotCount) - BOARD.dividerWidth / 2);
   }
   return xs;
 }

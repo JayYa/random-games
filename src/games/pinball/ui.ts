@@ -15,6 +15,7 @@ import {
   dividerPositions,
   pegPositions,
   slotCenterX,
+  slotLeftX,
   slotWidth,
 } from './board';
 import {
@@ -80,9 +81,15 @@ function readPinballColors(element: Element): PinballColors {
 const VIEW_TOP = BOARD.ceilingY - 30;
 const VIEW_HEIGHT = BOARD.height - VIEW_TOP;
 
-/** 柱塞头的高度与弹簧圈数。静止位置与行程在 `machine.ts`，机器摆球也要用。 */
-const PLUNGER_HEAD_HEIGHT = 8;
-const PLUNGER_COILS = 5;
+/** 柱塞头、底座的高度与弹簧圈数。静止位置与行程在 `machine.ts`，机器摆球也要用。 */
+const PLUNGER_HEAD_HEIGHT = 7;
+const PLUNGER_BASE_HEIGHT = 4;
+const PLUNGER_COILS = 7;
+
+/** 墙内沿那道轨的粗细与左上角的圆角；落格顶上的圆角。 */
+const RAIL_WIDTH = 2;
+const RAIL_CORNER = 14;
+const SLOT_CORNER = 4;
 const LANE_INNER_LEFT = BOARD.laneWallX + BOARD.laneWallWidth;
 const LANE_INNER_RIGHT = BOARD.laneRight;
 
@@ -131,16 +138,22 @@ function roundedRectPath(
   ctx.closePath();
 }
 
-function fillRect(
+/** 只修圆上面两个角的矩形：落格坐在底面上，底下是直角。 */
+function topRoundedRectPath(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   width: number,
   height: number,
-  color: string,
+  radius: number,
 ): void {
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, width, height);
+  const r = Math.min(radius, width / 2, height);
+  ctx.beginPath();
+  ctx.moveTo(x, y + height);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.lineTo(x + width, y + height);
+  ctx.closePath();
 }
 
 interface LabelLayout {
@@ -261,74 +274,78 @@ function drawBoard(
 ): void {
   ctx.clearRect(0, VIEW_TOP, BOARD.width, VIEW_HEIGHT);
 
-  // 台面与机身外框。
-  roundedRectPath(ctx, 0.5, VIEW_TOP + 0.5, BOARD.width - 1, VIEW_HEIGHT - 1, 18);
+  // 台面一整张，墙不再涂成厚色带：墙外就是贴纸的白边，只沿墙的内沿描一道细轨。
   ctx.fillStyle = colors.field;
-  ctx.fill();
+  ctx.fillRect(0, VIEW_TOP, BOARD.width, VIEW_HEIGHT);
 
-  // 墙：左、右、底、天花板以上，还有把柱塞通道隔开的那道墙。
-  fillRect(ctx, 0, VIEW_TOP, BOARD.playLeft, VIEW_HEIGHT, colors.wall);
-  fillRect(ctx, BOARD.laneRight, VIEW_TOP, BOARD.width - BOARD.laneRight, VIEW_HEIGHT, colors.wall);
-  fillRect(ctx, 0, SLOT_FLOOR_Y, BOARD.width, BOARD.height - SLOT_FLOOR_Y, colors.wall);
-  fillRect(ctx, 0, VIEW_TOP, BOARD.arcCenterX, BOARD.ceilingY - VIEW_TOP, colors.wall);
-  fillRect(
+  // 内沿轨：左墙、天花板、斜挡板、右墙、底面，一笔连起来。左上角顺手修圆。
+  ctx.beginPath();
+  ctx.moveTo(BOARD.playLeft, SLOT_FLOOR_Y);
+  ctx.arcTo(BOARD.playLeft, BOARD.ceilingY, BOARD.deflectorLeftX, BOARD.ceilingY, RAIL_CORNER);
+  ctx.lineTo(BOARD.deflectorLeftX, BOARD.ceilingY);
+  ctx.lineTo(BOARD.laneRight, BOARD.deflectorRightY);
+  ctx.lineTo(BOARD.laneRight, SLOT_FLOOR_Y);
+  ctx.closePath();
+  ctx.strokeStyle = colors.wallEdge;
+  ctx.lineWidth = RAIL_WIDTH;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // 把柱塞通道隔开的那道墙：一根圆头的细杆。
+  roundedRectPath(
     ctx,
     BOARD.laneWallX,
     BOARD.laneWallTopY,
     BOARD.laneWallWidth,
     SLOT_FLOOR_Y - BOARD.laneWallTopY,
-    colors.wall,
+    BOARD.laneWallWidth / 2,
   );
-
-  // 顶弧右上角：弧线以外是机身，弧线以内是球绕过来的那条通道。
-  ctx.beginPath();
-  ctx.moveTo(BOARD.arcCenterX, VIEW_TOP);
-  ctx.lineTo(BOARD.width, VIEW_TOP);
-  ctx.lineTo(BOARD.width, BOARD.arcCenterY);
-  ctx.lineTo(BOARD.arcCenterX + BOARD.arcRadius + BOARD.wallThickness / 2, BOARD.arcCenterY);
-  ctx.arc(
-    BOARD.arcCenterX,
-    BOARD.arcCenterY,
-    BOARD.arcRadius + BOARD.wallThickness / 2,
-    0,
-    -Math.PI / 2,
-    true,
-  );
-  ctx.closePath();
-  ctx.fillStyle = colors.wall;
+  ctx.fillStyle = colors.wallEdge;
   ctx.fill();
 
-  // 落格只有颜色。揭晓时其余几格褪淡。
+  // 落格是一排等宽的色块，揭晓时其余几格褪淡。
   const width = slotWidth(BOARD.slotCount);
   const slotTop = BOARD.dividerTopY;
   const slotHeight = SLOT_FLOOR_Y - slotTop;
   for (let i = 0; i < BOARD.slotCount; i += 1) {
-    const left = BOARD.playLeft + i * width;
-    fillRect(ctx, left, slotTop, width, slotHeight, slotColor(i));
+    const left = slotLeftX(i, BOARD.slotCount);
+    topRoundedRectPath(ctx, left, slotTop, width, slotHeight, SLOT_CORNER);
+    ctx.fillStyle = slotColor(i);
+    ctx.fill();
     if (view.revealed && view.revealed.slotIndex !== i) {
-      fillRect(ctx, left, slotTop, width, slotHeight, colors.fade);
+      ctx.fillStyle = colors.fade;
+      ctx.fill();
     }
   }
 
-  // 隔板。
+  // 隔板：跟通道墙一样的圆头细杆，坐在底面上。
+  ctx.fillStyle = colors.wallEdge;
   for (const x of dividerPositions(BOARD.slotCount)) {
-    fillRect(ctx, x - BOARD.dividerWidth / 2, slotTop, BOARD.dividerWidth, slotHeight, colors.wall);
-    ctx.strokeStyle = colors.wallEdge;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x - BOARD.dividerWidth / 2, slotTop, BOARD.dividerWidth, slotHeight);
+    topRoundedRectPath(
+      ctx,
+      x - BOARD.dividerWidth / 2,
+      slotTop,
+      BOARD.dividerWidth,
+      slotHeight,
+      BOARD.dividerWidth / 2,
+    );
+    ctx.fill();
   }
 
-  // 高亮框描在隔板之后，才不会被隔板压掉半边。
+  // 中选落格的高亮框。
   if (view.revealed) {
-    const inset = BOARD.dividerWidth / 2 + 1.5;
+    const inset = 1.5;
+    topRoundedRectPath(
+      ctx,
+      slotLeftX(view.revealed.slotIndex, BOARD.slotCount) + inset,
+      slotTop + inset,
+      width - 2 * inset,
+      slotHeight - inset,
+      SLOT_CORNER - inset,
+    );
     ctx.strokeStyle = colors.onPalette;
     ctx.lineWidth = 3;
-    ctx.strokeRect(
-      BOARD.playLeft + view.revealed.slotIndex * width + inset,
-      slotTop + 1.5,
-      width - 2 * inset,
-      slotHeight - 3,
-    );
+    ctx.stroke();
   }
 
   // 弹力柱。
@@ -347,13 +364,18 @@ function drawBoard(
     ctx.fill();
   });
 
-  // 钉阵。
+  // 钉阵。墙上那颗只露出盘面里的半颗。
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOARD.playLeft, VIEW_TOP, BOARD.playRight - BOARD.playLeft, VIEW_HEIGHT);
+  ctx.clip();
   ctx.fillStyle = colors.peg;
   for (const peg of pegPositions()) {
     ctx.beginPath();
     ctx.arc(peg.x, peg.y, BOARD.pegRadius, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
 
   // 风车。
   BOARD.windmillPivots.forEach((pivot, i) => {
@@ -398,37 +420,34 @@ function drawBoard(
 
   // 揭晓标签在落格上方，遮不到球。
   if (view.revealed) drawRevealLabel(ctx, view.revealed, colors);
-
-  // 外框描边压在最上面，机身边缘才干净。
-  roundedRectPath(ctx, 0.5, VIEW_TOP + 0.5, BOARD.width - 1, VIEW_HEIGHT - 1, 18);
-  ctx.strokeStyle = colors.wallEdge;
-  ctx.lineWidth = 1;
-  ctx.stroke();
 }
 
 /** 柱塞：头加弹簧。压下去的样子就是力度指示，盘面上没有数字。 */
 function drawPlunger(ctx: CanvasRenderingContext2D, power: number, colors: PinballColors): void {
   const headTop = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL;
   const headBottom = headTop + PLUNGER_HEAD_HEIGHT;
-  const left = LANE_INNER_LEFT + 2;
-  const right = LANE_INNER_RIGHT - 2;
+  const left = LANE_INNER_LEFT + 4;
+  const right = LANE_INNER_RIGHT - 4;
+  const baseTop = SLOT_FLOOR_Y - PLUNGER_BASE_HEIGHT;
 
-  roundedRectPath(ctx, left, headTop, right - left, PLUNGER_HEAD_HEIGHT, 3);
-  ctx.fillStyle = colors.metal;
-  ctx.fill();
-
-  // 弹簧：圈数不变，被压得越扁力度越大。
+  // 弹簧：圈数不变，被压得越扁力度越大。先画，头和底座压住两端的线头。
   ctx.beginPath();
   ctx.moveTo(left, headBottom);
-  for (let i = 1; i <= PLUNGER_COILS; i += 1) {
-    const y = headBottom + ((SLOT_FLOOR_Y - headBottom) * i) / PLUNGER_COILS;
+  for (let i = 1; i <= PLUNGER_COILS * 2; i += 1) {
+    const y = headBottom + ((baseTop - headBottom) * i) / (PLUNGER_COILS * 2);
     ctx.lineTo(i % 2 === 1 ? right : left, y);
   }
   ctx.strokeStyle = colors.metal;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.stroke();
+
+  roundedRectPath(ctx, left - 2, headTop, right - left + 4, PLUNGER_HEAD_HEIGHT, 3);
+  ctx.fillStyle = colors.metal;
+  ctx.fill();
+  roundedRectPath(ctx, left - 2, baseTop, right - left + 4, PLUNGER_BASE_HEIGHT, 2);
+  ctx.fill();
 }
 
 export function createPinballBoard(): Board {

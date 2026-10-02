@@ -33,12 +33,9 @@ export const MAX_FRAME_MS = 100;
  */
 export const STILL_AFTER_REVEAL_MS = REVEAL_PAUSE_MS + 200;
 
-/** 球底与柱塞头之间留的缝。 */
-const BALL_SEAT_GAP_PX = 2;
-
-/** 柱塞头静止时的上沿，与拉满时往下走的距离。机器摆球、渲染层画柱塞共用。 */
-export const PLUNGER_REST_TOP = BOARD.launchY + BOARD.ballRadius + BALL_SEAT_GAP_PX;
-export const PLUNGER_TRAVEL = 18;
+/** 柱塞头静止时的上沿（球底就坐在上面），与拉满时往下走的距离。机器摆球、渲染层画柱塞共用。 */
+export const PLUNGER_REST_TOP = BOARD.launchY + BOARD.ballRadius;
+export const PLUNGER_TRAVEL = 30;
 
 /**
  * 拉满力度要拖多少屏幕像素，从按下的那一点算起，按在哪里都一样。不用柱塞画出来的位移：
@@ -342,7 +339,7 @@ export function createPinballMachine(
       if (stage.kind === 'ready' || stage.kind === 'dragging' || stage.kind === 'cocked') {
         // 球坐在柱塞头上，随它下压。
         ballX = LANE_CENTER_X;
-        ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - BALL_SEAT_GAP_PX;
+        ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius;
       }
 
       // 宿主在报停当下揭晓，往往就在这一次 tick 里。
