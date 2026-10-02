@@ -123,8 +123,10 @@ body {
   text-align: center;
 }
 
-/* 「换个主题」。只占自己那几个字的宽，下划线不拉长；比标题矮，不撑高页头。 */
+/* 「换个主题」。只占自己那几个字的宽，下划线不拉长；比标题矮，不撑高页头。
+   能点的范围另由 ::before 撑开。 */
 .page__home {
+  position: relative;
   justify-self: start;
   padding: 6px 0;
   line-height: 1.2;
@@ -133,6 +135,14 @@ body {
   color: var(--muted);
   text-decoration: none;
   border-bottom: 1px solid var(--border-soft);
+}
+
+/* 拇指目标：以字的中线为准上下各 24px、左右各多 12px，48px 高。
+   绝对定位不占位，字、下划线和页头高度都不动；伸进标题那列也无妨，标题不能点。 */
+.page__home::before {
+  content: '';
+  position: absolute;
+  inset: calc(50% - 24px) -12px;
 }
 
 .page__home:hover,
