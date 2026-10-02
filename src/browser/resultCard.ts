@@ -15,7 +15,7 @@ import type { Candidate } from '../theme';
 /**
  * `tabindex="-1"`：点在遮罩空白处时焦点落在卡片上而不是掉回 `<body>`，Esc 才还按得到卡片。
  *
- * @param closeLabel 收下按钮上的字，由盘面给：转盘「再来一次」，弹球机「再打一发」。
+ * @param closeLabel 收下按钮上的字，由盘面给：转盘「再来一次」，弹球机「再打一发」，求签筒「再抽一根」。
  */
 export function resultCardMarkup(closeLabel: string): string {
   return `

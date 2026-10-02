@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * 两种玩法各走一次完整的开抽，外加名单毛病的错误页。
+ * 三种玩法各走一次完整的开抽，外加名单毛病的错误页。
  *
  * 只看使用者看得到的东西：「转」锁没锁、结果卡片弹没弹、卡片上的名字和按钮、
  * 错误页的种类。转盘转多久、球走哪条路不管——那是盘面的表演（ADR-0010）。
@@ -125,6 +125,49 @@ test.describe('弹球机', () => {
   });
 });
 
+/** 按住签筒左右来回甩一趟。 */
+async function shakeTube(page: Page): Promise<void> {
+  const box = await page.locator('#sticks-board').boundingBox();
+  if (!box) throw new Error('求签筒盘面没画出来');
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height * 0.7;
+  const swing = box.width * 0.3;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let i = 0; i < 6; i += 1) {
+    await page.mouse.move(x + swing, y, { steps: 4 });
+    await page.mouse.move(x - swing, y, { steps: 4 });
+  }
+  await page.mouse.up();
+}
+
+/** 一趟一趟甩，直到弹出结果卡片。 */
+async function shakeUntilCard(page: Page): Promise<void> {
+  await expect(async () => {
+    if (!(await card(page).isVisible())) await shakeTube(page);
+    await expect(card(page)).toBeVisible({ timeout: 2_500 });
+  }).toPass({ timeout: CARD_TIMEOUT });
+}
+
+test.describe('求签筒', () => {
+  test('拖着签筒来回甩直到出签、弹卡片；「再抽一根」收下之后不自动再抽', async ({ page }) => {
+    await page.goto(`#/${THEME}/sticks`);
+    await expect(page.locator('#card-close')).toHaveText('再抽一根');
+
+    await shakeUntilCard(page);
+    await expect(page.locator('#card-name')).not.toBeEmpty();
+
+    await page.locator('#card-close').click();
+    await expect(card(page)).toBeHidden();
+
+    await page.waitForTimeout(1_500);
+    await expect(card(page)).toBeHidden();
+
+    // 收下之后能再抽一根。
+    await shakeUntilCard(page);
+  });
+});
+
 test.describe('名单写坏时只画错误页、不挂盘面', () => {
   const broken = [
     { kind: 'parse-error', csv: '肠粉,true\n"没闭合的引号,true\n' },
@@ -132,7 +175,7 @@ test.describe('名单写坏时只画错误页、不挂盘面', () => {
     { kind: 'all-disabled', csv: '肠粉,false\n面包,no\n' },
   ] as const;
 
-  for (const game of ['wheel', 'pinball'] as const) {
+  for (const game of ['wheel', 'pinball', 'sticks'] as const) {
     for (const { kind, csv } of broken) {
       test(`${game}：${kind}`, async ({ page }) => {
         await page.route(ROSTER_URL, (route) =>

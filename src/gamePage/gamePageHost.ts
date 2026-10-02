@@ -65,7 +65,7 @@ export interface Board {
   readonly html: string;
   /** BEM 块名（`wheel` / `pinball`）。 */
   readonly block: string;
-  /** 结果卡片上收下按钮的字：转盘「再来一次」，弹球机「再打一发」。 */
+  /** 结果卡片上收下按钮的字：转盘「再来一次」，弹球机「再打一发」，求签筒「再抽一根」。 */
   readonly closeLabel: string;
   mount(root: HTMLElement, roll: RollHandle): MountedBoard;
 }
