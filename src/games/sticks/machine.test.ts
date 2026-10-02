@@ -2,7 +2,7 @@
  * 求签筒机器的用例。机器经 `mountOnHost` 挂在真宿主上，随机源固定。
  *
  * 指针样本是普通数据，时间只经 `tick(now)` 进来；宿主停的那一拍只经宿主替身的 `finishReveal()` 走。
- * 只断言相对关系（出签前 / 出签后、冒头比之前高或低），不断言常量表里的具体数值。
+ * 只断言相对关系（签掉出来前 / 后、冒头比之前高或低），不断言常量表里的具体数值。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -20,12 +20,13 @@ import {
   type SticksView,
 } from './machine';
 import type { RandomSource } from '../../random';
-import { mountOnHost, scriptedRandom, seededRandom, type HostedBoard } from '../../testHelpers';
+import { fakeStorage, mountOnHost, scriptedRandom, seededRandom, type HostedBoard } from '../../testHelpers';
+import { storedPromptMemory } from './promptMemory';
 
 /** 60Hz 下一帧。 */
 const FRAME_MS = 16;
 
-/** 远超任何一次出签要甩的时长。 */
+/** 远超任何一次甩到签掉出来要的时长。 */
 const FAR_MS = 30_000;
 
 const NAMES = ['甲', '乙', '丙'] as const;
@@ -55,7 +56,7 @@ interface Harness extends HostedBoard {
 function setup(
   random: RandomSource = seededRandom(7),
   motion: MotionCapability = { support: 'unsupported' },
-  promptMemory: MotionPromptMemory = freshPromptMemory(),
+  promptMemory: MotionPromptMemory = storedPromptMemory(fakeStorage()),
 ): Harness {
   const machines: SticksMachine[] = [];
   const board: Board = {
@@ -73,17 +74,6 @@ function setup(
   if (!machine) throw new Error('机器应当已经挂上');
   machine.tick(0);
   return { ...hosted, machine, now: 0, fingerX: MID_X, direction: 1 };
-}
-
-/** 一份还没问过的「问过没有」记忆，同一份可以交给好几台机器（相当于刷新页面）。 */
-function freshPromptMemory(): MotionPromptMemory {
-  let asked = false;
-  return {
-    asked: () => asked,
-    remember: () => {
-      asked = true;
-    },
-  };
 }
 
 function tick(harness: Harness): SticksView {
@@ -147,7 +137,7 @@ const isRevealed = (view: SticksView): boolean => view.revealed !== undefined;
 const HARD = STICKS.hardShake.speed;
 const GENTLE = STICKS.gentleShake.speed;
 
-/** 出签时长和目标差多少还算「附近」：样本按帧走、甩到头折返会损失一点路程。 */
+/** 签掉出来的时长和目标差多少还算「附近」：样本按帧走、甩到头折返会损失一点路程。 */
 const NEAR = 0.1;
 
 describe('甩签筒', () => {
@@ -159,14 +149,14 @@ describe('甩签筒', () => {
     expect(hard.rise).toBeGreaterThan(gentle.rise);
   });
 
-  it('一直甩，冒头涨到顶就出签；用力甩比轻轻晃出得快', () => {
+  it('一直甩，冒头涨到顶签就掉出来；用力甩比轻轻晃掉得快', () => {
     const hard = shakeUntil(setup(), HARD, hasDropped);
     const gentle = shakeUntil(setup(), GENTLE, hasDropped);
 
     expect(hard.elapsedMs).toBeLessThan(gentle.elapsedMs);
   });
 
-  it('持续用力甩、持续轻轻晃，都在各自的目标时长附近出签', () => {
+  it('持续用力甩、持续轻轻晃，签都在各自的目标时长附近掉出来', () => {
     const hard = shakeUntil(setup(), HARD, hasDropped);
     const gentle = shakeUntil(setup(), GENTLE, hasDropped);
 
@@ -174,7 +164,7 @@ describe('甩签筒', () => {
     expect(Math.abs(gentle.elapsedMs / STICKS.gentleShake.ms - 1)).toBeLessThan(NEAR);
   });
 
-  it('比轻轻晃还轻得多，只要一直晃，最终也出签', () => {
+  it('比轻轻晃还轻得多，只要一直晃，签最终也掉出来', () => {
     const { elapsedMs } = shakeUntil(setup(), GENTLE / 4, hasDropped);
 
     expect(elapsedMs).toBeGreaterThan(STICKS.gentleShake.ms);
@@ -281,7 +271,7 @@ describe('签筒跟手', () => {
 });
 
 describe('抽一根签', () => {
-  it('出签之前不开抽；出签那一刻开抽；签立住后宿主抽中选，名字写在签上', () => {
+  it('签掉出来之前不开抽；掉出来那一刻开抽；签立住后宿主抽中选，名字写在签上', () => {
     const harness = setup();
     const { view: before } = shakeUntil(harness, HARD, (view) => view.rise > 0.5);
     expect(hasDropped(before)).toBe(false);
@@ -397,7 +387,7 @@ describe('抽一根签', () => {
   });
 });
 
-/** 手机左右来回摇时每个样本的间隔（毫秒），同 Android Chrome。 */
+/** 左右来回摇手机时每个样本的间隔（毫秒），同 Android Chrome。 */
 const MOTION_INTERVAL_MS = 16;
 
 /** 能直接读运动传感器的设备上挂一页求签筒。 */
@@ -405,7 +395,7 @@ function setupMotion(random: RandomSource = seededRandom(7)): Harness {
   return setup(random, { support: 'supported' });
 }
 
-/** 以 `strength`（米每二次方秒）左右来回摇一帧：一个水平加速度样本，再 tick。 */
+/** 以 `strength`（米每二次方秒）左右来回摇手机一帧：一个水平加速度样本，再 tick。 */
 function swingFrame(harness: Harness, strength: number): SticksView {
   harness.direction = harness.direction === 1 ? -1 : 1;
   harness.machine.shakeBy({ x: harness.direction * strength, intervalMs: MOTION_INTERVAL_MS });
@@ -419,13 +409,13 @@ function swing(harness: Harness, strength: number, durationMs: number): SticksVi
   return view;
 }
 
-/** 拿着手机走路那点晃动、用力摇、轻轻摇，米每二次方秒。 */
+/** 拿着手机走路那点晃、用力摇手机、轻轻摇手机，米每二次方秒。 */
 const WALKING = STICKS.motionThreshold * 0.8;
 const HARD_SWING = 15;
 const GENTLE_SWING = 7;
 
 describe('摇手机', () => {
-  it('低于门槛的加速度不涨冒头；高于门槛的涨，摇得越猛涨得越快', () => {
+  it('低于门槛的加速度不涨冒头；高于门槛的涨，手机摇得越猛涨得越快', () => {
     const walking = swing(setupMotion(), WALKING, 2000);
     const gentle = swing(setupMotion(), GENTLE_SWING, 500);
     const hard = swing(setupMotion(), HARD_SWING, 500);
@@ -449,7 +439,7 @@ describe('摇手机', () => {
     expect(view.rise).toBeGreaterThan(dragOnly.rise);
   });
 
-  it('签筒随加速度摆动，摇停后回正', () => {
+  it('签筒随加速度摆动，手机停下后回正', () => {
     const harness = setupMotion();
     tick(harness);
     harness.machine.shakeBy({ x: HARD_SWING, intervalMs: MOTION_INTERVAL_MS });
@@ -466,13 +456,13 @@ describe('摇手机', () => {
     expect(settled.tubeTilt).toBe(0);
   });
 
-  it('一直摇就出签：用力摇比轻轻摇出得快', () => {
+  it('一直摇手机签就掉出来：用力摇手机比轻轻摇手机掉得快', () => {
     const swingUntilDropped = (strength: number): number => {
       const harness = setupMotion();
       for (let elapsed = FRAME_MS; elapsed <= FAR_MS; elapsed += FRAME_MS) {
         if (hasDropped(swingFrame(harness, strength))) return elapsed;
       }
-      throw new Error('摇了很久也没出签');
+      throw new Error('摇了很久手机，签也没掉出来');
     };
 
     expect(swingUntilDropped(HARD_SWING)).toBeLessThan(swingUntilDropped(GENTLE_SWING));
@@ -486,7 +476,7 @@ describe('摇手机', () => {
     touched.machine.release(FINGER);
     untouched.machine.release(FINGER);
 
-    /** 同一帧里一边在摇、一边不摇，画面一样。 */
+    /** 同一帧里一边在摇手机、一边不摇，画面一样。 */
     const compareFrame = (): SticksView => {
       touched.machine.shakeBy({ x: HARD_SWING, intervalMs: MOTION_INTERVAL_MS });
       const view = tick(touched);
@@ -519,7 +509,7 @@ describe('摇手机', () => {
     }
   });
 
-  it('挂上以后才知道能摇（收到第一个带数据的样本、或授权以后），从下一帧起视图带上这一项，摇手机算数', () => {
+  it('挂上以后才知道能摇手机（收到第一个带数据的样本、或授权以后），从下一帧起视图带上这一项，摇手机算数', () => {
     const motion: { support: MotionSupport } = { support: 'unsupported' };
     const harness = setup(seededRandom(7), motion);
     expect(tick(harness).motion).toBeUndefined();
@@ -530,20 +520,20 @@ describe('摇手机', () => {
     expect(view.rise).toBeGreaterThan(0);
   });
 
-  it('持续用力摇、持续轻轻摇，都在拖着甩的目标时长附近出签', () => {
+  it('持续用力摇手机、持续轻轻摇手机，签都在拖着甩的目标时长附近掉出来', () => {
     const swingUntilDropped = (strength: number): number => {
       const harness = setupMotion();
       for (let elapsed = FRAME_MS; elapsed <= FAR_MS; elapsed += FRAME_MS) {
         if (hasDropped(swingFrame(harness, strength))) return elapsed;
       }
-      throw new Error('摇了很久也没出签');
+      throw new Error('摇了很久手机，签也没掉出来');
     };
 
     expect(Math.abs(swingUntilDropped(HARD_SWING) / STICKS.hardShake.ms - 1)).toBeLessThan(NEAR);
     expect(Math.abs(swingUntilDropped(GENTLE_SWING) / STICKS.gentleShake.ms - 1)).toBeLessThan(NEAR);
   });
 
-  it('摇手机也算在甩：一直摇冒头不下降，摇停后才回落', () => {
+  it('摇手机也算在甩：一直摇手机冒头不下降，停下后才回落', () => {
     const harness = setupMotion();
     const barely = STICKS.motionThreshold + 1;
     let previous = swing(harness, barely, 100).rise;
@@ -559,49 +549,52 @@ describe('摇手机', () => {
 });
 
 
+const PROMPT_AND_ENTRY = { prompt: true, entry: true } as const;
+const ENTRY_ONLY = { prompt: false, entry: true } as const;
+const NO_OFFER = { prompt: false, entry: false } as const;
+
 describe('摇手机授权提示', () => {
-  it('要先授权的设备上，没问过时显示提示；答过（开启或不用了）以后不再显示', () => {
+  it('要先授权的设备上，没问过时提示和「开启摇手机」入口都在；答过（开启或不用了）以后只剩入口', () => {
     const harness = setup(seededRandom(7), { support: 'needs-permission' });
-    expect(tick(harness).motionOffer).toBe('prompt');
+    expect(tick(harness).motionOffer).toEqual(PROMPT_AND_ENTRY);
 
     harness.machine.answerMotionPrompt();
-    expect(tick(harness).motionOffer).toBe('entry');
+    expect(tick(harness).motionOffer).toEqual(ENTRY_ONLY);
   });
 
-  it('同一份记忆交给第二台机器（相当于刷新页面）时，提示不再出现', () => {
-    const memory = freshPromptMemory();
-    const first = setup(seededRandom(7), { support: 'needs-permission' }, memory);
+  it('同一份存储交给第二台机器（相当于刷新页面）时，提示不再出现，入口还在', () => {
+    const storage = fakeStorage();
+    const first = setup(seededRandom(7), { support: 'needs-permission' }, storedPromptMemory(storage));
     first.machine.answerMotionPrompt();
 
-    const second = setup(seededRandom(7), { support: 'needs-permission' }, memory);
-    expect(tick(second).motionOffer).toBe('entry');
+    const second = setup(seededRandom(7), { support: 'needs-permission' }, storedPromptMemory(storage));
+    expect(tick(second).motionOffer).toEqual(ENTRY_ONLY);
   });
 
   it('记忆存不进去（存储不可用）时，答过以后这一页里提示照样不再显示', () => {
-    const forgetful: MotionPromptMemory = { asked: () => false, remember: () => {} };
-    const harness = setup(seededRandom(7), { support: 'needs-permission' }, forgetful);
-    expect(tick(harness).motionOffer).toBe('prompt');
+    const harness = setup(seededRandom(7), { support: 'needs-permission' }, storedPromptMemory(undefined));
+    expect(tick(harness).motionOffer).toEqual(PROMPT_AND_ENTRY);
 
     harness.machine.answerMotionPrompt();
-    expect(tick(harness).motionOffer).toBe('entry');
+    expect(tick(harness).motionOffer).toEqual(ENTRY_ONLY);
   });
 
   it('没拿到授权时，「开启摇手机」入口一直在（拒绝、失效都一样）；拿到授权之后入口消失', () => {
     const motion: { support: MotionSupport } = { support: 'needs-permission' };
     const harness = setup(seededRandom(7), motion);
     harness.machine.answerMotionPrompt();
-    for (let i = 0; i < 30; i += 1) expect(tick(harness).motionOffer).toBe('entry');
+    for (let i = 0; i < 30; i += 1) expect(tick(harness).motionOffer).toEqual(ENTRY_ONLY);
 
     motion.support = 'supported';
-    expect(tick(harness).motionOffer).toBeUndefined();
+    expect(tick(harness).motionOffer).toEqual(NO_OFFER);
   });
 
-  it('拒绝授权之后，拖着甩照样能出签', () => {
+  it('拒绝授权之后，拖着甩照样能抽一根签', () => {
     const harness = setup(seededRandom(7), { support: 'needs-permission' });
     harness.machine.answerMotionPrompt();
 
     const { view } = shakeUntil(harness, HARD, hasDropped);
-    expect(view.motionOffer).toBe('entry');
+    expect(view.motionOffer).toEqual(ENTRY_ONLY);
     harness.machine.release(FINGER);
     expect(NAMES).toContain(waitUntil(harness, isRevealed).revealed);
   });
@@ -609,9 +602,9 @@ describe('摇手机授权提示', () => {
   it('不用授权的设备和读不到运动传感器的设备上，提示和入口都不出现', () => {
     for (const support of ['supported', 'unsupported'] as const) {
       const harness = setup(seededRandom(7), { support });
-      expect(tick(harness).motionOffer, support).toBeUndefined();
+      expect(tick(harness).motionOffer, support).toEqual(NO_OFFER);
       harness.machine.answerMotionPrompt();
-      expect(tick(harness).motionOffer, support).toBeUndefined();
+      expect(tick(harness).motionOffer, support).toEqual(NO_OFFER);
     }
   });
 });

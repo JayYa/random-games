@@ -12,12 +12,13 @@ import { fitCanvas } from '../fitCanvas';
 import {
   STICKS,
   createSticksMachine,
+  type MotionCapability,
   type MotionOffer,
-  type MotionSupport,
   type PointerSample,
   type SticksDrop,
   type SticksView,
 } from './machine';
+import { motionSupport, type AccelerometerPermission, type MotionFacts } from './motionSupport';
 import { layoutStickName } from './nameLayout';
 import { browserPromptStorage, storedPromptMemory } from './promptMemory';
 
@@ -40,20 +41,26 @@ const BOARD_HTML = `
     `;
 
 /**
+ * 筒里每根签没冒头时签顶在筒口上方多高（逐根错开），一根签一个数：根数和 `STICKS.stickCount`
+ * 对不上就编译不过。
+ */
+const STICK_BASE_RISE = [34, 52, 44, 60, 40, 56, 48, 30, 50] as const satisfies {
+  readonly length: typeof STICKS.stickCount;
+};
+
+/**
  * 画面几何（盘面单位）。只有渲染层用；机器只管签筒离正中多远、冒头多高。
  */
 const GEOMETRY = {
   centerX: STICKS.width / 2,
-  /** 签筒底边与筒口的高度，筒的宽度。 */
   tubeBottom: 440,
   tubeTop: 250,
   tubeWidth: 116,
   /** 筒口椭圆的半高。 */
   rimRadiusY: 12,
-  /** 签在筒里时的长与宽；没冒头时签顶在筒口上方多高（逐根错开）。签长不超过筒高加最矮的冒出，签底才藏得住。 */
+  /** 签在筒里时的长与宽。签长不超过筒高加最矮的冒出，签底才藏得住。 */
   stickLength: 210,
   stickWidth: 9,
-  stickBaseRise: [34, 52, 44, 60, 40, 56, 48, 30, 50],
   /** 冒头到顶时，打头那根签比别的签多冒出多少。 */
   riseTravel: 110,
   /** 立在筒前的签：底边、长、宽。宽到能竖写名字。 */
@@ -95,19 +102,21 @@ function readSticksColors(element: Element): SticksColors {
   };
 }
 
-/** 一根签：从签底往上画，`angle` 绕签底转。 */
-function drawStick(
-  ctx: CanvasRenderingContext2D,
-  bottomX: number,
-  bottomY: number,
-  length: number,
-  width: number,
-  angle: number,
-  colors: SticksColors,
-): void {
+/** 一根签画在哪：签底中点、长、宽，`angle` 绕签底转。 */
+interface StickPose {
+  readonly bottomX: number;
+  readonly bottomY: number;
+  readonly length: number;
+  readonly width: number;
+  readonly angle: number;
+}
+
+/** 从签底往上画。 */
+function drawStick(ctx: CanvasRenderingContext2D, pose: StickPose, colors: SticksColors): void {
+  const { length, width } = pose;
   ctx.save();
-  ctx.translate(bottomX, bottomY);
-  ctx.rotate(angle);
+  ctx.translate(pose.bottomX, pose.bottomY);
+  ctx.rotate(pose.angle);
   ctx.beginPath();
   const r = width / 2;
   ctx.moveTo(-r, 0);
@@ -141,14 +150,17 @@ function drawTube(ctx: CanvasRenderingContext2D, view: SticksView, colors: Stick
 
   // 筒里的签，从筒口一侧排到另一侧，略微张开。掉出来的那根不画。
   const dropped = view.drop !== undefined;
-  for (let i = 0; i < STICKS.stickCount; i += 1) {
+  for (const [i, baseRise] of STICK_BASE_RISE.entries()) {
     if (dropped && i === view.leadStick) continue;
     const spread = (i - (STICKS.stickCount - 1) / 2) / ((STICKS.stickCount - 1) / 2);
     const x = spread * (halfWidth - 14);
-    const lift =
-      (g.stickBaseRise[i % g.stickBaseRise.length] ?? 40) + (i === view.leadStick ? view.rise * g.riseTravel : 0);
+    const lift = baseRise + (i === view.leadStick ? view.rise * g.riseTravel : 0);
     // 签顶比筒口高 `lift`，签底藏在筒身后面。
-    drawStick(ctx, x * 0.55, rimY - lift + g.stickLength, g.stickLength, g.stickWidth, spread * 0.08, colors);
+    drawStick(
+      ctx,
+      { bottomX: x * 0.55, bottomY: rimY - lift + g.stickLength, length: g.stickLength, width: g.stickWidth, angle: spread * 0.08 },
+      colors,
+    );
   }
 
   // 筒身：前半圈压住签的下半截。
@@ -212,7 +224,7 @@ function drawDroppedStick(
   ctx.shadowColor = colors.shadow;
   ctx.shadowBlur = 10 * ease;
   ctx.shadowOffsetY = 4 * ease;
-  drawStick(ctx, g.centerX, bottomY, length, width, angle, colors);
+  drawStick(ctx, { bottomX: g.centerX, bottomY, length, width, angle }, colors);
   ctx.restore();
 
   if (drop.standing && revealed !== undefined) {
@@ -252,32 +264,47 @@ function drawBoard(ctx: CanvasRenderingContext2D, view: SticksView, colors: Stic
   if (view.drop) drawDroppedStick(ctx, view.drop, view.revealed, colors);
 }
 
+/** 机器现读的摇手机能力；浏览器事实只经 `learn` 进来，能不能摇照 `motionSupport` 的规则重算。 */
+interface DetectedMotion extends MotionCapability {
+  learn(change: Partial<MotionFacts>): void;
+}
+
 /**
- * 按平台检测能不能摇手机（#196）。先都当读不到，收到第一个带数据的 `devicemotion` 才算能用——
- * 电脑上也有这个事件类型，但不来数据或只来空的。
- *
- * 有 `DeviceMotionEvent.requestPermission` 的要先授权（iOS）。Chrome 150 起也有这个方法，但它
- * 的运动传感器权限查得到、默认就给，所以先查权限：查到已给的不算要授权，电脑上的 Chrome 就不会
- * 冒出摇手机的提示；查不了（Safari 不认 `accelerometer`）或没给的才算。
- *
- * 不能拿 `requestPermission()` 本身来探：从首页点进来时还在那一下点按的余温里，iOS 会当场弹
- * 系统框。
+ * 收集能不能摇手机的浏览器事实（#196）。不能拿 `requestPermission()` 本身来探：从首页点进来时
+ * 还在那一下点按的余温里，iOS 会当场弹系统框。
  */
-function detectMotion(): { support: MotionSupport } {
-  const motion: { support: MotionSupport } = { support: 'unsupported' };
-  if (!motionPermissionRequest()) return motion;
-  const needsPermission = (): void => {
-    // 查的时候已经收到了数据，就是能用。
-    if (motion.support === 'unsupported') motion.support = 'needs-permission';
+function detectMotion(): DetectedMotion {
+  let facts: MotionFacts = {
+    deviceMotion: typeof DeviceMotionEvent !== 'undefined',
+    requestPermission: motionPermissionRequest() !== undefined,
+    accelerometer: 'pending',
+    sampleArrived: false,
+    permissionGranted: false,
   };
-  try {
-    navigator.permissions.query({ name: 'accelerometer' as PermissionName }).then((status) => {
-      if (status.state !== 'granted') needsPermission();
-    }, needsPermission);
-  } catch {
-    needsPermission();
-  }
+  let support = motionSupport(facts);
+  const motion: DetectedMotion = {
+    get support() {
+      return support;
+    },
+    learn(change) {
+      facts = { ...facts, ...change };
+      support = motionSupport(facts);
+    },
+  };
+  if (facts.deviceMotion) void queryAccelerometer().then((accelerometer) => motion.learn({ accelerometer }));
   return motion;
+}
+
+/** Chromium 查得到；Safari 不认 `accelerometer`，非安全上下文连 `navigator.permissions` 都没有。 */
+function queryAccelerometer(): Promise<AccelerometerPermission> {
+  try {
+    return navigator.permissions.query({ name: 'accelerometer' as PermissionName }).then(
+      (status) => status.state,
+      () => 'unavailable',
+    );
+  } catch {
+    return Promise.resolve('unavailable');
+  }
 }
 
 /** `DeviceMotionEvent.requestPermission`：iOS 有，Chrome 150 起也有。 */
@@ -320,26 +347,22 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     drawBoard(context, view, colors);
   }
 
-  let shownOffer: MotionOffer | undefined;
-
-  /** 签筒下方的提示或入口，跟着视图走；只在变了时碰 DOM。 */
-  function showOffer(offer: MotionOffer | undefined): void {
-    if (offer === shownOffer) return;
-    shownOffer = offer;
-    promptBox.hidden = offer !== 'prompt';
-    entryButton.hidden = offer !== 'entry';
+  /** 签筒下方的提示和入口跟着视图走；只在变了时碰 DOM。 */
+  function showOffer(offer: MotionOffer): void {
+    if (promptBox.hidden === offer.prompt) promptBox.hidden = !offer.prompt;
+    if (entryButton.hidden === offer.entry) entryButton.hidden = !offer.entry;
   }
 
   /**
    * 请求运动传感器授权。iOS 只认使用者点按的那一刻，所以必须在点击处理函数里同步调（#196）。
-   * 拿到授权就能摇了，下一帧提示和入口一起消失；拒绝或出错就照旧，入口留着，拖着甩照样能抽。
+   * 拿到授权就能摇手机了，下一帧提示和入口一起消失；拒绝或出错就照旧，入口留着，拖着甩照样能抽。
    */
   function requestMotionPermission(): void {
     const request = motionPermissionRequest();
     if (!request) return;
     request().then(
       (state) => {
-        if (state === 'granted') motion.support = 'supported';
+        if (state === 'granted') motion.learn({ permissionGranted: true });
       },
       () => {},
     );
@@ -416,7 +439,7 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
         // 不含重力的加速度；只有含重力的那份或全是空值的设备当读不到。
         const x = event.acceleration?.x;
         if (x === null || x === undefined) return;
-        motion.support = 'supported';
+        motion.learn({ sampleArrived: true });
         // 间隔按事件时间戳现量：`interval` 的单位各家不一。
         const intervalMs = lastMotionAt === undefined ? event.interval : event.timeStamp - lastMotionAt;
         lastMotionAt = event.timeStamp;

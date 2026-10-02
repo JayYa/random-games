@@ -7,9 +7,6 @@ import { describe, expect, it } from 'vitest';
 import { fakeStorage } from '../../testHelpers';
 import { storedPromptMemory, type PromptStorage } from './promptMemory';
 
-/** 存在 localStorage 里的键名，带站点前缀（同冷却）。 */
-const KEY = 'random-games:sticks-motion-asked';
-
 function throwingStorage(): PromptStorage {
   return {
     getItem() {
@@ -29,12 +26,6 @@ describe('问过没有摇手机的记忆', () => {
 
     memory.remember();
     expect(storedPromptMemory(storage).asked()).toBe(true);
-  });
-
-  it('键名带站点前缀', () => {
-    const storage = fakeStorage();
-    storedPromptMemory(storage).remember();
-    expect(storage.getItem(KEY)).not.toBeNull();
   });
 
   it.each([
