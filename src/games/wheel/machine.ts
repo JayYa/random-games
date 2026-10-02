@@ -5,10 +5,12 @@
  * 停下时报 `boardStopped()`。时间只经 `tick(now)` 进来，随机只来自注入的随机源。
  */
 
-import { TAU } from '../../angles';
 import type { MountedBoard, RollHandle } from '../../gamePage';
 import { randomIndex, type RandomSource } from '../../random';
 import { createSectors, type Sectors } from './sectors';
+
+/** 一整圈的弧度。 */
+const TAU = Math.PI * 2;
 
 /** 扇区数固定，与名单大小无关（ADR-0010）。 */
 const SECTOR_COUNT = 12;
