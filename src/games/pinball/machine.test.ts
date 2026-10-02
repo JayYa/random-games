@@ -12,10 +12,12 @@ import {
   FULL_PULL_PX,
   MAX_FRAME_MS,
   createPinballMachine,
+  type PhysicsSource,
   type PinballMachine,
   type PinballView,
   type PointerSample,
 } from './machine';
+import { simulateShot } from './simulate';
 import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
 const POWER = 0.6;
@@ -56,15 +58,15 @@ interface Harness extends HostedBoard {
   readonly machine: PinballMachine;
 }
 
-/** 在真宿主上挂一页弹球机。机器本身就是挂载结果。 */
-function setup(): Harness {
+/** 在真宿主上挂一页弹球机。机器本身就是挂载结果。物理默认一开始就在。 */
+function setup(physics: PhysicsSource = () => simulateShot): Harness {
   const machines: PinballMachine[] = [];
   const board: Board = {
     html: '<canvas class="pinball__board"></canvas>',
     block: 'pinball',
     closeLabel: '再打一发',
     mount(_root, roll) {
-      const machine = createPinballMachine(roll, seededRandom(7));
+      const machine = createPinballMachine(roll, physics, seededRandom(7));
       machines.push(machine);
       return machine;
     },
@@ -320,6 +322,72 @@ describe('发射', () => {
     lateInFlight.forEach((angle, i) => {
       const shownApart = (lateAtRelease[i] ?? 0) - (earlyAtRelease[i] ?? 0);
       expect(angle - (earlyInFlight[i] ?? 0)).toBeCloseTo(shownApart, 9);
+    });
+  });
+});
+
+describe('物理还没加载完就松手', () => {
+  /** 物理由用例决定什么时候到。 */
+  function late(): Harness & { arrive(): void } {
+    let simulate: typeof simulateShot | undefined;
+    const harness = setup(() => simulate);
+    return {
+      ...harness,
+      arrive() {
+        simulate = simulateShot;
+      },
+    };
+  }
+
+  it('柱塞压在松手时的力度上，不开抽；这时再按接不住', () => {
+    const harness = late();
+    const { machine, roll } = harness;
+    machine.tick(0);
+    pull(machine);
+    machine.release(pointerAt(MID_X, PULLED_Y));
+
+    const held = machine.tick(FRAME_MS);
+    const caught = machine.press(pointerAt(MID_X, MID_Y, OTHER_FINGER));
+    const later = machine.tick(FAR_MS);
+
+    expect({ power: held.power, laterPower: later.power, caught, locked: roll.locked }).toEqual({
+      power: POWER,
+      laterPower: POWER,
+      caught: false,
+      locked: false,
+    });
+  });
+
+  it('物理一到，那一帧就发射：等于在那一刻松手，照常进格揭晓', () => {
+    const cocked = late();
+    cocked.machine.tick(0);
+    pull(cocked.machine);
+    cocked.machine.release(pointerAt(MID_X, PULLED_Y));
+    cocked.arrive();
+    cocked.machine.tick(FRAME_MS);
+
+    // 对照：物理一直在，同样在 FRAME_MS 那一刻松手，下一次 tick 起回放。
+    const onTime = setup();
+    onTime.machine.tick(0);
+    pull(onTime.machine);
+    onTime.machine.tick(FRAME_MS);
+    onTime.machine.release(pointerAt(MID_X, PULLED_Y));
+    onTime.machine.tick(START_MS);
+
+    const cockedInFlight = cocked.machine.tick(FRAME_MS + 500);
+    const onTimeInFlight = onTime.machine.tick(START_MS + 500);
+    const landed = cocked.machine.tick(FRAME_MS + FAR_MS);
+
+    expect({
+      locked: cocked.roll.locked,
+      ball: ballOf(cockedInFlight),
+      windmills: cockedInFlight.windmillAngles,
+      revealed: landed.revealed?.name,
+    }).toEqual({
+      locked: true,
+      ball: ballOf(onTimeInFlight),
+      windmills: onTimeInFlight.windmillAngles,
+      revealed: WINNER,
     });
   });
 });

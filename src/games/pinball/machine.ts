@@ -6,12 +6,20 @@
  *
  * 发射那一刻才 `begin()`，球进格时 `boardStopped()`。拖柱塞不经开抽句柄：球没出去之前
  * 随时可以作废。
+ *
+ * 物理模拟从外面递进来：渲染层按需加载它（matter.js 单独成包），用例直接给。
  */
 
 import type { MountedBoard, RollHandle } from '../../gamePage';
 import type { RandomSource } from '../../random';
 import { BOARD, LANE_CENTER_X } from './board';
-import { simulateShot, type PinballShot } from './simulate';
+import type { PinballShot, simulateShot } from './simulate';
+
+/** 打一发的物理模拟，即 `simulateShot`。 */
+export type Simulate = typeof simulateShot;
+
+/** 取物理模拟。还没加载完时取不到。 */
+export type PhysicsSource = () => Simulate | undefined;
 
 /** matter.js 的角速度按 16.67ms 基准步计，换算成每毫秒。 */
 const WINDMILL_RADIANS_PER_MS = BOARD.windmillAngularVelocity / (1000 / 60);
@@ -76,7 +84,10 @@ export interface PinballMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
   press(sample: PointerSample): boolean;
   /** 往下拉改力度，拖出界这一发作废。只认正在拖的那根手指。 */
   move(sample: PointerSample): void;
-  /** 拉够了且没出界就发射，否则作废。开抽不受理时柱塞弹回、球仍在上面。 */
+  /**
+   * 拉够了且没出界就发射，否则作废。开抽不受理时柱塞弹回、球仍在上面。物理还没加载完时
+   * 柱塞压着不弹回，物理一到就发。
+   */
   release(sample: PointerSample): void;
   /** 系统抢走了指针：这一发作废。 */
   cancel(pointerId: number): void;
@@ -105,12 +116,14 @@ interface Drag {
 /**
  * - ready：球坐在柱塞上。
  * - dragging：一根手指抓着柱塞，球随力度下压。
+ * - cocked：松了手但物理还没加载完，柱塞压在松手时的力度上，等物理一到就发射。
  * - flying：按轨迹回放，余韵也算。
  * - settled：轨迹播完，球留在最后一帧，直到复位。
  */
 type Stage =
   | { readonly kind: 'ready' }
   | { readonly kind: 'dragging'; readonly drag: Drag }
+  | { readonly kind: 'cocked'; readonly power: number }
   | { readonly kind: 'flying'; readonly flight: Flight }
   | { readonly kind: 'settled' };
 
@@ -149,10 +162,12 @@ function phaseFromAngles(currentAngles: readonly number[]): number | undefined {
 
 /**
  * @param roll 宿主交给盘面的开抽句柄。
+ * @param physics 发射时取物理模拟；取不到就先压住柱塞，之后每一帧再取。
  * @param random 只用来生成发射的种子。
  */
 export function createPinballMachine(
   roll: RollHandle,
+  physics: PhysicsSource,
   random: RandomSource = Math.random,
 ): PinballMachine {
   let stage: Stage = { kind: 'ready' };
@@ -227,12 +242,20 @@ export function createPinballMachine(
     stage = { kind: 'ready' };
   }
 
-  /** 松手发射，此刻才开抽。不受理时柱塞照样弹回。 */
+  /**
+   * 发射，此刻才开抽。不受理时柱塞照样弹回。物理还没到就压住柱塞、先不开抽，等 `tick`
+   * 取到物理再发；风车相位在球真正出去那一刻快照，看见的和算的是同一个瞬间（ADR-0006）。
+   */
   function launch(shotPower: number): void {
+    const simulate = physics();
+    if (!simulate) {
+      stage = { kind: 'cocked', power: shotPower };
+      return;
+    }
     stage = { kind: 'ready' };
     if (!roll.begin()) return;
 
-    const shot = simulateShot({
+    const shot = simulate({
       power: shotPower,
       windmillPhase,
       // 同样的力度不必每次都走同一条轨迹。
@@ -246,8 +269,8 @@ export function createPinballMachine(
 
   return {
     press(sample) {
-      // 已有手指在拖时，第二根不抢。
-      if (stage.kind === 'dragging' || roll.locked) return false;
+      // 已有手指在拖时，第二根不抢；压着等物理的那一发也不能被抓回去。
+      if (stage.kind === 'dragging' || stage.kind === 'cocked' || roll.locked) return false;
       stage = {
         kind: 'dragging',
         drag: {
@@ -289,16 +312,18 @@ export function createPinballMachine(
       const delta = lastTickAt === undefined ? 0 : Math.min(now - lastTickAt, MAX_FRAME_MS);
       lastTickAt = now;
 
-      if (stage.kind === 'flying') {
-        playFlight(now, stage.flight);
-      } else {
+      if (stage.kind !== 'flying') {
         // 风车按真实时间一直转，发射时机才挑得了。
         windmillPhase += delta * WINDMILL_RADIANS_PER_MS;
         angles = anglesFromPhase(windmillPhase);
       }
+      // 压着的那一发：物理到了的这一帧发射，同一帧开始回放。
+      if (stage.kind === 'cocked') launch(stage.power);
+      if (stage.kind === 'flying') playFlight(now, stage.flight);
 
-      const power = stage.kind === 'dragging' ? stage.drag.power : 0;
-      if (stage.kind === 'ready' || stage.kind === 'dragging') {
+      const power =
+        stage.kind === 'dragging' ? stage.drag.power : stage.kind === 'cocked' ? stage.power : 0;
+      if (stage.kind === 'ready' || stage.kind === 'dragging' || stage.kind === 'cocked') {
         // 球坐在柱塞头上，随它下压。
         ballX = LANE_CENTER_X;
         ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius - BALL_SEAT_GAP_PX;

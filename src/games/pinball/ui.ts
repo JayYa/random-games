@@ -24,6 +24,7 @@ import {
   type PinballReveal,
   type PinballView,
   type PointerSample,
+  type Simulate,
 } from './machine';
 
 /** 收下之后球退回柱塞，真的能再打一发。 */
@@ -427,7 +428,30 @@ export function createPinballBoard(): Board {
 
 function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   const canvas = createById(root)<HTMLCanvasElement>('pinball-board');
-  const machine = createPinballMachine(roll);
+
+  // 物理（连同 matter.js）单独成包，挂上弹球机才下载：抽到转盘、停在选主题页都不必下它。
+  // 她看清盘面、拉柱塞要好一会儿，通常早就下完了；没下完就松手，机器先压住柱塞，到了再发。
+  let simulate: Simulate | undefined;
+  let physicsFailed = false;
+  let reloading = false;
+  import('./simulate').then(
+    (physics) => {
+      simulate = physics.simulateShot;
+    },
+    (cause: unknown) => {
+      physicsFailed = true;
+      console.error('弹球机的物理没加载上', cause);
+    },
+  );
+  const machine = createPinballMachine(roll, () => {
+    // 没加载上（断网、站点刚重新部署过、旧包已删）就打不了。等她真的松手才整页重载，
+    // 不会自己反复重载；地址指着这个玩法，重载回来还是弹球机。压着时每帧都来取，只重载一次。
+    if (physicsFailed && !reloading) {
+      reloading = true;
+      location.reload();
+    }
+    return simulate;
+  });
   const controller = new AbortController();
   const listen = { signal: controller.signal } as const;
   let rafId = 0;
