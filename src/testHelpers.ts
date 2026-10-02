@@ -44,17 +44,11 @@ export function rosterNames(count: number): string[] {
 }
 
 /** 内存里的 localStorage。同一份交给第二个站内导航，就是刷新了页面。 */
-export interface FakeStorage extends RecentStorage {
-  /** 按第一次写入的先后。 */
-  readonly keys: readonly string[];
-}
+export type FakeStorage = RecentStorage;
 
 export function fakeStorage(): FakeStorage {
   const entries = new Map<string, string>();
   return {
-    get keys() {
-      return [...entries.keys()];
-    },
     getItem: (key) => entries.get(key) ?? null,
     setItem(key, value) {
       entries.set(key, String(value));

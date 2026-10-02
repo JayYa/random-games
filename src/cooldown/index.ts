@@ -36,13 +36,18 @@ export interface Cooldown {
 /** 同一个域名下别的东西也可能用 localStorage。 */
 const KEY_PREFIX = 'random-games:';
 
+/** 每个主题留几个最近中选（ADR-0011）。 */
+const RECENT_WINNERS_KEPT = 7;
+/** 全站留几个最近玩法（ADR-0011）。 */
+const RECENT_GAMES_KEPT = 1;
+
 export function createCooldown({ storage, random }: CooldownOptions): Cooldown {
   return {
     drawWinner(theme, candidates) {
       return drawWithCooldown({
         pool: candidates,
         keyOf: (candidate) => candidate.name,
-        memory: storedMemory(storage, `${KEY_PREFIX}recent-winners:${theme.slug}`, 7),
+        memory: storedMemory(storage, `${KEY_PREFIX}recent-winners:${theme.slug}`, RECENT_WINNERS_KEPT),
         random,
       });
     },
@@ -50,7 +55,7 @@ export function createCooldown({ storage, random }: CooldownOptions): Cooldown {
       return drawWithCooldown({
         pool: games,
         keyOf: (game) => game.slug,
-        memory: storedMemory(storage, `${KEY_PREFIX}recent-games`, 1),
+        memory: storedMemory(storage, `${KEY_PREFIX}recent-games`, RECENT_GAMES_KEPT),
         random,
       });
     },

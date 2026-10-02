@@ -12,6 +12,7 @@ import { THEME_PICKER_HASH, gameHash, resolveAddress } from './address';
 import { createCooldown, type RecentStorage } from './cooldown';
 import { mountGamePage, type PageAdapter } from './gamePageHost';
 import type { Game } from './games';
+import type { RandomSource } from './randomIndex';
 import { openRoster, type OpenedRoster, type RosterError, type Theme } from './theme';
 
 /** 站内导航的页面适配器，在宿主的 `PageAdapter` 之上补齐站内导航自己画的几屏。 */
@@ -46,7 +47,7 @@ export interface NavigationOptions {
   /** 存最近玩法与最近中选（ADR-0011），拿不到就是 `undefined`。 */
   readonly storage: RecentStorage | undefined;
   /** 抽玩法和抽中选共用。 */
-  readonly random: () => number;
+  readonly random: RandomSource;
   /** 认地址和画选主题页读同一份。 */
   readonly themes: readonly Theme[];
   /** 认地址和抽玩法读同一份。 */
@@ -153,7 +154,7 @@ export function createNavigation(options: NavigationOptions): Navigation {
           page.showRosterError(theme, roster.error);
           return;
         }
-        // 抽一个中选：在这个主题的这批候选里按冷却规则抽（ADR-0011）。什么时候抽由宿主定。
+        // 什么时候抽由宿主定。
         const { candidates } = roster;
         const drawWinner = () => cooldown.drawWinner(theme, candidates);
         teardown = mountGamePage({
