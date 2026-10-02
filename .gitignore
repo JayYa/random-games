@@ -11,3 +11,5 @@ fonts/build/
 # impeccable 的审查截图和问答日志，临时产物。
 .impeccable/review/
 .impeccable/questions/
+# impeccable live 模式的会话日志、本机路径和配置，跟着这台机器走。
+.impeccable/live/
