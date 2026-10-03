@@ -6,9 +6,11 @@
 import type { Game } from './game';
 import { createWheelBoard } from './wheel';
 import { createPinballBoard } from './pinball';
+import { createSticksBoard } from './sticks';
 
 /** 全部玩法。顺序不影响概率。 */
 export const GAMES: readonly Game[] = [
   { slug: 'wheel', createBoard: createWheelBoard },
   { slug: 'pinball', createBoard: createPinballBoard },
+  { slug: 'sticks', createBoard: createSticksBoard },
 ];

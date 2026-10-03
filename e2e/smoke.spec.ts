@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * 两种玩法各走一次完整的开抽，外加名单毛病的错误页。
+ * 三种玩法各走一次完整的开抽，外加名单毛病的错误页。
  *
  * 只看使用者看得到的东西：「转」锁没锁、结果卡片弹没弹、卡片上的名字和按钮、
  * 错误页的种类。转盘转多久、球走哪条路不管——那是盘面的表演（ADR-0010）。
@@ -125,6 +125,171 @@ test.describe('弹球机', () => {
   });
 });
 
+/** 按住签筒左右来回甩一趟。 */
+async function shakeTube(page: Page): Promise<void> {
+  const box = await page.locator('#sticks-board').boundingBox();
+  if (!box) throw new Error('求签筒盘面没画出来');
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height * 0.7;
+  const swing = box.width * 0.3;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let i = 0; i < 6; i += 1) {
+    await page.mouse.move(x + swing, y, { steps: 4 });
+    await page.mouse.move(x - swing, y, { steps: 4 });
+  }
+  await page.mouse.up();
+}
+
+/** 一趟一趟甩，直到弹出结果卡片。 */
+async function shakeUntilCard(page: Page): Promise<void> {
+  await expect(async () => {
+    if (!(await card(page).isVisible())) await shakeTube(page);
+    await expect(card(page)).toBeVisible({ timeout: 2_500 });
+  }).toPass({ timeout: CARD_TIMEOUT });
+}
+
+test.describe('求签筒', () => {
+  test('拖着签筒来回甩直到签掉出来、弹卡片；「再抽一根」收下之后不自动再抽', async ({ page }) => {
+    await page.goto(`#/${THEME}/sticks`);
+    await expect(page.locator('#card-close')).toHaveText('再抽一根');
+
+    await shakeUntilCard(page);
+    await expect(page.locator('#card-name')).not.toBeEmpty();
+
+    await page.locator('#card-close').click();
+    await expect(card(page)).toBeHidden();
+
+    await page.waitForTimeout(1_500);
+    await expect(card(page)).toBeHidden();
+
+    // 收下之后能再抽一根。
+    await shakeUntilCard(page);
+  });
+
+  test('摇手机（能直接读运动传感器的设备）也能抽一根签', async ({ page }) => {
+    await page.goto(`#/${THEME}/sticks`);
+    await expect(page.locator('#sticks-board')).toBeVisible();
+
+    // 模拟 Android：左右来回的水平加速度，60Hz。
+    await page.evaluate(() => {
+      let i = 0;
+      setInterval(() => {
+        i += 1;
+        const x = i % 2 === 0 ? 15 : -15;
+        window.dispatchEvent(
+          new DeviceMotionEvent('devicemotion', { acceleration: { x, y: 0, z: 0 }, interval: 16 }),
+        );
+      }, 16);
+    });
+
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+    await expect(page.locator('#card-name')).not.toBeEmpty();
+  });
+
+  test.describe('要先授权才能摇手机的设备（iOS）', () => {
+    /**
+     * 装成 iOS Safari：有 `DeviceMotionEvent.requestPermission`，权限查询不认 `accelerometer`。
+     * 每次请求授权都答 `answer`，并记下请求时是不是正在点按。
+     */
+    async function pretendIos(page: Page, answer: 'granted' | 'denied'): Promise<void> {
+      await page.addInitScript((state) => {
+        const requests: boolean[] = [];
+        Object.assign(window, { motionPermissionRequests: requests });
+        Object.assign(DeviceMotionEvent, {
+          requestPermission: () => {
+            requests.push(navigator.userActivation.isActive);
+            return Promise.resolve(state);
+          },
+        });
+        const query = navigator.permissions.query.bind(navigator.permissions);
+        navigator.permissions.query = (descriptor) =>
+          descriptor.name === ('accelerometer' as PermissionName)
+            ? Promise.reject(new TypeError('Type error'))
+            : query(descriptor);
+      }, answer);
+    }
+
+    /** 请求过几次授权，每次是不是都在点按当下。 */
+    const permissionRequests = (page: Page) =>
+      page.evaluate(() => (window as unknown as { motionPermissionRequests: boolean[] }).motionPermissionRequests);
+
+    const prompt = (page: Page) => page.locator('#sticks-motion-prompt');
+    const entry = (page: Page) => page.locator('#sticks-motion-entry');
+
+    test('没问过时提示和入口都在；点「开启」在点按当下请求授权，拿到以后提示和入口都不在；刷新也不再问', async ({
+      page,
+    }) => {
+      await pretendIos(page, 'granted');
+      await page.goto(`#/${THEME}/sticks`);
+      await expect(prompt(page)).toBeVisible();
+      await expect(prompt(page)).toContainText('摇手机也能抽');
+      await expect(entry(page)).toBeVisible();
+
+      await page.locator('#sticks-motion-enable').click();
+      await expect(prompt(page)).toBeHidden();
+      await expect(entry(page)).toBeHidden();
+      expect(await permissionRequests(page)).toEqual([true]);
+
+      await page.reload();
+      await expect(entry(page)).toBeVisible();
+      await expect(prompt(page)).toBeHidden();
+    });
+
+    test('选「不用了」或拒绝授权以后，提示不再出现，「开启摇手机」入口一直在，拖着甩照样能抽一根签', async ({ page }) => {
+      await pretendIos(page, 'denied');
+      await page.goto(`#/${THEME}/sticks`);
+      await page.locator('#sticks-motion-decline').click();
+      await expect(prompt(page)).toBeHidden();
+      await expect(entry(page)).toBeVisible();
+
+      // 碰签筒不请求授权，不会弹系统框。
+      await shakeTube(page);
+      expect(await permissionRequests(page)).toEqual([]);
+
+      await entry(page).click();
+      expect(await permissionRequests(page)).toEqual([true]);
+      await expect(entry(page)).toBeVisible();
+
+      await page.reload();
+      await expect(entry(page)).toBeVisible();
+      await expect(prompt(page)).toBeHidden();
+
+      await shakeUntilCard(page);
+      await expect(page.locator('#card-name')).not.toBeEmpty();
+    });
+  });
+
+  test('运动传感器默认就给的 Chrome 上，提示和入口都不出现', async ({ page, context }) => {
+    await context.grantPermissions(['accelerometer', 'gyroscope']);
+    await page.goto(`#/${THEME}/sticks`);
+    await expect(page.locator('#sticks-board')).toBeVisible();
+    // 等挂上时查权限的结果出来。
+    await page.waitForTimeout(500);
+    await expect(page.locator('#sticks-motion-prompt')).toBeHidden();
+    await expect(page.locator('#sticks-motion-entry')).toBeHidden();
+  });
+
+  for (const state of ['denied', 'prompt'] as const) {
+    test(`有 requestPermission 的 Chrome 上运动传感器权限查到 ${state}，提示和入口都不出现`, async ({ page }) => {
+      await page.addInitScript((answer) => {
+        Object.assign(DeviceMotionEvent, { requestPermission: () => Promise.resolve('denied') });
+        const query = navigator.permissions.query.bind(navigator.permissions);
+        navigator.permissions.query = (descriptor) =>
+          descriptor.name === ('accelerometer' as PermissionName)
+            ? Promise.resolve({ state: answer } as PermissionStatus)
+            : query(descriptor);
+      }, state);
+      await page.goto(`#/${THEME}/sticks`);
+      await expect(page.locator('#sticks-board')).toBeVisible();
+      // 等挂上时查权限的结果出来。
+      await page.waitForTimeout(500);
+      await expect(page.locator('#sticks-motion-prompt')).toBeHidden();
+      await expect(page.locator('#sticks-motion-entry')).toBeHidden();
+    });
+  }
+});
+
 test.describe('名单写坏时只画错误页、不挂盘面', () => {
   const broken = [
     { kind: 'parse-error', csv: '肠粉,true\n"没闭合的引号,true\n' },
@@ -132,7 +297,7 @@ test.describe('名单写坏时只画错误页、不挂盘面', () => {
     { kind: 'all-disabled', csv: '肠粉,false\n面包,no\n' },
   ] as const;
 
-  for (const game of ['wheel', 'pinball'] as const) {
+  for (const game of ['wheel', 'pinball', 'sticks'] as const) {
     for (const { kind, csv } of broken) {
       test(`${game}：${kind}`, async ({ page }) => {
         await page.route(ROSTER_URL, (route) =>

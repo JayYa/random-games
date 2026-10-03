@@ -2,7 +2,7 @@
  * 整站是一本手帐：浅色是蓝格子本，深色是黑卡纸本配白色中性笔。贴纸、胶带、便利贴是实物，
  * 明暗主题都不换色，换的只是纸和墨水。
  *
- * 颜色只在这里定，深色主题只换值不换名。盘面画在画布上，作画时从这里读（两个盘面的 ui.ts）。
+ * 颜色只在这里定，深色主题只换值不换名。盘面画在画布上，作画时从这里读（各盘面的 ui.ts）。
  */
 
 /* 站酷快乐体的子集，由 src/build/handFont.ts 在 dev / build 时现裁。 */
@@ -41,7 +41,7 @@
   --slap-ease: cubic-bezier(0.2, 1.4, 0.4, 1);
   /* 「啪」落下前悬在纸上的影子，要比贴住时大一圈；大贴纸自己给更大的。 */
   --lift-shadow: 0 40px 56px var(--shadow-lift);
-  /* 两个盘面。褪淡是往台面色褪。 */
+  /* 盘面。褪淡是往台面色褪。 */
   --board-field: #fff;
   --board-wall: #d9e2f3;
   --board-wall-edge: #b4c3e0;
@@ -53,6 +53,12 @@
   --board-ball-shine: rgba(255, 255, 255, 0.75);
   --board-fade: rgba(255, 255, 255, 0.68);
   --wheel-fade: rgba(238, 243, 251, 0.66);
+  /* 求签筒的竹筒和签是实物，两套主题都不换色。 */
+  --sticks-tube: #8fbf5a;
+  --sticks-tube-shade: #4f7a2c;
+  --sticks-tube-band: #5e8f35;
+  --sticks-stick: #f4dfa8;
+  --sticks-stick-edge: #c9a861;
   font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--ink);
   background-color: var(--page);
@@ -166,20 +172,23 @@ body {
 }
 
 .wheel,
-.pinball {
+.pinball,
+.sticks {
   min-height: 100vh;
   min-height: 100svh;
 }
 
 /* 高屏上标题、盘面连同操作在页头以下的空间里居中，不全挤在顶上。标题紧贴盘面，跟着它走。 */
 .wheel .page__title,
-.pinball .page__title {
+.pinball .page__title,
+.sticks .page__title {
   margin-top: auto;
   margin-bottom: 6px;
 }
 
 .wheel__spin,
-.pinball__stage {
+.pinball__stage,
+.sticks__stage {
   margin-bottom: auto;
 }
 
@@ -364,7 +373,7 @@ body {
   transition-timing-function: ease-out;
 }
 
-/* 结果卡片：两种玩法共用，是独立的块。整页褪成纸色，中选是一枚拍上来的大贴纸。 */
+/* 结果卡片：各玩法共用，是独立的块。整页褪成纸色，中选是一枚拍上来的大贴纸。 */
 .card[hidden] {
   display: none;
 }
@@ -507,6 +516,119 @@ body {
   cursor: grab;
 }
 
+/* 求签筒照弹球机的贴纸画框。 */
+.sticks {
+  /* 盘面之外的部件大致占掉的高度，让整只签筒在首屏内。 */
+  --sticks-chrome: 204px;
+}
+
+.sticks__stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sticks__frame {
+  position: relative;
+  padding: 5px;
+  border-radius: 23px;
+  background: var(--sticker);
+  box-shadow: 0 8px 18px var(--shadow);
+}
+
+.sticks__frame .tape {
+  width: 78px;
+  top: -8px;
+}
+
+.sticks__frame .tape:first-child {
+  left: -22px;
+  --tape: #7fd3c4;
+  transform: rotate(-38deg);
+}
+
+.sticks__frame .tape:nth-child(2) {
+  right: -22px;
+  --tape: #ff8cc0;
+  transform: rotate(36deg);
+}
+
+.sticks__board {
+  display: block;
+  /* 宽高比与 machine.ts 的 STICKS 一致（360×480）。 */
+  width: min(calc(100vw - 42px), 540px, max(160px, calc((100vh - var(--sticks-chrome)) * 360 / 480)));
+  width: min(calc(100vw - 42px), 540px, max(160px, calc((100svh - var(--sticks-chrome)) * 360 / 480)));
+  height: auto;
+  aspect-ratio: 360 / 480;
+  border-radius: 18px;
+  /* 左右拖着甩，不让浏览器当成滚动或手势抢走。 */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+}
+
+/* 签筒下方请人开启摇手机的那一处，只在要先授权的设备（iOS）上出现，出现时给它让出高度。 */
+.sticks:has(.sticks__offer:not([hidden]), .sticks__offer-entry:not([hidden])) {
+  --sticks-chrome: 262px;
+}
+
+.sticks__offer {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 10px;
+  padding: 8px 10px 8px 16px;
+  border-radius: 999px;
+  background: var(--sticker);
+  box-shadow: 0 4px 10px var(--shadow);
+}
+
+.sticks__offer[hidden],
+.sticks__offer-entry[hidden] {
+  display: none;
+}
+
+.sticks__offer-text {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: 1.15rem;
+}
+
+.sticks__offer-button,
+.sticks__offer-entry {
+  min-height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: 1.05rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sticks__offer-button--yes {
+  background: var(--accent);
+  color: var(--on-palette);
+}
+
+.sticks__offer-entry {
+  margin-top: 10px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.sticks__offer-button:active,
+.sticks__offer-entry:active {
+  transform: translateY(1px) scale(0.97);
+}
+
 /* 矮屏（多半是横过来的手机）：压掉标题和留白，把高度让给盘面。 */
 @media (max-height: 560px) {
   .page {
@@ -520,6 +642,14 @@ body {
 
   .pinball {
     --pinball-chrome: 154px;
+  }
+
+  .sticks {
+    --sticks-chrome: 154px;
+  }
+
+  .sticks:has(.sticks__offer:not([hidden]), .sticks__offer-entry:not([hidden])) {
+    --sticks-chrome: 204px;
   }
 
   .page__title {

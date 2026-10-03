@@ -12,14 +12,16 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     await shot('picker');
   });
 
-  // Fresh context ⇒ no recent game, so the roll is 50/50. Seed the recent game as
-  // pinball so the roll must land on the wheel — this goes through the real roll path.
-  await step('seed recent game = pinball', async () => {
-    await page.evaluate(() => localStorage.setItem('random-games:recent-games', '["pinball"]'));
-  });
-
-  await step('choose 早餐吃什么', async () => {
-    await page.getByRole('link', { name: '早餐吃什么' }).click();
+  // With 3 games and a 1-game cooldown, seeding pinball leaves wheel/sticks at 50/50;
+  // retry the real picker roll until it lands on the wheel.
+  await step('choose 早餐吃什么 (recent game = pinball) until the roll lands on wheel', async () => {
+    for (let i = 0; i < 12; i += 1) {
+      await page.goto(baseURL);
+      await page.evaluate(() => localStorage.setItem('random-games:recent-games', '["pinball"]'));
+      await page.getByRole('link', { name: '早餐吃什么' }).click();
+      await page.waitForURL(/#\/breakfast\/(wheel|sticks)$/);
+      if (page.url().endsWith('/wheel')) break;
+    }
     await expect(page).toHaveURL(/#\/breakfast\/wheel$/);
     await expect(page.getByRole('heading', { level: 1, name: '早餐吃什么' })).toBeVisible();
     return page.url();
