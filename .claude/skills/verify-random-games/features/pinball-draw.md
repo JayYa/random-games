@@ -23,9 +23,9 @@ On a pinball page (`#/<theme>/pinball`) the user pulls the plunger (press on the
 Preconditions:
 
 - Baseline from [README.md](./README.md).
-- To force the roll onto pinball from the picker, seed `localStorage['random-games:recent-games'] = '["wheel"]'` first.
+- The roll can't be forced onto pinball: seeding `localStorage['random-games:recent-games'] = '["wheel"]'` leaves pinball and sticks at 50/50, so the scenario retries the picker until it lands on pinball.
 
-- **Picker entry.** Run `$V drive --run <id> --feature pinball-draw .claude/skills/verify-random-games/scenarios/pinball-draw.mjs` for this and the next nine bullets. It seeds the recent game, clicks `getByRole('link', {name: '早餐吃什么'})`. `expect(page).toHaveURL(/#\/breakfast\/pinball$/)`; `#pinball-board` is visible.
+- **Picker entry.** Run `$V drive --run <id> --feature pinball-draw .claude/skills/verify-random-games/scenarios/pinball-draw.mjs` for this and the next nine bullets. It seeds the recent game and clicks `getByRole('link', {name: '早餐吃什么'})` until `expect(page).toHaveURL(/#\/breakfast\/pinball$/)` holds (at most 12 tries); `#pinball-board` is visible.
 - **Card label.** `await expect(page.locator('#card-close')).toHaveText('再打一发')` (the card is hidden but present).
 - **Pull plunger.** `const b = await page.locator('#pinball-board').boundingBox(); const x = b.x + b.width/2, y = b.y + b.height/2; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 120, {steps: 8}); await page.mouse.up();`. Screenshot shows the ball in play.
 - **Reveal.** `await expect(page.locator('#card')).toBeVisible({timeout: 20_000})`. `#card-name` is non-empty; screenshot shows the name on a label above one slot, washed out to the paper colour behind the card.

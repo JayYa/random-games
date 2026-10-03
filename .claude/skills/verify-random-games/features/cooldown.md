@@ -8,7 +8,7 @@ This browser remembers the last 7 winners per theme and the last rolled game sit
 - `cool-thaw` with N ≤ 7 distinct enabled names, only the newest N−1 remembered winners stay cooling; the oldest thaws. A name listed twice in the roster counts once, and is disabled if any of its rows is.
 - `cool-cap` the stored list keeps at most 7 names, newest last.
 - `cool-read-cap` if storage already holds more than 7 names (e.g. from an older version), only the newest 7 cool; the next draw trims it to 7.
-- `cool-game` the game rolled last time is not rolled again from `#/<slug>` (games alternate).
+- `cool-game` the game rolled last time is not rolled again from `#/<slug>`; the roll is even between the other two games.
 - `cool-direct` opening `#/<slug>/<game>` directly neither checks nor records the recent game.
 
 ## How to get to it (user POV)
@@ -29,8 +29,8 @@ Preconditions:
 - **Trimmed names.** Route body `' 肠粉 ,true\n面包 ,true\n'`, seed `'["肠粉"]'`, spin. `#card-name` is `面包`; storage becomes `["肠粉","面包"]`.
 - **Cap at 7.** Without a route, seed 7 real breakfast names, draw once. Stored list has length 7, the first seeded name dropped, the winner last and not one of the 7 seeded names (breakfast has far more than 8 names, so all 7 cool).
 - **Read cap.** Route `breakfast.csv` to 9 candidates `甲…壬` (`甲,true\n乙,true\n…`), seed all 9 in that order, draw until `乙` wins (at most 10 draws, reseeding each time). Every winner is `甲` or `乙`, and after each draw storage is `["丁","戊","己","庚","辛","壬",<winner>]`. `乙` winning proves the cap: without it the newest 8 would cool and only `甲` could win.
-- **Game alternates.** `page.goto(baseURL)`, click `早餐吃什么`, note the game from the URL, then `page.goto(baseURL)` again and click `做点什么呢`. The second URL has the other game; `random-games:recent-games` = `[<second game>]`.
-- **Shared theme link rolls too.** Seed `random-games:recent-games` = `'["wheel"]'`, `page.goto(baseURL + '#/go-out')`. URL becomes `#/go-out/pinball`; storage `["pinball"]`.
+- **Last game skipped.** `page.goto(baseURL)`, click `早餐吃什么`, note the game from the URL, then `page.goto(baseURL)` again and click `做点什么呢`. The second URL has a different game; `random-games:recent-games` = `[<second game>]`.
+- **Shared theme link rolls too.** Seed `random-games:recent-games` = `'["wheel"]'`, `page.goto(baseURL + '#/go-out')`. URL becomes `#/go-out/pinball` or `#/go-out/sticks`, and storage holds that one game. Reseed and repeat (at most 10 times) until both have shown up; `wheel` never does.
 - **Direct link doesn't record.** Seed `random-games:recent-games` = `'["wheel"]'`, `page.goto(baseURL + '#/breakfast/wheel')`. Page loads the wheel; storage still `["wheel"]`.
 
 ## Gotchas
@@ -38,5 +38,6 @@ Preconditions:
 - Seed storage on the same origin first (`page.goto(baseURL)`), then navigate; `localStorage` access on `about:blank` throws.
 - The recent-winners key is per theme slug; seeding `breakfast` does nothing for `go-out`.
 - Names must match the roster exactly (including full-width characters) to cool. Roster names are trimmed first, so `' 肠粉 ,true'` matches a stored `肠粉`, and the winner is stored trimmed. A seeded name that isn't in the roster still takes one of the cooling slots, so fewer real candidates cool.
-- Seed values must be JSON arrays of strings (`JSON.stringify`); anything else silently reads as no memory.
+- Seed values must be JSON arrays of strings (`JSON.stringify`); anything else silently reads as no memory. A seeded game that isn't one of the three still takes the one cooling slot, so the roll is then even over all three.
+- `random-games:sticks-motion-asked` (`'1'` once the iOS 摇手机 prompt is answered) is not cooldown memory; ignore it in `recentMemory()`.
 - The winner is written at reveal time; read storage after the card is visible.

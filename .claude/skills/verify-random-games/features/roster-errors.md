@@ -1,6 +1,6 @@
 # Roster error pages
 
-When a theme's roster can't be used, the game page shows an error panel in the normal page shell (theme title and `← 换个主题` still there) instead of a board: the roster file could not be fetched, a line could not be parsed, the file has no candidates, or every candidate is disabled. No canvas and no result card are mounted, on either game.
+When a theme's roster can't be used, the game page shows an error panel in the normal page shell (theme title and `← 换个主题` still there) instead of a board: the roster file could not be fetched, a line could not be parsed, the file has no candidates, or every candidate is disabled. No canvas and no result card are mounted, on any game (wheel, pinball, sticks).
 
 ## Sub-features
 
@@ -12,7 +12,7 @@ When a theme's roster can't be used, the game page shows an error panel in the n
 
 ## How to get to it (user POV)
 
-- A maintainer commits a broken `public/<slug>.csv`, and a user opens `#/<slug>/wheel` or `#/<slug>/pinball` (or rolls into one from the picker).
+- A maintainer commits a broken `public/<slug>.csv`, and a user opens `#/<slug>/wheel`, `#/<slug>/pinball` or `#/<slug>/sticks` (or rolls into one from the picker).
 - The network drops the CSV request.
 
 ## Driving it with verify.mjs
@@ -26,7 +26,7 @@ Preconditions:
 - **Empty file.** Route body `'# 只有注释\n\n'`. `[data-error-kind="empty-file"]`, no canvas.
 - **All disabled.** Route body `'肠粉,false\n面包,no\n'`. `[data-error-kind="all-disabled"]`, no canvas. `'肠粉,FALSE\n面包, No \n'` gives the same, and so does `'肠粉,true\n肠粉,false\n'` (detail says `1 个候选`).
 - **Load failure.** `route.fulfill({status: 404, body: ''})`, and for a dropped request `route.abort()`. `[data-error-kind="load"]`, no canvas.
-- **Both games.** Repeat each case with `#/breakfast/pinball`; same kinds.
+- **Every game.** Repeat each case with `#/breakfast/pinball` and `#/breakfast/sticks`; same kinds.
 - **Escape.** On any error page click `getByRole('link', {name: '← 换个主题'})`. The picker shows. On an error page opened directly the URL ends `#/`; on one reached from the picker the link goes Back, so the URL is the picker's own (bare `baseURL` if that is where the picker was opened).
 - **Evidence.** `aria('error', 'main')` and a screenshot per case; `browser.log` should show no page errors.
 - **Real-file variant (optional).** Break a row of `public/breakfast.csv` in the working tree but keep its `# entry:` line, `stop` + `start`, drive without a route, then `git checkout -- public/breakfast.csv` and restart. Use when the change under test is in CSV parsing of committed files.
