@@ -114,18 +114,26 @@ export interface MotionOffer {
   readonly entry: boolean;
 }
 
+/** 一根换下来的签：第几根、此刻还冒着多高（同 `SticksView.rise`）。 */
+export interface SinkingStick {
+  readonly stick: number;
+  readonly rise: number;
+}
+
 export interface SticksView {
   /** 签筒离正中多远（盘面单位，往右为正），不超过 `STICKS.tubeLimit`。 */
   readonly tubeOffset: number;
   /** 弧度，往右为正。 */
   readonly tubeTilt: number;
   /**
-   * 打头的是第几根签（`0 … STICKS.stickCount - 1`）。第一下甩时才定，收下后清掉；掉出来的
-   * 也是这一根。
+   * 打头的是第几根签（`0 … STICKS.stickCount - 1`）。第一下甩时才定，冒头往回滑之后再甩就换
+   * 一根，收下后清掉；掉出来的也是这一根。
    */
   readonly leadStick: number | undefined;
   /** 打头那根签的冒头：0 是没冒，1 是到顶。签掉出来之后归零。 */
   readonly rise: number;
+  /** 换下来、正往筒里滑的签，滑回筒里就不在这里了。打头的签不在其中。 */
+  readonly sinking: readonly SinkingStick[];
   readonly drop: SticksDrop | undefined;
   /** 写在立着的签上的名字，只在揭晓到抹掉之间有值。 */
   readonly revealed: string | undefined;
@@ -221,12 +229,42 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
   /** 盘面停住的那一帧，抹掉前原样交回。 */
   let stillView: SticksView | undefined;
   let leadStick: number | undefined;
+  /** 上一次开抽掉出来的签：收下后的第一根打头的签不能是它。 */
+  let lastDroppedStick: number | undefined;
+  /** 停手以后打头的签已经往回滑了：再甩就换一根。 */
+  let leadSinking = false;
+  let sinking: readonly SinkingStick[] = [];
   /** 挂上时读一次，答了就记下。存不进去也只在这一页里不再问。 */
   let promptAsked = promptMemory.asked();
 
-  /** 签筒这一下甩了 `distance`（盘面单位）。第一下甩时定哪根签打头，与谁中选无关（ADR-0015）。 */
+  /** 等概率挑一根签，`except` 不在其中。 */
+  function pickStick(except: number | undefined): number {
+    if (except === undefined) return randomIndex(random, STICKS.stickCount);
+    const index = randomIndex(random, STICKS.stickCount - 1);
+    return index < except ? index : index + 1;
+  }
+
+  /**
+   * 换一根签打头，不与上一根相同。换下来的签接着滑回筒里；换上来的签要是还冒着，就从那个高度
+   * 接着冒。
+   */
+  function switchLead(): void {
+    const next = pickStick(leadStick ?? lastDroppedStick);
+    // 不改原数组：上一帧交出去的画面还拿着它。
+    const stillSinking = sinking.filter(({ stick }) => stick !== next);
+    if (leadStick !== undefined && rise > 0) stillSinking.push({ stick: leadStick, rise });
+    rise = sinking.find(({ stick }) => stick === next)?.rise ?? 0;
+    sinking = stillSinking;
+    leadStick = next;
+    leadSinking = false;
+  }
+
+  /**
+   * 签筒这一下甩了 `distance`（盘面单位）。第一下甩时、或打头的签往回滑之后，换一根签打头，
+   * 与谁中选无关（ADR-0015）。
+   */
   function shook(distance: number): void {
-    leadStick ??= randomIndex(random, STICKS.stickCount);
+    if (leadStick === undefined || leadSinking) switchLead();
     travel += distance;
   }
 
@@ -297,11 +335,18 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
         } else {
           idleMs += delta;
           const falling = Math.min(delta, idleMs - STICKS.fallDelayMs);
-          if (falling > 0) rise = Math.max(0, rise - falling / STICKS.fallMs);
+          if (falling > 0 && rise > 0) {
+            rise = Math.max(0, rise - falling / STICKS.fallMs);
+            leadSinking = true;
+          }
         }
         if (rise >= 1) dropStick();
       }
       travel = 0;
+      // 换下来的签不管签掉没掉出来，都照回落的速度滑回筒里。
+      sinking = sinking
+        .map(({ stick, rise: height }) => ({ stick, rise: height - delta / STICKS.fallMs }))
+        .filter(({ rise: height }) => height > 0);
 
       let drop: SticksDrop | undefined;
       if (dropped) {
@@ -323,6 +368,7 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
         tubeTilt,
         leadStick,
         rise,
+        sinking,
         drop,
         revealed,
         motion: motion.support === 'unsupported' ? undefined : motion.support,
@@ -353,7 +399,10 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
       rise = 0;
       travel = 0;
       idleMs = 0;
+      lastDroppedStick = leadStick;
       leadStick = undefined;
+      leadSinking = false;
+      sinking = [];
     },
   };
 }

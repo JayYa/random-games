@@ -154,7 +154,8 @@ function drawTube(ctx: CanvasRenderingContext2D, view: SticksView, colors: Stick
     if (dropped && i === view.leadStick) continue;
     const spread = (i - (STICKS.stickCount - 1) / 2) / ((STICKS.stickCount - 1) / 2);
     const x = spread * (halfWidth - 14);
-    const lift = baseRise + (i === view.leadStick ? view.rise * g.riseTravel : 0);
+    const rise = i === view.leadStick ? view.rise : (view.sinking.find(({ stick }) => stick === i)?.rise ?? 0);
+    const lift = baseRise + rise * g.riseTravel;
     // 签顶比筒口高 `lift`，签底藏在筒身后面。
     drawStick(
       ctx,

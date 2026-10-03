@@ -201,7 +201,7 @@ describe('冒头回落', () => {
     expect(waitUntil(harness, (view) => view.rise === 0).rise).toBeLessThan(held.rise);
   });
 
-  it('回落到一半重新甩，冒头从当前高度接着涨', () => {
+  it('回落到一半重新甩，换另一根签从筒里冒；原来那根接着滑回筒里', () => {
     const harness = setup();
     const { view: held } = shakeUntil(harness, HARD, (view) => view.rise > 0.5);
     harness.machine.release(FINGER);
@@ -210,8 +210,75 @@ describe('冒头回落', () => {
 
     grab(harness);
     const resumed = shakeFrame(harness, HARD);
-    expect(resumed.rise).toBeGreaterThan(halfway.rise);
-    expect(resumed.rise).toBeLessThan(held.rise);
+    expect(resumed.leadStick).not.toBe(held.leadStick);
+    expect(resumed.rise).toBeGreaterThan(0);
+    expect(resumed.rise).toBeLessThan(halfway.rise);
+    const old = resumed.sinking.find(({ stick }) => stick === held.leadStick);
+    expect(old?.rise).toBeLessThan(halfway.rise);
+
+    const later = shakeFrame(harness, HARD);
+    expect(later.sinking.find(({ stick }) => stick === held.leadStick)?.rise).toBeLessThan(old!.rise);
+    expect(shake(harness, HARD, STICKS.fallMs).sinking).toEqual([]);
+  });
+
+  it('停手还没开始回落就接着甩，还是同一根签接着冒', () => {
+    const harness = setup();
+    const { view: held } = shakeUntil(harness, HARD, (view) => view.rise > 0.5);
+    harness.machine.release(FINGER);
+    for (let paused = 0; paused < STICKS.fallDelayMs / 2; paused += FRAME_MS) tick(harness);
+
+    grab(harness);
+    const resumed = shakeFrame(harness, HARD);
+    expect(resumed.leadStick).toBe(held.leadStick);
+    expect(resumed.rise).toBeGreaterThan(held.rise);
+    expect(resumed.sinking).toEqual([]);
+  });
+
+  it('冒头滑回筒里以后再甩，换另一根签打头', () => {
+    const harness = setup(scriptedRandom([0]));
+    const { view: held } = shakeUntil(harness, HARD, (view) => view.rise > 0.5);
+    harness.machine.release(FINGER);
+    waitUntil(harness, (view) => view.rise === 0);
+
+    const resumed = shake(harness, HARD, 100);
+    expect(resumed.leadStick).toBeDefined();
+    expect(resumed.leadStick).not.toBe(held.leadStick);
+    expect(resumed.sinking).toEqual([]);
+  });
+
+  it('换上来打头的签正好还在往回滑，就从它此刻的高度掉头往上冒', () => {
+    // 随机源一直吐 0：第一根打头的是 0 号；之后每次换签都从排除上一根以后剩下的里取第一根。
+    const harness = setup(scriptedRandom([0]));
+    const { view: first } = shakeUntil(harness, HARD, (view) => view.rise > 0.9);
+    harness.machine.release(FINGER);
+    waitUntil(harness, (view) => view.rise < 0.8);
+
+    const second = shake(harness, HARD, 100);
+    expect(second.leadStick).not.toBe(first.leadStick);
+    harness.machine.release(FINGER);
+    const sinkingFirst = waitUntil(harness, (view) => view.rise < second.rise);
+    const firstHeight = sinkingFirst.sinking.find(({ stick }) => stick === first.leadStick)?.rise;
+    expect(firstHeight).toBeGreaterThan(0);
+
+    grab(harness);
+    const third = shakeFrame(harness, HARD);
+    expect(third.leadStick).toBe(first.leadStick);
+    expect(third.rise).toBeGreaterThan(firstHeight!);
+    expect(third.sinking.map(({ stick }) => stick)).toEqual([second.leadStick]);
+  });
+
+  it('签掉出来时，换下来的签照样滑回筒里', () => {
+    const harness = setup(scriptedRandom([0]));
+    const { view: first } = shakeUntil(harness, HARD, (view) => view.rise > 0.9);
+    harness.machine.release(FINGER);
+    waitUntil(harness, (view) => view.rise < 0.85);
+
+    // 甩得比用力甩还快，新签在旧签滑回筒里之前就掉出来。
+    const { view: dropped } = shakeUntil(harness, HARD * 3, hasDropped);
+    const height = dropped.sinking.find(({ stick }) => stick === first.leadStick)?.rise;
+    expect(height).toBeGreaterThan(0);
+    expect(tick(harness).sinking.find(({ stick }) => stick === first.leadStick)?.rise).toBeLessThan(height!);
+    waitUntil(harness, (view) => view.sinking.length === 0);
   });
 
   it('签掉出来以后不再回落：签照样立住、揭晓', () => {
@@ -365,6 +432,19 @@ describe('抽一根签', () => {
     first.accept();
     expect(tick(first).leadStick).toBeUndefined();
     expect(shake(first, HARD, 100).leadStick).toBe(otherLead);
+  });
+
+  it('收下以后第一根打头的签，不是刚掉出来的那根', () => {
+    // 随机源一直吐 0：不排除的话每次都是 0 号打头。
+    const harness = setup(scriptedRandom([0]));
+    const { view: dropped } = shakeUntil(harness, HARD, hasDropped);
+    harness.machine.release(FINGER);
+    waitUntil(harness, isRevealed);
+    harness.accept();
+
+    const next = shake(harness, HARD, 100).leadStick;
+    expect(next).toBeDefined();
+    expect(next).not.toBe(dropped.leadStick);
   });
 
   it('揭晓之后盘面停住，渲染层可以停帧；抹掉后接着动', () => {
