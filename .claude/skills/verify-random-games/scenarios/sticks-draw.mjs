@@ -1,5 +1,6 @@
 // Feature: sticks-draw (features/sticks-draw.md). 抽一根签 on 求签筒: picker roll onto
-// sticks, drag-shake until a stick drops, name on the stick, the card with 再抽一根,
+// sticks, a short shake that slides back, another lead after a slide-back, drag-shake
+// until a stick drops, name on the stick, the card with 再抽一根,
 // no auto-roll after closing; short/medium/long names on the stick (roster route);
 // desktop shows no 摇手机 UI; a direct link.
 //
@@ -9,14 +10,17 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
   const board = page.locator('#sticks-board');
   const card = page.locator('#card');
 
-  async function shakeOnce() {
+  // One press, `trips` round trips of the tube to its ±70 limit, release. The tube travels
+  // 70 + 140·(2·trips − 1) board units and the lead stick rises 1/1200 per unit, so
+  // 2 trips ≈ 0.41, 3 ≈ 0.64, 6 ≈ 1.6 (a stick drops).
+  async function shake(trips = 6) {
     const b = await board.boundingBox();
     const x = b.x + b.width / 2;
     const y = b.y + b.height * 0.7;
     const swing = b.width * 0.3;
     await page.mouse.move(x, y);
     await page.mouse.down();
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < trips; i += 1) {
       await page.mouse.move(x + swing, y, { steps: 4 });
       await page.mouse.move(x - swing, y, { steps: 4 });
     }
@@ -25,7 +29,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
 
   async function shakeUntilCard() {
     for (let i = 0; i < 20 && !(await card.isVisible()); i += 1) {
-      await shakeOnce();
+      await shake();
       await page.waitForTimeout(300);
     }
     await expect(card).toBeVisible({ timeout: 5_000 });
@@ -55,12 +59,30 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     await shot('sticks-ready');
   });
 
-  await step('shaking without finishing records nothing', async () => {
-    await shakeOnce();
-    await shot('sticks-mid-shake');
+  // 2.5 s covers a drop (0.9 s) plus the reveal beat (0.8 s), so a hidden card means no draw.
+  await step('warm-up: a short shake pokes a stick out, then it slides back; nothing recorded', async () => {
+    await shake(2);
+    await shot('sticks-poking-out');
+    await page.waitForTimeout(2_500);
+    await expect(card).toBeHidden();
+    await shot('sticks-slid-back');
     const mem = await recentMemory();
     expect(mem['random-games:recent-winners:breakfast']).toBeUndefined();
     return mem;
+  });
+
+  // ≈0.82 high, then a 1 s pause slides it back to ≈0.57. Kept going, the old lead would
+  // drop with another ≈0.64; a new lead starts from 0 and stays in the tube.
+  await step('shaking again after a slide-back leads with another stick', async () => {
+    await shake(2);
+    await shake(2);
+    await shot('sticks-high');
+    await page.waitForTimeout(1_000);
+    await shake(3);
+    await shot('sticks-new-lead');
+    await page.waitForTimeout(2_500);
+    await expect(card).toBeHidden();
+    expect((await recentMemory())['random-games:recent-winners:breakfast']).toBeUndefined();
   });
 
   const winner = await step('shake until a stick drops: name on stick, then card', async () => {

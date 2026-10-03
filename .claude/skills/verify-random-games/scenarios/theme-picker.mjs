@@ -34,7 +34,7 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
   const rolled = await step('choose 做点什么呢 → rolled game, one history entry', async () => {
     const before = await historyLength();
     await page.getByRole('link', { name: '做点什么呢' }).click();
-    await expect(page).toHaveURL(/#\/free-time\/(wheel|pinball)$/);
+    await expect(page).toHaveURL(/#\/free-time\/(wheel|pinball|sticks)$/);
     await expect(page.getByRole('heading', { level: 1, name: '做点什么呢' })).toBeVisible();
     await expect(page).toHaveTitle('做点什么呢');
     expect(await historyLength()).toBe(before + 1);
@@ -53,7 +53,7 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
 
   await step('← 换个主题 after arriving from picker goes back', async () => {
     await page.getByRole('link', { name: '今天去哪玩' }).click();
-    await expect(page).toHaveURL(/#\/go-out\/(wheel|pinball)$/);
+    await expect(page).toHaveURL(/#\/go-out\/(wheel|pinball|sticks)$/);
     const before = await historyLength();
     await toPicker.click();
     await expect(page).toHaveURL(PICKER_URL);
@@ -70,7 +70,7 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
       context.waitForEvent('page'),
       page.getByRole('link', { name: '今天去哪玩' }).click({ button: 'middle' }),
     ]);
-    await expect(popup).toHaveURL(/#\/go-out\/(wheel|pinball)$/);
+    await expect(popup).toHaveURL(/#\/go-out\/(wheel|pinball|sticks)$/);
     await expect(popup.getByRole('heading', { level: 1, name: '今天去哪玩' })).toBeVisible();
     const urls = { opener: page.url(), popup: popup.url() };
     await popup.close();
@@ -128,7 +128,7 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
     await page.goto('about:blank');
     await page.goto(baseURL);
     await page.getByRole('link', { name: '早餐吃什么' }).click();
-    await expect(page).toHaveURL(/#\/breakfast\/(wheel|pinball)$/);
+    await expect(page).toHaveURL(/#\/breakfast\/(wheel|pinball|sticks)$/);
     await page.reload();
     await expect(page.getByRole('heading', { level: 1, name: '早餐吃什么' })).toBeVisible();
     const before = await historyLength();
@@ -142,6 +142,7 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
   for (const [hash, board] of [
     ['#/breakfast/pinball', '#pinball-board'],
     ['#/free-time/wheel', '#wheel-canvas'],
+    ['#/go-out/sticks', '#sticks-board'],
   ]) {
     await step(`bookmark ${hash} lands directly on that game`, async () => {
       await page.goto('about:blank');
@@ -165,7 +166,7 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
   await step('open shared #/go-out → rolled; ← 换个主题 replaces it with #/', async () => {
     await page.goto('about:blank');
     await page.goto(baseURL + '#/go-out');
-    await expect(page).toHaveURL(/#\/go-out\/(wheel|pinball)$/);
+    await expect(page).toHaveURL(/#\/go-out\/(wheel|pinball|sticks)$/);
     await expect(page.getByRole('heading', { level: 1, name: '今天去哪玩' })).toBeVisible();
     const game = page.url().split('/').pop();
     expect((await recentMemory())['random-games:recent-games']).toEqual([game]);
@@ -186,6 +187,7 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
     '#/breakfast/',
     '#/breakfast/wheel/',
     '#/wheel',
+    '#/sticks',
     '#breakfast',
   ]) {
     await step(`fallback ${hash} → picker at #/`, async () => {
