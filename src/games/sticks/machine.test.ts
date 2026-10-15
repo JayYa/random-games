@@ -13,15 +13,14 @@ import {
   STILL_AFTER_REVEAL_MS,
   createSticksMachine,
   type MotionCapability,
-  type MotionPromptMemory,
-  type MotionSupport,
   type PointerSample,
   type SticksMachine,
   type SticksView,
 } from './machine';
 import type { RandomSource } from '../../random';
 import { fakeStorage, mountOnHost, scriptedRandom, seededRandom, type HostedBoard } from '../../testHelpers';
-import { storedPromptMemory } from './promptMemory';
+import { storedPromptMemory, type MotionPromptMemory } from '../motionPromptMemory';
+import type { MotionSupport } from '../motionSupport';
 
 /** 60Hz 下一帧。 */
 const FRAME_MS = 16;
