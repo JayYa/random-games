@@ -13,6 +13,8 @@
 
 import { REVEAL_PAUSE_MS, type MountedBoard, type RollHandle } from '../../gamePage';
 import { randomIndex, type RandomSource } from '../../random';
+import type { MotionPromptMemory } from '../motionPromptMemory';
+import type { MotionSupport } from '../motionSupport';
 
 /**
  * 常量表：盘面几何与手感参数都在这里，渲染层照它画，用例照它摆样本。手感参数是起点，
@@ -76,24 +78,12 @@ export interface SticksDrop {
   readonly standing: boolean;
 }
 
-/** 这台设备能不能摇手机：能直接读运动传感器（Android）、要先授权（iOS）、读不到（电脑）。 */
-export type MotionSupport = 'supported' | 'needs-permission' | 'unsupported';
-
 /**
  * 摇手机的能力，由渲染层按平台检测后注入。机器每次用时现读：Android 要收到第一个带数据的
  * `devicemotion` 才知道能用，iOS 授权以后也会变。
  */
 export interface MotionCapability {
   readonly support: MotionSupport;
-}
-
-/**
- * 「这台浏览器问过没有摇手机」的记忆，由渲染层注入（生产包一层 localStorage）。存不了时
- * 当作没问过。
- */
-export interface MotionPromptMemory {
-  asked(): boolean;
-  remember(): void;
 }
 
 /** 一个手机加速度样本：`devicemotion` 里不含重力的水平加速度。 */

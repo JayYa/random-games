@@ -9,6 +9,8 @@
 import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePage';
 import { fitCanvas } from '../fitCanvas';
+import { browserPromptStorage, storedPromptMemory } from '../motionPromptMemory';
+import { motionSupport, type AccelerometerPermission, type MotionFacts } from '../motionSupport';
 import {
   STICKS,
   createSticksMachine,
@@ -18,9 +20,7 @@ import {
   type SticksDrop,
   type SticksView,
 } from './machine';
-import { motionSupport, type AccelerometerPermission, type MotionFacts } from './motionSupport';
 import { layoutStickName } from './nameLayout';
-import { browserPromptStorage, storedPromptMemory } from './promptMemory';
 
 /** 收下之后签回到筒里，真的能再抽一根。 */
 const CLOSE_LABEL = '再抽一根';

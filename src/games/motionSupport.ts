@@ -1,5 +1,6 @@
 /**
- * 按浏览器给的事实判断能不能摇手机（#196）。渲染层只管收集事实，规则全在这里。
+ * 按浏览器给的事实判断能不能摇手机（#196）。求签筒和骰子共用（#217），放在两个盘面共同的最近
+ * 目录，不从 `./index.ts` 交出（ADR-0014）。渲染层只管收集事实，规则全在这里。
  *
  * 先都当读不到，收到第一个带数据的 `devicemotion` 才算能用——电脑上也有这个事件类型，但不来
  * 数据或只来空的。
@@ -9,7 +10,8 @@
  * `accelerometer`）的才是要先授权的 iOS。
  */
 
-import type { MotionSupport } from './machine';
+/** 这台设备能不能摇手机：能直接读运动传感器（Android）、要先授权（iOS）、读不到（电脑）。 */
+export type MotionSupport = 'supported' | 'needs-permission' | 'unsupported';
 
 /**
  * `navigator.permissions.query({ name: 'accelerometer' })` 的结果：查到的状态；`'unavailable'` 是

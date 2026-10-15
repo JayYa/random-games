@@ -1,11 +1,12 @@
 /**
- * 「问过没有摇手机」存在浏览器存储里的那一份。存储用内存替身，同一份交给第二份记忆就是刷新了页面。
+ * 「问过没有摇手机」存在浏览器存储里的那一份，整站共用。存储用内存替身，同一份交给第二份记忆就是
+ * 刷新了页面。
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { fakeStorage } from '../../testHelpers';
-import { storedPromptMemory, type PromptStorage } from './promptMemory';
+import { fakeStorage } from '../testHelpers';
+import { storedPromptMemory, type PromptStorage } from './motionPromptMemory';
 
 function throwingStorage(): PromptStorage {
   return {
@@ -25,6 +26,12 @@ describe('问过没有摇手机的记忆', () => {
     expect(memory.asked()).toBe(false);
 
     memory.remember();
+    expect(storedPromptMemory(storage).asked()).toBe(true);
+  });
+
+  it('求签筒问过的老浏览器（存储里已有原来的键）报告问过，升级后不再问', () => {
+    const storage = fakeStorage();
+    storage.setItem('random-games:sticks-motion-asked', '1');
     expect(storedPromptMemory(storage).asked()).toBe(true);
   });
 
