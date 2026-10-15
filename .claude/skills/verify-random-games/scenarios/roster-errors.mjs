@@ -28,7 +28,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria }) {
         }),
   );
 
-  for (const game of ['wheel', 'pinball', 'sticks']) {
+  for (const game of ['wheel', 'pinball', 'sticks', 'die']) {
     for (const c of CASES) {
       const name = c.label ? `${c.kind}-${c.label.replace(/ /g, '-')}` : c.kind;
       await step(`[route] ${game}: ${name}`, async () => {
@@ -62,7 +62,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria }) {
     await page.goto('about:blank');
     await page.goto(baseURL);
     await page.getByRole('link', { name: '早餐吃什么' }).click();
-    await expect(page).toHaveURL(/#\/breakfast\/(wheel|pinball|sticks)$/);
+    await expect(page).toHaveURL(/#\/breakfast\/(wheel|pinball|sticks|die)$/);
     await expect(page.locator('[data-error-kind="empty-file"]')).toBeVisible();
     const before = await page.evaluate(() => history.length);
     await page.getByRole('link', { name: '← 换个主题' }).click();

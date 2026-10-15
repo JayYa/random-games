@@ -9,18 +9,16 @@
 import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePage';
 import { fitCanvas } from '../fitCanvas';
+import { detectMotion, listenDeviceMotion, motionOfferHtml, wireMotionOffer } from '../motionBrowser';
+import { browserPromptStorage, storedPromptMemory } from '../motionPromptMemory';
 import {
   STICKS,
   createSticksMachine,
-  type MotionCapability,
-  type MotionOffer,
   type PointerSample,
   type SticksDrop,
   type SticksView,
 } from './machine';
-import { motionSupport, type AccelerometerPermission, type MotionFacts } from './motionSupport';
 import { layoutStickName } from './nameLayout';
-import { browserPromptStorage, storedPromptMemory } from './promptMemory';
 
 /** 收下之后签回到筒里，真的能再抽一根。 */
 const CLOSE_LABEL = '再抽一根';
@@ -30,13 +28,7 @@ const BOARD_HTML = `
         <div class="sticks__frame">
           <span class="tape"></span><span class="tape"></span>
           <canvas class="sticks__board" id="sticks-board"></canvas>
-        </div>
-        <div class="sticks__offer" id="sticks-motion-prompt" hidden>
-          <p class="sticks__offer-text">摇手机也能抽</p>
-          <button class="sticks__offer-button sticks__offer-button--yes" id="sticks-motion-enable" type="button">开启</button>
-          <button class="sticks__offer-button" id="sticks-motion-decline" type="button">不用了</button>
-        </div>
-        <button class="sticks__offer-entry" id="sticks-motion-entry" type="button" hidden>开启摇手机</button>
+        </div>${motionOfferHtml('sticks')}
       </div>
     `;
 
@@ -265,58 +257,6 @@ function drawBoard(ctx: CanvasRenderingContext2D, view: SticksView, colors: Stic
   if (view.drop) drawDroppedStick(ctx, view.drop, view.revealed, colors);
 }
 
-/** 机器现读的摇手机能力；浏览器事实只经 `learn` 进来，能不能摇照 `motionSupport` 的规则重算。 */
-interface DetectedMotion extends MotionCapability {
-  learn(change: Partial<MotionFacts>): void;
-}
-
-/**
- * 收集能不能摇手机的浏览器事实（#196）。不能拿 `requestPermission()` 本身来探：从首页点进来时
- * 还在那一下点按的余温里，iOS 会当场弹系统框。
- */
-function detectMotion(): DetectedMotion {
-  let facts: MotionFacts = {
-    deviceMotion: typeof DeviceMotionEvent !== 'undefined',
-    requestPermission: motionPermissionRequest() !== undefined,
-    accelerometer: 'pending',
-    sampleArrived: false,
-    permissionGranted: false,
-  };
-  let support = motionSupport(facts);
-  const motion: DetectedMotion = {
-    get support() {
-      return support;
-    },
-    learn(change) {
-      facts = { ...facts, ...change };
-      support = motionSupport(facts);
-    },
-  };
-  if (facts.deviceMotion) void queryAccelerometer().then((accelerometer) => motion.learn({ accelerometer }));
-  return motion;
-}
-
-/** Chromium 查得到；Safari 不认 `accelerometer`，非安全上下文连 `navigator.permissions` 都没有。 */
-function queryAccelerometer(): Promise<AccelerometerPermission> {
-  try {
-    return navigator.permissions.query({ name: 'accelerometer' as PermissionName }).then(
-      (status) => status.state,
-      () => 'unavailable',
-    );
-  } catch {
-    return Promise.resolve('unavailable');
-  }
-}
-
-/** `DeviceMotionEvent.requestPermission`：iOS 有，Chrome 150 起也有。 */
-type RequestPermission = () => Promise<PermissionState>;
-
-function motionPermissionRequest(): RequestPermission | undefined {
-  if (typeof DeviceMotionEvent === 'undefined') return undefined;
-  const { requestPermission } = DeviceMotionEvent as unknown as { requestPermission?: unknown };
-  return typeof requestPermission === 'function' ? (requestPermission.bind(DeviceMotionEvent) as RequestPermission) : undefined;
-}
-
 export function createSticksBoard(): Board {
   return {
     html: BOARD_HTML,
@@ -329,8 +269,6 @@ export function createSticksBoard(): Board {
 function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   const byId = createById(root);
   const canvas = byId<HTMLCanvasElement>('sticks-board');
-  const promptBox = byId<HTMLElement>('sticks-motion-prompt');
-  const entryButton = byId<HTMLButtonElement>('sticks-motion-entry');
   const motion = detectMotion();
   const machine = createSticksMachine(roll, { motion, promptMemory: storedPromptMemory(browserPromptStorage()) });
   const controller = new AbortController();
@@ -348,26 +286,8 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     drawBoard(context, view, colors);
   }
 
-  /** 签筒下方的提示和入口跟着视图走；只在变了时碰 DOM。 */
-  function showOffer(offer: MotionOffer): void {
-    if (promptBox.hidden === offer.prompt) promptBox.hidden = !offer.prompt;
-    if (entryButton.hidden === offer.entry) entryButton.hidden = !offer.entry;
-  }
-
-  /**
-   * 请求运动传感器授权。iOS 只认使用者点按的那一刻，所以必须在点击处理函数里同步调（#196）。
-   * 拿到授权就能摇手机了，下一帧提示和入口一起消失；拒绝或出错就照旧，入口留着，拖着甩照样能抽。
-   */
-  function requestMotionPermission(): void {
-    const request = motionPermissionRequest();
-    if (!request) return;
-    request().then(
-      (state) => {
-        if (state === 'granted') motion.learn({ permissionGranted: true });
-      },
-      () => {},
-    );
-  }
+  /** 签筒下方的提示和入口跟着视图走，每帧刷新。拒绝授权时入口留着，拖着甩照样能抽。 */
+  const showOffer = wireMotionOffer(root, 'sticks', motion, () => machine.answerMotionPrompt(), controller.signal);
 
   /** 停帧时留着最后一帧，换主题时重画它。 */
   let lastView: SticksView | undefined;
@@ -421,34 +341,7 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     canvas.addEventListener(type, (event) => machine.release(event.pointerId), listen);
   }
 
-  byId<HTMLButtonElement>('sticks-motion-enable').addEventListener(
-    'click',
-    () => {
-      requestMotionPermission();
-      machine.answerMotionPrompt();
-    },
-    listen,
-  );
-  byId<HTMLButtonElement>('sticks-motion-decline').addEventListener('click', () => machine.answerMotionPrompt(), listen);
-  entryButton.addEventListener('click', requestMotionPermission, listen);
-
-  if (typeof DeviceMotionEvent !== 'undefined') {
-    let lastMotionAt: number | undefined;
-    window.addEventListener(
-      'devicemotion',
-      (event) => {
-        // 不含重力的加速度；只有含重力的那份或全是空值的设备当读不到。
-        const x = event.acceleration?.x;
-        if (x === null || x === undefined) return;
-        motion.learn({ sampleArrived: true });
-        // 间隔按事件时间戳现量：`interval` 的单位各家不一。
-        const intervalMs = lastMotionAt === undefined ? event.interval : event.timeStamp - lastMotionAt;
-        lastMotionAt = event.timeStamp;
-        machine.shakeBy({ x, intervalMs });
-      },
-      listen,
-    );
-  }
+  listenDeviceMotion(motion, controller.signal, (sample) => machine.shakeBy(sample));
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener(
     'change',

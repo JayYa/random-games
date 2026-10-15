@@ -114,30 +114,30 @@ export default async function ({ page, expect, baseURL, step, shot, recentMemory
   await step('a picker roll skips the last rolled game', async () => {
     await seed({});
     await page.getByRole('link', { name: '早餐吃什么' }).click();
-    await expect(page).toHaveURL(/#\/breakfast\/(wheel|pinball|sticks)$/);
+    await expect(page).toHaveURL(/#\/breakfast\/(wheel|pinball|sticks|die)$/);
     const first = page.url().split('/').pop();
     await page.goto(baseURL + '#/');
     await page.getByRole('link', { name: '做点什么呢' }).click();
-    await expect(page).toHaveURL(/#\/free-time\/(wheel|pinball|sticks)$/);
+    await expect(page).toHaveURL(/#\/free-time\/(wheel|pinball|sticks|die)$/);
     const second = page.url().split('/').pop();
     expect(second).not.toBe(first);
     expect((await recentMemory())[GAMES_KEY]).toEqual([second]);
     return { first, second };
   });
 
-  // 3 games, 1 remembered: the roll is 50/50 between the other two. Repeat until both show,
+  // 4 games, 1 remembered: the roll is 1/3 each among the other three. Repeat until all show,
   // so a wheel among them would show the recent game wasn't skipped.
   await step('a shared #/<slug> link rolls past the recent game', async () => {
     const rolled = new Set();
-    for (let i = 0; i < 10 && rolled.size < 2; i++) {
+    for (let i = 0; i < 20 && rolled.size < 3; i++) {
       await seed({ [GAMES_KEY]: ['wheel'] });
       await page.goto(baseURL + '#/go-out');
-      await expect(page).toHaveURL(/#\/go-out\/(pinball|sticks)$/);
+      await expect(page).toHaveURL(/#\/go-out\/(pinball|sticks|die)$/);
       const game = page.url().split('/').pop();
       expect((await recentMemory())[GAMES_KEY]).toEqual([game]);
       rolled.add(game);
     }
-    expect([...rolled].sort()).toEqual(['pinball', 'sticks']);
+    expect([...rolled].sort()).toEqual(['die', 'pinball', 'sticks']);
     return [...rolled];
   });
 

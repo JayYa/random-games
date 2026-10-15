@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * 三种玩法各走一次完整的开抽，外加名单毛病的错误页。
+ * 四种玩法各走一次完整的开抽，外加名单毛病的错误页。
  *
  * 只看使用者看得到的东西：「转」锁没锁、结果卡片弹没弹、卡片上的名字和按钮、
  * 错误页的种类。转盘转多久、球走哪条路不管——那是盘面的表演（ADR-0010）。
@@ -125,6 +125,81 @@ test.describe('弹球机', () => {
   });
 });
 
+test.describe('骰子', () => {
+  test('聚焦骰子按 Enter 掷一次、弹卡片；「再掷一次」收下之后焦点回到骰子，不自动再掷', async ({ page }) => {
+    await page.goto(`#/${THEME}/die`);
+    const die = page.getByRole('button', { name: '掷骰子' });
+    await expect(die).toBeVisible();
+    await expect(page.locator('#card-close')).toHaveText('再掷一次');
+
+    await die.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+    await expect(page.locator('#card-name')).not.toBeEmpty();
+
+    await page.locator('#card-close').click();
+    await expect(card(page)).toBeHidden();
+    await expect(die).toBeFocused();
+    await expect(die).toHaveAttribute('aria-disabled', 'false');
+
+    await page.waitForTimeout(1_500);
+    await expect(card(page)).toBeHidden();
+
+    // 收下之后再按空格也能再掷一次。
+    await page.keyboard.press(' ');
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+  });
+
+  test('按在盘面空白处拖不动；按住骰子拖着松手就抛出去、弹卡片', async ({ page }) => {
+    await page.goto(`#/${THEME}/die`);
+    const box = await page.locator('#die-board').boundingBox();
+    if (!box) throw new Error('骰子盘面没画出来');
+    // 骰子一开始平躺在盘面正中。
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+
+    await page.mouse.move(box.x + box.width * 0.15, box.y + box.height * 0.15);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.15, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForTimeout(1_500);
+    await expect(card(page)).toBeHidden();
+
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + box.width * 0.3, y - box.height * 0.2, { steps: 4 });
+    await page.mouse.up();
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+  });
+});
+
+/**
+ * 装成 iOS Safari：有 `DeviceMotionEvent.requestPermission`，权限查询不认 `accelerometer`。
+ * 每次请求授权都答 `answer`，并记下请求时是不是正在点按。
+ */
+async function pretendIos(page: Page, answer: 'granted' | 'denied'): Promise<void> {
+  await page.addInitScript((state) => {
+    const requests: boolean[] = [];
+    Object.assign(window, { motionPermissionRequests: requests });
+    Object.assign(DeviceMotionEvent, {
+      requestPermission: () => {
+        requests.push(navigator.userActivation.isActive);
+        return Promise.resolve(state);
+      },
+    });
+    const query = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = (descriptor) =>
+      descriptor.name === ('accelerometer' as PermissionName)
+        ? Promise.reject(new TypeError('Type error'))
+        : query(descriptor);
+  }, answer);
+}
+
+/** 请求过几次授权，每次是不是都在点按当下。 */
+const permissionRequests = (page: Page) =>
+  page.evaluate(() => (window as unknown as { motionPermissionRequests: boolean[] }).motionPermissionRequests);
+
 /** 按住签筒左右来回甩一趟。 */
 async function shakeTube(page: Page): Promise<void> {
   const box = await page.locator('#sticks-board').boundingBox();
@@ -188,32 +263,6 @@ test.describe('求签筒', () => {
   });
 
   test.describe('要先授权才能摇手机的设备（iOS）', () => {
-    /**
-     * 装成 iOS Safari：有 `DeviceMotionEvent.requestPermission`，权限查询不认 `accelerometer`。
-     * 每次请求授权都答 `answer`，并记下请求时是不是正在点按。
-     */
-    async function pretendIos(page: Page, answer: 'granted' | 'denied'): Promise<void> {
-      await page.addInitScript((state) => {
-        const requests: boolean[] = [];
-        Object.assign(window, { motionPermissionRequests: requests });
-        Object.assign(DeviceMotionEvent, {
-          requestPermission: () => {
-            requests.push(navigator.userActivation.isActive);
-            return Promise.resolve(state);
-          },
-        });
-        const query = navigator.permissions.query.bind(navigator.permissions);
-        navigator.permissions.query = (descriptor) =>
-          descriptor.name === ('accelerometer' as PermissionName)
-            ? Promise.reject(new TypeError('Type error'))
-            : query(descriptor);
-      }, answer);
-    }
-
-    /** 请求过几次授权，每次是不是都在点按当下。 */
-    const permissionRequests = (page: Page) =>
-      page.evaluate(() => (window as unknown as { motionPermissionRequests: boolean[] }).motionPermissionRequests);
-
     const prompt = (page: Page) => page.locator('#sticks-motion-prompt');
     const entry = (page: Page) => page.locator('#sticks-motion-entry');
 
@@ -288,6 +337,81 @@ test.describe('求签筒', () => {
       await expect(page.locator('#sticks-motion-entry')).toBeHidden();
     });
   }
+});
+
+test.describe('骰子摇手机', () => {
+  const prompt = (page: Page) => page.locator('#die-motion-prompt');
+  const entry = (page: Page) => page.locator('#die-motion-entry');
+
+  test('摇一下手机（能直接读运动传感器的设备）就掷一次', async ({ page }) => {
+    await page.goto(`#/${THEME}/die`);
+    await expect(page.locator('#die-board')).toBeVisible();
+
+    // 模拟 Android 上往右摇一下：加速度涨上去再落回，60Hz。
+    await page.evaluate(() => {
+      const samples = [6, 12, 15, 10, 4, 0];
+      let i = 0;
+      const timer = setInterval(() => {
+        const x = samples[i] ?? 0;
+        i += 1;
+        if (i >= samples.length) clearInterval(timer);
+        window.dispatchEvent(new DeviceMotionEvent('devicemotion', { acceleration: { x, y: 0, z: 0 }, interval: 16 }));
+      }, 16);
+    });
+
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+    await expect(page.locator('#card-name')).not.toBeEmpty();
+    // 不用授权的设备上，提示和入口都不出现。
+    await expect(prompt(page)).toBeHidden();
+    await expect(entry(page)).toBeHidden();
+  });
+
+  test.describe('要先授权才能摇手机的设备（iOS）', () => {
+    test('没问过时骰子下方有提示和入口；点「开启」在点按当下请求授权，拿到以后都不在', async ({ page }) => {
+      await pretendIos(page, 'granted');
+      await page.goto(`#/${THEME}/die`);
+      await expect(prompt(page)).toBeVisible();
+      await expect(prompt(page)).toContainText('摇手机也能抽');
+      await expect(entry(page)).toBeVisible();
+
+      await page.locator('#die-motion-enable').click();
+      await expect(prompt(page)).toBeHidden();
+      await expect(entry(page)).toBeHidden();
+      expect(await permissionRequests(page)).toEqual([true]);
+    });
+
+    test('在求签筒里答过，骰子不再给提示，只留入口；拒绝授权时按键照样能掷', async ({ page }) => {
+      await pretendIos(page, 'denied');
+      await page.goto(`#/${THEME}/sticks`);
+      await page.locator('#sticks-motion-decline').click();
+
+      await page.goto(`#/${THEME}/die`);
+      await expect(page.locator('#die-board')).toBeVisible();
+      await expect(entry(page)).toBeVisible();
+      await expect(prompt(page)).toBeHidden();
+
+      await entry(page).click();
+      expect(await permissionRequests(page)).toEqual([true]);
+      await expect(entry(page)).toBeVisible();
+
+      await page.locator('#die-board').focus();
+      await page.keyboard.press('Enter');
+      await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+    });
+
+    test('在骰子这里答过，求签筒不再给提示，只留入口', async ({ page }) => {
+      await pretendIos(page, 'denied');
+      await page.goto(`#/${THEME}/die`);
+      await page.locator('#die-motion-decline').click();
+      await expect(prompt(page)).toBeHidden();
+      await expect(entry(page)).toBeVisible();
+
+      await page.goto(`#/${THEME}/sticks`);
+      await expect(page.locator('#sticks-board')).toBeVisible();
+      await expect(page.locator('#sticks-motion-entry')).toBeVisible();
+      await expect(page.locator('#sticks-motion-prompt')).toBeHidden();
+    });
+  });
 });
 
 test.describe('名单写坏时只画错误页、不挂盘面', () => {

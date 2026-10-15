@@ -26,14 +26,14 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     await expect(page.getByRole('heading', { level: 1, name: '是但' })).toBeVisible();
   });
 
-  // With 3 games and a 1-game cooldown, seeding wheel leaves pinball/sticks at 50/50;
+  // With 4 games and a 1-game cooldown, seeding wheel leaves 1/3 each for the others;
   // retry the real picker roll until it lands on pinball.
   await step('choose 早餐吃什么 (recent game = wheel) until the roll lands on pinball', async () => {
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 20; i += 1) {
       await page.goto(baseURL);
       await page.evaluate(() => localStorage.setItem('random-games:recent-games', '["wheel"]'));
       await page.getByRole('link', { name: '早餐吃什么' }).click();
-      await page.waitForURL(/#\/breakfast\/(pinball|sticks)$/);
+      await page.waitForURL(/#\/breakfast\/(pinball|sticks|die)$/);
       if (page.url().endsWith('/pinball')) break;
     }
     await expect(page).toHaveURL(/#\/breakfast\/pinball$/);
