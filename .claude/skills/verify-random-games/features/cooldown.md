@@ -30,7 +30,7 @@ Preconditions:
 - **Cap at 7.** Without a route, seed 7 real breakfast names, draw once. Stored list has length 7, the first seeded name dropped, the winner last and not one of the 7 seeded names (breakfast has far more than 8 names, so all 7 cool).
 - **Read cap.** Route `breakfast.csv` to 9 candidates `甲…壬` (`甲,true\n乙,true\n…`), seed all 9 in that order, draw until `乙` wins (at most 10 draws, reseeding each time). Every winner is `甲` or `乙`, and after each draw storage is `["丁","戊","己","庚","辛","壬",<winner>]`. `乙` winning proves the cap: without it the newest 8 would cool and only `甲` could win.
 - **Last game skipped.** `page.goto(baseURL)`, click `早餐吃什么`, note the game from the URL, then `page.goto(baseURL)` again and click `做点什么呢`. The second URL has a different game; `random-games:recent-games` = `[<second game>]`.
-- **Shared theme link rolls too.** Seed `random-games:recent-games` = `'["wheel"]'`, `page.goto(baseURL + '#/go-out')`. URL becomes `#/go-out/pinball` or `#/go-out/sticks`, and storage holds that one game. Reseed and repeat (at most 10 times) until both have shown up; `wheel` never does.
+- **Shared theme link rolls too.** Seed `random-games:recent-games` = `'["wheel"]'`, `page.goto(baseURL + '#/go-out')`. URL becomes `#/go-out/pinball`, `#/go-out/sticks` or `#/go-out/die`, and storage holds that one game. Reseed and repeat (at most 20 times) until all three have shown up; `wheel` never does.
 - **Direct link doesn't record.** Seed `random-games:recent-games` = `'["wheel"]'`, `page.goto(baseURL + '#/breakfast/wheel')`. Page loads the wheel; storage still `["wheel"]`.
 
 ## Gotchas
@@ -38,6 +38,6 @@ Preconditions:
 - Seed storage on the same origin first (`page.goto(baseURL)`), then navigate; `localStorage` access on `about:blank` throws.
 - The recent-winners key is per theme slug; seeding `breakfast` does nothing for `go-out`.
 - Names must match the roster exactly (including full-width characters) to cool. Roster names are trimmed first, so `' 肠粉 ,true'` matches a stored `肠粉`, and the winner is stored trimmed. A seeded name that isn't in the roster still takes one of the cooling slots, so fewer real candidates cool.
-- Seed values must be JSON arrays of strings (`JSON.stringify`); anything else silently reads as no memory. A seeded game that isn't one of the three still takes the one cooling slot, so the roll is then even over all three.
+- Seed values must be JSON arrays of strings (`JSON.stringify`); anything else silently reads as no memory. A seeded game that isn't one of the four still takes the one cooling slot, so the roll is then even over all four.
 - `random-games:sticks-motion-asked` (`'1'` once the iOS 摇手机 prompt is answered) is not cooldown memory; ignore it in `recentMemory()`.
 - The winner is written at reveal time; read storage after the card is visible.

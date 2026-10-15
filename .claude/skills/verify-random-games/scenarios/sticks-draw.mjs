@@ -36,14 +36,14 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     return (await page.locator('#card-name').textContent())?.trim();
   }
 
-  // With 3 games and a 1-game cooldown, seeding pinball leaves wheel/sticks at 50/50;
+  // With 4 games and a 1-game cooldown, seeding pinball leaves 1/3 each for the others;
   // retry the real picker roll until it lands on sticks.
   await step('picker roll lands on sticks', async () => {
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 20; i += 1) {
       await page.goto(baseURL);
       await page.evaluate(() => localStorage.setItem('random-games:recent-games', '["pinball"]'));
       await page.getByRole('link', { name: '早餐吃什么' }).click();
-      await page.waitForURL(/#\/breakfast\/(wheel|sticks)$/);
+      await page.waitForURL(/#\/breakfast\/(wheel|sticks|die)$/);
       if (page.url().endsWith('/sticks')) break;
     }
     await expect(page).toHaveURL(/#\/breakfast\/sticks$/);

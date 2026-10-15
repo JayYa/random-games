@@ -21,9 +21,9 @@ On a wheel page (`#/<theme>/wheel`) the user presses `转`; the anonymous 12-sec
 Preconditions:
 
 - Baseline from [README.md](./README.md).
-- The roll can't be forced onto the wheel: seeding `localStorage['random-games:recent-games'] = '["pinball"]'` leaves wheel and sticks at 50/50, so the scenario retries the picker until it lands on the wheel.
+- The roll can't be forced onto the wheel: seeding `localStorage['random-games:recent-games'] = '["pinball"]'` leaves wheel, sticks and die at 1/3 each, so the scenario retries the picker until it lands on the wheel.
 
-- **Picker entry.** Run `scenarios/wheel-draw.mjs`: `$V drive --run <id> --feature wheel-draw .claude/skills/verify-random-games/scenarios/wheel-draw.mjs`. It covers every bullet below. It seeds the recent game, clicks `getByRole('link', {name: '早餐吃什么'})` until the URL ends `#/breakfast/wheel` (at most 12 tries).
+- **Picker entry.** Run `scenarios/wheel-draw.mjs`: `$V drive --run <id> --feature wheel-draw .claude/skills/verify-random-games/scenarios/wheel-draw.mjs`. It covers every bullet below. It seeds the recent game, clicks `getByRole('link', {name: '早餐吃什么'})` until the URL ends `#/breakfast/wheel` (at most 20 tries).
 - **Spin.** `await page.getByRole('button', {name: '转'}).click()`. `转` gets `aria-disabled="true"` immediately.
 - **Reveal.** `await expect(page.locator('#card')).toBeVisible({timeout: 20_000})`. `#card-name` is non-empty and `getByRole('button', {name: '再来一次'})` is focused; the screenshot shows the same name on the sector under the pointer.
 - **Memory.** `await recentMemory()` has `random-games:recent-winners:breakfast` equal to `[<winner>]` and `random-games:recent-games` equal to `['wheel']`.

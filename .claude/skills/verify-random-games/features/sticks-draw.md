@@ -24,7 +24,7 @@ On a sticks page (`#/<theme>/sticks`) the user presses anywhere on the board and
 Preconditions:
 
 - Baseline from [README.md](./README.md).
-- The roll can't be forced onto sticks: seeding `random-games:recent-games = '["pinball"]'` leaves wheel and sticks at 50/50, so the scenario retries the picker until it lands on sticks.
+- The roll can't be forced onto sticks: seeding `random-games:recent-games = '["pinball"]'` leaves wheel, sticks and die at 1/3 each, so the scenario retries the picker until it lands on sticks.
 
 - **Picker entry, ready, warm-up, new lead, draw, memory, close, second draw, names, direct link.** Run `$V drive --run <id> --feature sticks-draw .claude/skills/verify-random-games/scenarios/sticks-draw.mjs`.
 - **Shake.** `const b = await page.locator('#sticks-board').boundingBox(); const x = b.x + b.width/2, y = b.y + b.height*0.7; await page.mouse.move(x, y); await page.mouse.down();` then N round trips of `page.mouse.move(x ± b.width*0.3, y, {steps: 4})`, `page.mouse.up()`. The swing hits the tube's limit, so N trips are a fixed distance: 2 trips raise the stick about 0.4 of the way, 3 about 0.65, and 6 drop it. Repeat 6-trip shakes until `#card` is visible.
