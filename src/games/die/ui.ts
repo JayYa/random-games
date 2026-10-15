@@ -1,5 +1,5 @@
 /**
- * 渲染层：骰子的盘面——按键、rAF 循环、尺寸观察与绘制。薄，不测。
+ * 渲染层：骰子的盘面——按键、指针、rAF 循环、尺寸观察与绘制。薄，不测。
  *
  * 状态全在骰子机器（`./machine.ts`），几何全照 `./geometry.ts` 与 `./table.ts`。canvas 2D 上
  * 手写投影：从正上方略带透视，背面剔除加平面着色（ADR-0016）。帧循环学转盘：只在滚、揭晓、
@@ -11,7 +11,8 @@ import type { Board, MountedBoard, RollHandle } from '../../gamePage';
 import { PALETTE } from '../../palette';
 import { fitCanvas } from '../fitCanvas';
 import { FACES, FACE_NORMALS, VERTICES, dot, rotate, type Vec3 } from './geometry';
-import { createDieMachine, type DieView, type Simulate } from './machine';
+import { createDieMachine, type DieView, type PointerSample, type Simulate } from './machine';
+import { CAMERA_HEIGHT, HEIGHT_PER_WIDTH, pixelsPerUnit, projector, type Point } from './projection';
 import { TABLE } from './table';
 
 /** 收下之后骰子留在原地，再按一下就是下一次。 */
@@ -25,16 +26,6 @@ const BOARD_HTML = `
         </div>
       </div>
     `;
-
-/** 墙外留的边（盘面单位）：贴着墙弹高的骰子透视放大后不出画布。 */
-const VIEW_MARGIN = 0.5;
-const VIEW_HALF_WIDTH = TABLE.halfWidth + VIEW_MARGIN;
-
-/** 画布的宽高比，与 style.css 的 `.die__board` 一致（11 × 14）。 */
-const HEIGHT_PER_WIDTH = (TABLE.halfDepth + VIEW_MARGIN) / VIEW_HALF_WIDTH;
-
-/** 相机在盘面正中上方多高（盘面单位）。越低透视越重。 */
-const CAMERA_HEIGHT = 36;
 
 /** 光从左上方斜照下来；影子往右下偏，骰子越高偏得越远。 */
 const LIGHT: Vec3 = normalize({ x: -0.45, y: -0.6, z: 1 });
@@ -84,20 +75,6 @@ function readDieColors(element: Element): DieColors {
     fade: token('--board-fade'),
     ink: token('--on-palette'),
     hand: token('--hand'),
-  };
-}
-
-interface Point {
-  readonly x: number;
-  readonly y: number;
-}
-
-/** 盘面单位 → CSS 像素的投影。相机在正中上方，高处的点离中心更远、画得更大。 */
-function projector(width: number, height: number): (p: Vec3) => Point {
-  const scale = width / (2 * VIEW_HALF_WIDTH);
-  return (p) => {
-    const f = CAMERA_HEIGHT / (CAMERA_HEIGHT - p.z);
-    return { x: width / 2 + p.x * scale * f, y: height / 2 + p.y * scale * f };
   };
 }
 
@@ -174,7 +151,7 @@ function drawBoard(
   ctx.stroke();
 
   const { position, orientation } = view.pose;
-  const scale = width / (2 * VIEW_HALF_WIDTH);
+  const scale = pixelsPerUnit(width);
 
   // 影子：落在地面上，骰子越高越偏、越淡、越散。
   const lift = Math.max(0, position.z - TABLE.dieRadius * 0.8);
@@ -336,6 +313,49 @@ function mountDieBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     },
     listen,
   );
+
+  /** 画布矩形每次现量，页面滚动或改了尺寸时指针照样落在对的地方。 */
+  const pointerSample = (event: PointerEvent): PointerSample => {
+    const { left, top, right, bottom } = canvas.getBoundingClientRect();
+    return {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      at: event.timeStamp,
+      rect: { left, top, right, bottom },
+    };
+  };
+
+  // 拖着抛：鼠标和触屏走同一条路，同弹球机的柱塞。机器接住了才捕获指针。
+  canvas.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (!machine.press(pointerSample(event))) return;
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      start();
+    },
+    listen,
+  );
+  // 只转交捕获了的指针，鼠标在盘面上空晃时不必现量画布矩形。pointerup 派发完才释放捕获。
+  canvas.addEventListener(
+    'pointermove',
+    (event) => {
+      if (canvas.hasPointerCapture(event.pointerId)) machine.move(pointerSample(event));
+    },
+    listen,
+  );
+  canvas.addEventListener(
+    'pointerup',
+    (event) => {
+      // 拿着时 rAF 一直在转：不算抛、骰子回到原位的那一帧它自己画上再停。
+      if (canvas.hasPointerCapture(event.pointerId)) machine.release(pointerSample(event));
+    },
+    listen,
+  );
+  canvas.addEventListener('pointercancel', (event) => machine.cancel(event.pointerId), listen);
+  // 捕获没等到抬手就丢了，当作被系统抢走。正常抬手后机器已不认这根手指。
+  canvas.addEventListener('lostpointercapture', (event) => machine.cancel(event.pointerId), listen);
 
   const resizeObserver =
     typeof ResizeObserver === 'function' ? new ResizeObserver(() => redraw()) : undefined;
