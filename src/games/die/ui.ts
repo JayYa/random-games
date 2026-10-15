@@ -1,5 +1,5 @@
 /**
- * 渲染层：骰子的盘面——按键、rAF 循环、尺寸观察与绘制。薄，不测。
+ * 渲染层：骰子的盘面——按键、`devicemotion`、rAF 循环、尺寸观察与绘制。薄，不测。
  *
  * 状态全在骰子机器（`./machine.ts`），几何全照 `./geometry.ts` 与 `./table.ts`。canvas 2D 上
  * 手写投影：从正上方略带透视，背面剔除加平面着色（ADR-0016）。帧循环学转盘：只在滚、揭晓、
@@ -10,6 +10,8 @@ import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePage';
 import { PALETTE } from '../../palette';
 import { fitCanvas } from '../fitCanvas';
+import { detectMotion, listenDeviceMotion, motionOfferHtml, wireMotionOffer } from '../motionBrowser';
+import { browserPromptStorage, storedPromptMemory } from '../motionPromptMemory';
 import { FACES, FACE_NORMALS, VERTICES, dot, rotate, type Vec3 } from './geometry';
 import { createDieMachine, type DieView, type Simulate } from './machine';
 import { TABLE } from './table';
@@ -22,7 +24,7 @@ const BOARD_HTML = `
         <div class="die__frame">
           <span class="tape"></span><span class="tape"></span>
           <canvas class="die__board" id="die-board" tabindex="0" role="button" aria-label="掷骰子"></canvas>
-        </div>
+        </div>${motionOfferHtml('die')}
       </div>
     `;
 
@@ -280,15 +282,23 @@ function mountDieBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
       console.error('骰子的物理没加载上', cause);
     },
   );
-  const machine = createDieMachine(roll, () => {
-    // 没加载上（断网、站点刚重新部署过、旧包已删）就掷不了。等她真的抛了才整页重载，
-    // 不会自己反复重载；地址指着这个玩法，重载回来还是骰子。压着时每帧都来取，只重载一次。
-    if (physicsFailed && !reloading) {
-      reloading = true;
-      location.reload();
-    }
-    return simulate;
-  });
+  // 摇手机：能力变了（查到权限、收到第一个样本、拿到授权）时刷新骰子下方的提示与入口。
+  const motion = detectMotion(() => refreshMotionOffer());
+  const promptMemory = storedPromptMemory(browserPromptStorage());
+  const machine = createDieMachine(
+    roll,
+    () => {
+      // 没加载上（断网、站点刚重新部署过、旧包已删）就掷不了。等她真的抛了才整页重载，
+      // 不会自己反复重载；地址指着这个玩法，重载回来还是骰子。压着时每帧都来取，只重载一次。
+      if (physicsFailed && !reloading) {
+        reloading = true;
+        location.reload();
+      }
+      return simulate;
+    },
+    Math.random,
+    { motion, promptMemory },
+  );
 
   /** 静止时为空。 */
   let rafId: number | undefined;
@@ -336,6 +346,29 @@ function mountDieBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     },
     listen,
   );
+
+  // 摇一下手机就是抛一次，同按键走机器里的同一个抛。
+  listenDeviceMotion(motion, controller.signal, ({ x, y }) => {
+    machine.shakeBy({ x, y });
+    if (machine.view().moving) start();
+  });
+
+  // 骰子下方的提示与入口。静止时不跑 rAF，所以不跟着帧走：挂上、答了提示、能力变了时现算。
+  // 拒绝授权时入口留着，按键照样能掷。
+  const showOffer = wireMotionOffer(
+    root,
+    'die',
+    motion,
+    () => {
+      machine.answerMotionPrompt();
+      refreshMotionOffer();
+    },
+    controller.signal,
+  );
+  function refreshMotionOffer(): void {
+    if (!controller.signal.aborted) showOffer(machine.motionOffer());
+  }
+  refreshMotionOffer();
 
   const resizeObserver =
     typeof ResizeObserver === 'function' ? new ResizeObserver(() => redraw()) : undefined;

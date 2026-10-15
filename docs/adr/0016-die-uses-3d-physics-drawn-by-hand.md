@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # 骰子用 cannon-es 算 3D 物理，画面手写投影

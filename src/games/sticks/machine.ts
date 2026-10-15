@@ -14,7 +14,13 @@
 import { REVEAL_PAUSE_MS, type MountedBoard, type RollHandle } from '../../gamePage';
 import { randomIndex, type RandomSource } from '../../random';
 import type { MotionPromptMemory } from '../motionPromptMemory';
-import type { MotionSupport } from '../motionSupport';
+import {
+  MOTION_THRESHOLD,
+  motionOffer,
+  type MotionCapability,
+  type MotionOffer,
+  type MotionSupport,
+} from '../motionSupport';
 
 /**
  * 常量表：盘面几何与手感参数都在这里，渲染层照它画，用例照它摆样本。手感参数是起点，
@@ -45,11 +51,8 @@ export const STICKS = {
   fallDelayMs: 500,
   /** 冒头从顶滑回筒里要多久；匀速滑，冒了一半就滑一半的时间。 */
   fallMs: 2000,
-  /**
-   * 摇手机：水平加速度（米每二次方秒）不到这个数的不算，免得拿着手机走路时签自己冒出来。
-   * 起点值，在真 Android 手机上调（#200）。
-   */
-  motionThreshold: 3,
+  /** 摇手机：水平加速度（米每二次方秒）不到这个数的不算。与骰子同一个门槛。 */
+  motionThreshold: MOTION_THRESHOLD,
   /**
    * 摇手机折成签筒的速度：超出门槛每 1 米每二次方秒，算签筒每秒走这么多盘面单位，再走拖着甩
    * 同一套冒头。按两个参照点取：用力摇手机约 15 折成 `hardShake.speed`，轻轻摇手机约 7 折成
@@ -78,13 +81,7 @@ export interface SticksDrop {
   readonly standing: boolean;
 }
 
-/**
- * 摇手机的能力，由渲染层按平台检测后注入。机器每次用时现读：Android 要收到第一个带数据的
- * `devicemotion` 才知道能用，iOS 授权以后也会变。
- */
-export interface MotionCapability {
-  readonly support: MotionSupport;
-}
+export type { MotionCapability, MotionOffer } from '../motionSupport';
 
 /** 一个手机加速度样本：`devicemotion` 里不含重力的水平加速度。 */
 export interface MotionSample {
@@ -92,16 +89,6 @@ export interface MotionSample {
   readonly x: number;
   /** 离上一个样本多久，毫秒。 */
   readonly intervalMs: number;
-}
-
-/**
- * 签筒下方请人开启摇手机的两处，只在要先授权、还没拿到授权时出现。入口（「开启摇手机」）一直
- * 留着，给选了不用了、拒绝了授权或授权失效的人重新开启；站内提示（「开启」「不用了」）只在这台
- * 浏览器没问过时出现。
- */
-export interface MotionOffer {
-  readonly prompt: boolean;
-  readonly entry: boolean;
 }
 
 /** 一根换下来的签：第几根、此刻还冒着多高（同 `SticksView.rise`）。 */
@@ -352,7 +339,6 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
       const tubeTilt = offset === 0 ? 0 : (offset / STICKS.tubeLimit) * STICKS.tubeMaxTilt;
       if (revealed !== undefined) revealedAt ??= now;
       const still = revealedAt !== undefined && now - revealedAt >= STILL_AFTER_REVEAL_MS;
-      const needsPermission = motion.support === 'needs-permission';
       const view: SticksView = {
         tubeOffset: offset,
         tubeTilt,
@@ -362,7 +348,7 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
         drop,
         revealed,
         motion: motion.support === 'unsupported' ? undefined : motion.support,
-        motionOffer: { prompt: needsPermission && !promptAsked, entry: needsPermission },
+        motionOffer: motionOffer(motion.support, promptAsked),
         still,
       };
       if (still) {

@@ -620,12 +620,19 @@ body {
   cursor: grab;
 }
 
-/* 签筒下方请人开启摇手机的那一处，只在要先授权的设备（iOS）上出现，出现时给它让出高度。 */
-.sticks:has(.sticks__offer:not([hidden]), .sticks__offer-entry:not([hidden])) {
+/*
+ * 签筒、骰子下方请人开启摇手机的那一处（games/motionBrowser.ts），只在要先授权的设备（iOS）上
+ * 出现，出现时给它让出高度。
+ */
+.sticks:has(.motion-offer:not([hidden]), .motion-offer-entry:not([hidden])) {
   --sticks-chrome: 262px;
 }
 
-.sticks__offer {
+.die:has(.motion-offer:not([hidden]), .motion-offer-entry:not([hidden])) {
+  --die-chrome: 262px;
+}
+
+.motion-offer {
   margin-top: 14px;
   display: flex;
   flex-wrap: wrap;
@@ -638,19 +645,19 @@ body {
   box-shadow: 0 4px 10px var(--shadow);
 }
 
-.sticks__offer[hidden],
-.sticks__offer-entry[hidden] {
+.motion-offer[hidden],
+.motion-offer-entry[hidden] {
   display: none;
 }
 
-.sticks__offer-text {
+.motion-offer__text {
   margin: 0;
   font-family: var(--hand);
   font-size: 1.15rem;
 }
 
-.sticks__offer-button,
-.sticks__offer-entry {
+.motion-offer__button,
+.motion-offer-entry {
   min-height: 40px;
   padding: 0 16px;
   border: none;
@@ -664,20 +671,20 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.sticks__offer-button--yes {
+.motion-offer__button--yes {
   background: var(--accent);
   color: var(--on-palette);
 }
 
-.sticks__offer-entry {
+.motion-offer-entry {
   margin-top: 10px;
   color: var(--muted);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
 
-.sticks__offer-button:active,
-.sticks__offer-entry:active {
+.motion-offer__button:active,
+.motion-offer-entry:active {
   transform: translateY(1px) scale(0.97);
 }
 
@@ -704,8 +711,12 @@ body {
     --sticks-chrome: 154px;
   }
 
-  .sticks:has(.sticks__offer:not([hidden]), .sticks__offer-entry:not([hidden])) {
+  .sticks:has(.motion-offer:not([hidden]), .motion-offer-entry:not([hidden])) {
     --sticks-chrome: 204px;
+  }
+
+  .die:has(.motion-offer:not([hidden]), .motion-offer-entry:not([hidden])) {
+    --die-chrome: 204px;
   }
 
   .page__title {

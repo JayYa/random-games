@@ -37,3 +37,33 @@ export function motionSupport(facts: MotionFacts): MotionSupport {
   if (facts.requestPermission && facts.accelerometer === 'unavailable') return 'needs-permission';
   return 'unsupported';
 }
+
+/**
+ * 水平加速度（米每二次方秒）不到这个数的不算摇手机，免得拿着手机走路时签自己冒出来、骰子自己
+ * 抛出去。求签筒和骰子共用这一个门槛（#220）。起点值，在真 Android 手机上调（#200）。
+ */
+export const MOTION_THRESHOLD = 3;
+
+/**
+ * 摇手机的能力，由渲染层按平台检测后注入。机器每次用时现读：Android 要收到第一个带数据的
+ * `devicemotion` 才知道能用，iOS 授权以后也会变。
+ */
+export interface MotionCapability {
+  readonly support: MotionSupport;
+}
+
+/**
+ * 盘面下方请人开启摇手机的两处，只在要先授权、还没拿到授权时出现。入口（「开启摇手机」）一直
+ * 留着，给选了不用了、拒绝了授权或授权失效的人重新开启；站内提示（「摇手机也能抽」「开启」
+ * 「不用了」）只在这台浏览器没问过时出现。求签筒和骰子是同一套（#220）。
+ */
+export interface MotionOffer {
+  readonly prompt: boolean;
+  readonly entry: boolean;
+}
+
+/** @param asked 这台浏览器问过没有（整站一份，见 `./motionPromptMemory.ts`）。 */
+export function motionOffer(support: MotionSupport, asked: boolean): MotionOffer {
+  const needsPermission = support === 'needs-permission';
+  return { prompt: needsPermission && !asked, entry: needsPermission };
+}
