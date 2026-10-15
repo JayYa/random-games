@@ -10,7 +10,7 @@
   "lockFileMaintenance": { "enabled": false },
   "packageRules": [
     {
-      "matchPackageNames": ["matter-js"],
+      "matchPackageNames": ["matter-js", "cannon-es"],
       "abandonmentThreshold": "eternal"
     }
   ]
