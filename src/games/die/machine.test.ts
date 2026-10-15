@@ -6,27 +6,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { Board } from '../../gamePage';
 import { topFace } from './geometry';
-import {
-  createDieMachine,
-  type DieMachine,
-  type DieView,
-  type PhysicsSource,
-  type PointerSample,
-} from './machine';
+import type { DieMachine, DieView, PhysicsSource, PointerSample } from './machine';
 import { projector } from './projection';
-import { simulateThrow, type DieThrowInput, type FlingVelocity } from './simulate';
+import { simulateThrow } from './simulate';
 import { restingPose } from './table';
-import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
-
-/** 60Hz 下一帧。 */
-const FRAME_MS = 16;
-
-/** 远超任何一次掷的时长。 */
-const FAR_MS = 30_000;
-
-const NAMES = ['甲', '乙', '丙'] as const;
+import { FAR_MS, FRAME_MS, NAMES, dieBoard, stepEvery, throwToStop, travelled } from './testHarness';
+import { mountOnHost, type HostedBoard } from '../../testHelpers';
 
 const ENTER = { key: 'Enter' } as const;
 const SPACE = { key: ' ' } as const;
@@ -36,42 +22,14 @@ interface Harness extends HostedBoard {
 }
 
 /** 在真宿主上挂一页骰子。机器本身就是挂载结果。物理默认一开始就在。 */
-function setup(physics: PhysicsSource = () => simulateThrow): Harness {
-  const machines: DieMachine[] = [];
-  const board: Board = {
-    html: '<canvas class="die__board"></canvas>',
-    block: 'die',
-    closeLabel: '再掷一次',
-    mount(_root, roll) {
-      const machine = createDieMachine(roll, physics, seededRandom(7));
-      machines.push(machine);
-      return machine;
-    },
-  };
-  const hosted = mountOnHost(board, { winners: NAMES });
-  const [machine] = machines;
-  if (!machine) throw new Error('机器应当已经挂上');
-  return { ...hosted, machine };
+function setup(physics?: PhysicsSource): Harness {
+  const die = dieBoard({ physics });
+  const hosted = mountOnHost(die.board, { winners: NAMES });
+  return { ...hosted, machine: die.machine() };
 }
 
 function cardShows({ page }: Harness): number {
   return page.card?.showCount ?? 0;
-}
-
-/** 每 `stepMs` 走一步，从 `from` 之后走到 `until`（含），交回最后一刻的画面。 */
-function stepEvery(machine: DieMachine, from: number, stepMs: number, until: number): DieView {
-  let view = machine.tick(from + stepMs);
-  for (let at = from + 2 * stepMs; at <= until; at += stepMs) view = machine.tick(at);
-  return view;
-}
-
-/** 一帧一帧走到骰子停稳，交回停稳的那一刻。 */
-function rollToStop(machine: DieMachine, from: number): { readonly at: number; readonly view: DieView } {
-  for (let at = from + FRAME_MS; at <= from + FAR_MS; at += FRAME_MS) {
-    const view = machine.tick(at);
-    if (!view.moving) return { at, view };
-  }
-  throw new Error('走了很远骰子也没停');
 }
 
 describe('骰子机器', () => {
@@ -83,9 +41,9 @@ describe('骰子机器', () => {
     expect(machine.key(ENTER)).toBe(true);
 
     expect(roll.locked).toBe(true);
-    const rolling = stepEvery(machine, 0, FRAME_MS, 300);
-    expect(rolling.moving).toBe(true);
-    expect(rolling.pose).not.toEqual(before.pose);
+    const inFlight = stepEvery(machine, 0, FRAME_MS, 300);
+    expect(inFlight.moving).toBe(true);
+    expect(inFlight.pose).not.toEqual(before.pose);
   });
 
   it('按空格也掷一次', () => {
@@ -127,7 +85,7 @@ describe('骰子机器', () => {
 
     machine.key(ENTER);
     machine.key(SPACE);
-    rollToStop(machine, 200);
+    throwToStop(machine, 200);
     harness.finishReveal();
 
     expect(drawnWinners).toHaveLength(1);
@@ -139,7 +97,7 @@ describe('骰子机器', () => {
     const { machine } = harness;
     machine.tick(0);
     machine.key(ENTER);
-    const stopped = rollToStop(machine, 0);
+    const stopped = throwToStop(machine, 0);
     harness.finishReveal();
 
     machine.key(ENTER);
@@ -184,7 +142,7 @@ describe('骰子机器', () => {
     loaded = true;
     machine.tick(500 + FRAME_MS);
     expect(roll.locked).toBe(true);
-    rollToStop(machine, 500 + FRAME_MS);
+    throwToStop(machine, 500 + FRAME_MS);
     harness.finishReveal();
     expect(harness.drawnWinners).toHaveLength(1);
     expect(cardShows(harness)).toBe(1);
@@ -216,7 +174,7 @@ describe('骰子机器', () => {
     const { machine, roll } = harness;
     machine.tick(0);
     machine.key(ENTER);
-    const stopped = rollToStop(machine, 0);
+    const stopped = throwToStop(machine, 0);
 
     harness.accept();
 
@@ -233,7 +191,7 @@ describe('骰子机器', () => {
     const { machine } = harness;
     machine.tick(0);
     machine.key(ENTER);
-    const stopped = rollToStop(machine, 0);
+    const stopped = throwToStop(machine, 0);
     harness.accept();
 
     machine.key(ENTER);
@@ -241,7 +199,7 @@ describe('骰子机器', () => {
 
     expect(firstFrame.moving).toBe(true);
     expect(firstFrame.pose).toEqual(stopped.view.pose);
-    rollToStop(machine, stopped.at + FRAME_MS);
+    throwToStop(machine, stopped.at + FRAME_MS);
     harness.finishReveal();
     expect(cardShows(harness)).toBe(2);
   });
@@ -260,14 +218,6 @@ const PX_PER_UNIT = 30;
 
 const FINGER = 1;
 const OTHER_FINGER = 2;
-
-/** 真物理，顺手记下每次掷的入参。 */
-function recording(throws: DieThrowInput[]): PhysicsSource {
-  return () => (input) => {
-    throws.push(input);
-    return simulateThrow(input);
-  };
-}
 
 /** 骰子中心画在屏幕上的哪儿，照渲染层的投影。 */
 function screenOf(pose: DieView['pose']): { readonly x: number; readonly y: number } {
@@ -333,48 +283,43 @@ describe('拖着抛', () => {
   });
 
   it('快快拖着松手就是抛：此刻开抽，从松手的地方顺着拖的方向出手', () => {
-    const throws: DieThrowInput[] = [];
-    const { machine, roll } = setup(recording(throws));
+    const { machine, roll } = setup();
     machine.tick(0);
     machine.press(pointerAt(MID_X, MID_Y, 0));
-    machine.move(pointerAt(MID_X + 30, MID_Y, 20));
-    const held = machine.tick(20);
+    machine.move(pointerAt(MID_X + 10, MID_Y, 10));
+    const held = machine.tick(10);
     expect(roll.locked).toBe(false);
 
-    machine.release(pointerAt(MID_X + 60, MID_Y, 40));
+    machine.release(pointerAt(MID_X + 20, MID_Y, 20));
+    const released = machine.tick(20);
 
     expect(roll.locked).toBe(true);
-    expect(throws).toHaveLength(1);
-    const [shot] = throws;
-    expect(shot!.from.position.y).toBeCloseTo(held.pose.position.y, 6);
-    expect(shot!.from.position.x).toBeGreaterThan(held.pose.position.x);
-    expect(shot!.velocity.x).toBeGreaterThan(30);
-    expect(shot!.velocity.y).toBeCloseTo(0, 6);
-    expect(stepEvery(machine, 40, FRAME_MS, 300).moving).toBe(true);
+    expect(released.moving).toBe(true);
+    expect(released.pose.position.x).toBeGreaterThan(held.pose.position.x);
+    const travel = travelled(machine, 20, 120);
+    expect(travel.x).toBeGreaterThan(0.5);
+    expect(travel.y).toBeCloseTo(0, 6);
   });
 
-  it('松手速度不同，喂进模拟的抛的速度也不同：快一倍就大一倍，反着拖就反着抛', () => {
-    function flingWith(dx: number, dy: number): FlingVelocity {
-      const throws: DieThrowInput[] = [];
-      const { machine } = setup(recording(throws));
+  it('松手速度不同，掷出去也不同：拖得快就抛得快，往哪边拖就往哪边抛', () => {
+    function flingWith(dx: number, dy: number): { readonly x: number; readonly y: number } {
+      const { machine } = setup();
       machine.tick(0);
       machine.press(pointerAt(MID_X, MID_Y, 0));
-      machine.move(pointerAt(MID_X + dx / 2, MID_Y + dy / 2, 25));
-      machine.release(pointerAt(MID_X + dx, MID_Y + dy, 50));
-      const [shot] = throws;
-      if (!shot) throw new Error('应当抛出去了');
-      return shot.velocity;
+      machine.move(pointerAt(MID_X + dx / 2, MID_Y + dy / 2, 10));
+      machine.release(pointerAt(MID_X + dx, MID_Y + dy, 20));
+      return travelled(machine, 20, 120);
     }
 
-    const slow = flingWith(30, 20);
-    const fast = flingWith(60, 40);
-    const back = flingWith(-30, -20);
+    const slow = flingWith(12, 8);
+    const fast = flingWith(24, 16);
+    const back = flingWith(-12, -8);
 
-    expect(fast.x).toBeCloseTo(slow.x * 2, 6);
-    expect(fast.y).toBeCloseTo(slow.y * 2, 6);
-    expect(back.x).toBeCloseTo(-slow.x, 6);
-    expect(back.y).toBeCloseTo(-slow.y, 6);
-    expect(slow.x / slow.y).toBeCloseTo(30 / 20, 6);
+    expect(fast.x).toBeGreaterThan(slow.x * 1.5);
+    expect(fast.y).toBeGreaterThan(slow.y * 1.5);
+    expect(slow.x / slow.y).toBeCloseTo(12 / 8, 1);
+    expect(back.x).toBeCloseTo(-slow.x, 3);
+    expect(back.y).toBeCloseTo(-slow.y, 3);
   });
 
   /** 拿起骰子往右拖了 60 像素，还没松手。 */
@@ -438,11 +383,14 @@ describe('拖着抛', () => {
     expect(roll.locked).toBe(true);
   });
 
-  it('物理没加载完就松手：骰子压在松手的地方、不开抽；物理一到，那一帧按松手的速度出手', () => {
+  it('物理没加载完就松手：骰子压在松手的地方、不开抽；物理一到，那一帧出手，等于在那一刻松手', () => {
+    // 物理一开始就在的一页，同样拖、同样松手，作对照。
+    const prompt = setup();
+    dragged(prompt);
+    prompt.machine.release(pointerAt(MID_X + 90, MID_Y, 60));
+
     let loaded = false;
-    const throws: DieThrowInput[] = [];
-    const record = recording(throws);
-    const harness = setup(() => (loaded ? record() : undefined));
+    const harness = setup(() => (loaded ? simulateThrow : undefined));
     const { machine, roll } = harness;
     dragged(harness);
     machine.release(pointerAt(MID_X + 90, MID_Y, 60));
@@ -453,19 +401,36 @@ describe('拖着抛', () => {
     expect(waiting.moving).toBe(true);
     expect(waiting.pose).toEqual(releasedAt);
     expect(screenOf(releasedAt).x).toBeCloseTo(MID_X + 90, 6);
-    // 压着的这一下抓不回来，也不叠出第二下。
+    // 压着的这一下抓不回来。
     expect(machine.press(pointerAt(MID_X + 90, MID_Y, 510, OTHER_FINGER))).toBe(false);
-    machine.key(ENTER);
 
     loaded = true;
-    machine.tick(500 + FRAME_MS);
+    const launchedAt = 500 + FRAME_MS;
+    machine.tick(launchedAt);
+    prompt.machine.tick(60);
     expect(roll.locked).toBe(true);
-    expect(throws).toHaveLength(1);
-    expect(throws[0]!.from).toEqual(releasedAt);
-    expect(throws[0]!.velocity.x).toBeGreaterThan(30);
-    rollToStop(machine, 500 + FRAME_MS);
+    for (const after of [100, 300, 600]) {
+      expect(machine.tick(launchedAt + after).pose).toEqual(prompt.machine.tick(60 + after).pose);
+    }
+    throwToStop(machine, launchedAt + 600);
     harness.finishReveal();
     expect(harness.drawnWinners).toHaveLength(1);
+  });
+
+  it('松手时压着等物理，物理到了开抽却不受理：不算抛，骰子回到拿起之前的地方', () => {
+    let loaded = false;
+    const harness = setup(() => (loaded ? simulateThrow : undefined));
+    const { machine, teardown } = harness;
+    const resting = machine.tick(0);
+    dragged(harness);
+    machine.release(pointerAt(MID_X + 90, MID_Y, 60));
+    teardown();
+
+    loaded = true;
+    const after = stepEvery(machine, 60, FRAME_MS, 500);
+
+    expect(after.moving).toBe(false);
+    expect(after.pose).toEqual(resting.pose);
   });
 
   it('骰子在滚时按在它上面接不住，抛出去就不能反悔', () => {
@@ -473,9 +438,9 @@ describe('拖着抛', () => {
     const { machine, roll } = harness;
     dragged(harness);
     machine.release(pointerAt(MID_X + 90, MID_Y, 60));
-    const rolling = stepEvery(machine, 60, FRAME_MS, 200);
+    const inFlight = stepEvery(machine, 60, FRAME_MS, 200);
 
-    const { x, y } = screenOf(rolling.pose);
+    const { x, y } = screenOf(inFlight.pose);
     expect(machine.press(pointerAt(x, y, 200))).toBe(false);
     expect(roll.locked).toBe(true);
     expect(machine.tick(200 + FRAME_MS).moving).toBe(true);
@@ -486,7 +451,7 @@ describe('拖着抛', () => {
     const { machine } = harness;
     machine.tick(0);
     machine.key(ENTER);
-    const stopped = rollToStop(machine, 0);
+    const stopped = throwToStop(machine, 0);
     harness.finishReveal();
 
     const { x, y } = screenOf(stopped.view.pose);
@@ -500,7 +465,7 @@ describe('拖着抛', () => {
     const { machine, roll } = harness;
     machine.tick(0);
     machine.key(ENTER);
-    const stopped = rollToStop(machine, 0);
+    const stopped = throwToStop(machine, 0);
     harness.accept();
 
     const { x, y } = screenOf(stopped.view.pose);

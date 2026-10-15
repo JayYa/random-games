@@ -16,7 +16,7 @@ import {
   withFaceUp,
   type DiePose,
 } from './geometry';
-import { REST_HEIGHT, TABLE } from './table';
+import { REST_HEIGHT, TABLE, insideWalls } from './table';
 import { seededRandom } from '../../random';
 
 /** 水平方向的速度（单位/秒）。 */
@@ -88,10 +88,6 @@ function isQuiet(a: DiePose, b: DiePose): boolean {
   return moved < TABLE.restDrift && turned < TABLE.restTurn;
 }
 
-function clamp(value: number, limit: number): number {
-  return Math.min(limit, Math.max(-limit, value));
-}
-
 function runAttempt(input: { from: DiePose; velocity: FlingVelocity; seed: number; maxSteps: number }): Attempt {
   const world = new World({ gravity: new Vec3(0, 0, -TABLE.gravity), allowSleep: false });
 
@@ -123,18 +119,14 @@ function runAttempt(input: { from: DiePose; velocity: FlingVelocity; seed: numbe
     faces: FACES.map((face) => [...face]),
   });
 
-  // 出手点夹在墙内，离墙留一个外接球半径，开局不卡进墙里。
+  // 出手点夹在墙内，开局不卡进墙里。
   const random = seededRandom(input.seed);
-  const margin = TABLE.dieRadius;
+  const launchAt = insideWalls(input.from.position.x, input.from.position.y);
   const die = new Body({
     mass: TABLE.dieMass,
     material: dieMaterial,
     shape,
-    position: new Vec3(
-      clamp(input.from.position.x, TABLE.halfWidth - margin),
-      clamp(input.from.position.y, TABLE.halfDepth - margin),
-      TABLE.dieRadius + TABLE.liftHeight,
-    ),
+    position: new Vec3(launchAt.x, launchAt.y, TABLE.dieRadius + TABLE.liftHeight),
     quaternion: new Quaternion(
       input.from.orientation.x,
       input.from.orientation.y,
@@ -193,11 +185,7 @@ function fallbackThrow(attempt: Attempt, from: DiePose): DieThrow {
   const last = kept[kept.length - 1]!;
   const face = topFace(last.orientation);
   const target: DiePose = {
-    position: {
-      x: clamp(last.position.x, TABLE.halfWidth - TABLE.dieRadius),
-      y: clamp(last.position.y, TABLE.halfDepth - TABLE.dieRadius),
-      z: REST_HEIGHT,
-    },
+    position: { ...insideWalls(last.position.x, last.position.y), z: REST_HEIGHT },
     orientation: withFaceUp(last.orientation, face),
   };
   const frames = [...kept];

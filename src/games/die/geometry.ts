@@ -34,7 +34,7 @@ function length(v: Vec3): number {
   return Math.hypot(v.x, v.y, v.z);
 }
 
-function normalize(v: Vec3): Vec3 {
+export function normalize(v: Vec3): Vec3 {
   const l = length(v);
   return { x: v.x / l, y: v.y / l, z: v.z / l };
 }

@@ -16,35 +16,21 @@ import type { RandomSource } from '../../random';
 import { lerpPose, type DiePose } from './geometry';
 import type { DieThrow, FlingVelocity, simulateThrow } from './simulate';
 import { unproject } from './projection';
-import { TABLE, restingPose } from './table';
+import { TABLE, insideWalls, restingPose } from './table';
 import type { MotionPromptMemory } from '../motionPromptMemory';
-import { MOTION_THRESHOLD, motionOffer, type MotionCapability, type MotionOffer } from '../motionSupport';
+import {
+  MOTION_THRESHOLD,
+  motionOffer,
+  type MotionCapability,
+  type MotionOffer,
+  type MotionSample,
+} from '../motionSupport';
 
 /** 掷一次的物理模拟，即 `simulateThrow`。 */
 export type Simulate = typeof simulateThrow;
 
 /** 取物理模拟。还没加载完时取不到。 */
 export type PhysicsSource = () => Simulate | undefined;
-
-/** 按键抛出去的速度（单位/秒）在这两个数之间随机：按键不声称能控制落点（ADR-0016）。 */
-const KEY_SPEED_MIN = 12;
-const KEY_SPEED_MAX = 32;
-
-/**
- * 摇一下手机折成抛的速度：刚过门槛算这么快（单位/秒），峰值每多 1 米每二次方秒再快这么多。
- * 按两个参照点取：轻轻摇约 7、用力摇约 15，落在按键抛的那段速度里。再快由模拟封顶。
- */
-const SHAKE_SPEED_AT_THRESHOLD = 12;
-const SHAKE_SPEED_PER_ACCEL = 1.7;
-
-/** 按在离骰子中心这么近（盘面单位）就算拿起来：比外接球大一圈，照顾手机上的手指。 */
-const GRAB_RADIUS = TABLE.dieRadius * 1.5;
-
-/** 松手时按最近这么长（毫秒）的指针轨迹算抛的速度。 */
-const VELOCITY_WINDOW_MS = 80;
-
-/** 松手速度（单位/秒）不到这么快不算抛：骰子回到原位。 */
-const FLING_SPEED_MIN = 6;
 
 /** 揭晓时写着名字的那一面。 */
 export interface DieReveal {
@@ -63,17 +49,6 @@ export interface DieView {
 /** 一次按键，`KeyboardEvent.key` 的值。 */
 export interface KeySample {
   readonly key: string;
-}
-
-/**
- * 一个手机加速度样本：`devicemotion` 里不含重力的加速度，米每二次方秒，只取沿屏幕的两个分量。
- * 手机竖着拿、平放时，屏幕往右、往上分别对着盘面的右边和远处。
- */
-export interface MotionSample {
-  /** 沿屏幕横向，往右为正。 */
-  readonly x: number;
-  /** 沿屏幕纵向，往上为正。 */
-  readonly y: number;
 }
 
 /** 摇手机的能力与「问过没有」的整站记忆，由渲染层注入。不给就是摇不了手机的设备。 */
@@ -112,7 +87,8 @@ export interface DieMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
   key(sample: KeySample): boolean;
   /**
    * 摇手机：一个加速度样本。水平加速度过了门槛就是摇了一下，落回门槛以下时按这一下的峰值抛一次，
-   * 方向取峰值那个样本的方向。只在能直接读传感器时才接；在滚、被手指拿着、盘面锁着时摇了不算。
+   * 方向取峰值那个样本的方向：屏幕往右、往上分别对着盘面的右边和远处。只在能直接读传感器时才接；
+   * 在滚、被手指拿着、盘面锁着时摇了不算。
    */
   shakeBy(sample: MotionSample): void;
   /** 使用者答了摇手机的提示（开启或不用了）：记下问过，提示不再显示。真正请求授权在渲染层。 */
@@ -127,7 +103,7 @@ export interface DieMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
   /** 拖动，骰子跟手、不出墙。只认拿着骰子的那根手指。 */
   move(sample: PointerSample): void;
   /**
-   * 松手。按最近一小段的指针速度抛出去；力气不够不算抛，骰子回到原位、不开抽。物理还没加载完
+   * 松手。按最近一小段的指针速度抛出去；力气不够、或开抽不受理，都不算抛，骰子回到原位。物理还没加载完
    * 就先压着，物理一到那一帧出手。只认拿着骰子的那根手指。
    */
   release(sample: PointerSample): void;
@@ -139,7 +115,8 @@ export interface DieMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
   view(): DieView;
 }
 
-interface Roll {
+/** 掷出去的这一次，按轨迹回放。 */
+interface Throwing {
   readonly shot: DieThrow;
   /** 抛出之后第一次 `tick` 的时刻。 */
   startedAt: number | undefined;
@@ -189,13 +166,19 @@ function releaseVelocity(traces: readonly Trace[]): FlingVelocity {
  * - resting：骰子待在上次停下的地方。
  * - dragging：一根手指拿着骰子，骰子跟手。
  * - held：抛了但物理还没加载完，压着这一下，物理一到就出手。
- * - rolling：按轨迹回放。
+ * - throwing：按轨迹回放。
  */
 type Stage =
   | { readonly kind: 'resting' }
   | { readonly kind: 'dragging'; readonly drag: Drag }
-  | { readonly kind: 'held'; readonly velocity: FlingVelocity }
-  | { readonly kind: 'rolling'; readonly roll: Roll };
+  | { readonly kind: 'held'; readonly fling: Fling }
+  | { readonly kind: 'throwing'; readonly throwing: Throwing };
+
+/** 一下抛：抛的速度，以及开抽不受理时骰子回到哪儿。 */
+interface Fling {
+  readonly velocity: FlingVelocity;
+  readonly origin: DiePose;
+}
 
 const THROW_KEYS: ReadonlySet<string> = new Set(['Enter', ' ']);
 
@@ -222,28 +205,35 @@ export function createDieMachine(
   let promptAsked = promptMemory.asked();
 
   /**
-   * 抛：所有输入的汇合点。在滚、压着、盘面锁着时都不算，返回算没算。物理没到就压着、先不开抽。
+   * 抛：所有输入的汇合点。在滚、压着、盘面锁着时都不算。物理没到就压着、先不开抽。
+   * 开抽不受理就不算抛，骰子回到 `origin`。
    */
-  function fling(velocity: FlingVelocity): boolean {
-    if (stage.kind !== 'resting' || roll.locked) return false;
-    stage = { kind: 'held', velocity };
-    release(velocity);
-    return true;
+  function fling(velocity: FlingVelocity, origin: DiePose = pose): void {
+    if (stage.kind !== 'resting') return;
+    if (roll.locked) {
+      pose = origin;
+      return;
+    }
+    stage = { kind: 'held', fling: { velocity, origin } };
+    launch(stage.fling);
   }
 
-  /** 出手，此刻才开抽。不受理时骰子不动。 */
-  function release(velocity: FlingVelocity): void {
+  /** 出手，此刻才开抽。物理没到就接着压着。 */
+  function launch({ velocity, origin }: Fling): void {
     const simulate = physics();
     if (!simulate) return;
     stage = { kind: 'resting' };
-    if (!roll.begin()) return;
+    if (!roll.begin()) {
+      pose = origin;
+      return;
+    }
     const shot = simulate({ from: pose, velocity, seed: Math.floor(random() * 0xffffffff) });
     // 模拟已经跑完，下一次 tick 起开始回放（ADR-0006）。
-    stage = { kind: 'rolling', roll: { shot, startedAt: undefined } };
+    stage = { kind: 'throwing', throwing: { shot, startedAt: undefined } };
   }
 
   /** 按累积时间取帧并插值，刷新率只影响流畅度，不影响滚多快（ADR-0006）。 */
-  function play(now: number, current: Roll): void {
+  function play(now: number, current: Throwing): void {
     const { frames, frameIntervalMs, topFace } = current.shot;
     const startedAt = current.startedAt ?? now;
     current.startedAt = startedAt;
@@ -271,15 +261,9 @@ export function createDieMachine(
   /** 骰子跟到手指底下，夹在墙内；轨迹只留算速度用得着的那一小段。 */
   function follow(drag: Drag, trace: Trace): void {
     drag.traces.push(trace);
-    while (drag.traces.length > 2 && drag.traces[1]!.at <= trace.at - VELOCITY_WINDOW_MS) drag.traces.shift();
-    const limitX = TABLE.halfWidth - TABLE.dieRadius;
-    const limitY = TABLE.halfDepth - TABLE.dieRadius;
+    while (drag.traces.length > 2 && drag.traces[1]!.at <= trace.at - TABLE.velocityWindowMs) drag.traces.shift();
     pose = {
-      position: {
-        x: Math.min(limitX, Math.max(-limitX, trace.x + drag.offsetX)),
-        y: Math.min(limitY, Math.max(-limitY, trace.y + drag.offsetY)),
-        z: pose.position.z,
-      },
+      position: { ...insideWalls(trace.x + drag.offsetX, trace.y + drag.offsetY), z: pose.position.z },
       orientation: pose.orientation,
     };
   }
@@ -298,7 +282,7 @@ export function createDieMachine(
     key(sample) {
       if (!THROW_KEYS.has(sample.key)) return false;
       const angle = random() * Math.PI * 2;
-      const speed = KEY_SPEED_MIN + random() * (KEY_SPEED_MAX - KEY_SPEED_MIN);
+      const speed = TABLE.keySpeedMin + random() * (TABLE.keySpeedMax - TABLE.keySpeedMin);
       fling({ x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
       return true;
     },
@@ -318,7 +302,7 @@ export function createDieMachine(
       const peak = shakePeak;
       shakePeak = undefined;
       const peakStrength = Math.hypot(peak.x, peak.y);
-      const speed = SHAKE_SPEED_AT_THRESHOLD + (peakStrength - MOTION_THRESHOLD) * SHAKE_SPEED_PER_ACCEL;
+      const speed = TABLE.shakeSpeedAtThreshold + (peakStrength - MOTION_THRESHOLD) * TABLE.shakeSpeedPerAccel;
       // 屏幕往上是盘面的远处，即盘面 y 的负方向。
       fling({ x: (peak.x / peakStrength) * speed, y: (-peak.y / peakStrength) * speed });
     },
@@ -336,7 +320,7 @@ export function createDieMachine(
       if (stage.kind !== 'resting' || roll.locked) return false;
       const { x, y } = pose.position;
       const trace = traceOf(sample, pose.position.z);
-      if (Math.hypot(trace.x - x, trace.y - y) > GRAB_RADIUS) return false;
+      if (Math.hypot(trace.x - x, trace.y - y) > TABLE.grabRadius) return false;
       stage = {
         kind: 'dragging',
         drag: {
@@ -361,8 +345,12 @@ export function createDieMachine(
       if (!drag) return;
       follow(drag, traceOf(sample, pose.position.z));
       const velocity = releaseVelocity(drag.traces);
+      if (Math.hypot(velocity.x, velocity.y) < TABLE.flingSpeedMin) {
+        putBack(drag);
+        return;
+      }
       stage = { kind: 'resting' };
-      if (Math.hypot(velocity.x, velocity.y) < FLING_SPEED_MIN || !fling(velocity)) putBack(drag);
+      fling(velocity, drag.origin);
     },
 
     cancel(pointerId) {
@@ -372,8 +360,8 @@ export function createDieMachine(
 
     tick(now) {
       // 压着的那一下：物理到了的这一帧出手，同一帧开始回放。
-      if (stage.kind === 'held') release(stage.velocity);
-      if (stage.kind === 'rolling') play(now, stage.roll);
+      if (stage.kind === 'held') launch(stage.fling);
+      if (stage.kind === 'throwing') play(now, stage.throwing);
       return view();
     },
 

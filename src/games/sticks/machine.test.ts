@@ -12,7 +12,6 @@ import {
   STICKS,
   STILL_AFTER_REVEAL_MS,
   createSticksMachine,
-  type MotionCapability,
   type PointerSample,
   type SticksMachine,
   type SticksView,
@@ -20,7 +19,7 @@ import {
 import type { RandomSource } from '../../random';
 import { fakeStorage, mountOnHost, scriptedRandom, seededRandom, type HostedBoard } from '../../testHelpers';
 import { storedPromptMemory, type MotionPromptMemory } from '../motionPromptMemory';
-import type { MotionSupport } from '../motionSupport';
+import { MOTION_THRESHOLD, type MotionCapability, type MotionSupport } from '../motionSupport';
 
 /** 60Hz 下一帧。 */
 const FRAME_MS = 16;
@@ -477,7 +476,7 @@ function setupMotion(random: RandomSource = seededRandom(7)): Harness {
 /** 以 `strength`（米每二次方秒）左右来回摇手机一帧：一个水平加速度样本，再 tick。 */
 function swingFrame(harness: Harness, strength: number): SticksView {
   harness.direction = harness.direction === 1 ? -1 : 1;
-  harness.machine.shakeBy({ x: harness.direction * strength, intervalMs: MOTION_INTERVAL_MS });
+  harness.machine.shakeBy({ x: harness.direction * strength, y: 0, intervalMs: MOTION_INTERVAL_MS });
   return tick(harness);
 }
 
@@ -489,7 +488,7 @@ function swing(harness: Harness, strength: number, durationMs: number): SticksVi
 }
 
 /** 拿着手机走路那点晃、用力摇手机、轻轻摇手机，米每二次方秒。 */
-const WALKING = STICKS.motionThreshold * 0.8;
+const WALKING = MOTION_THRESHOLD * 0.8;
 const HARD_SWING = 15;
 const GENTLE_SWING = 7;
 
@@ -511,7 +510,7 @@ describe('摇手机', () => {
     grab(both);
     let view = tick(both);
     for (let elapsed = FRAME_MS; elapsed <= 500; elapsed += FRAME_MS) {
-      both.machine.shakeBy({ x: (elapsed % 32 === 0 ? 1 : -1) * GENTLE_SWING, intervalMs: MOTION_INTERVAL_MS });
+      both.machine.shakeBy({ x: (elapsed % 32 === 0 ? 1 : -1) * GENTLE_SWING, y: 0, intervalMs: MOTION_INTERVAL_MS });
       view = shakeFrame(both, GENTLE);
     }
 
@@ -521,9 +520,9 @@ describe('摇手机', () => {
   it('签筒随加速度摆动，手机停下后回正', () => {
     const harness = setupMotion();
     tick(harness);
-    harness.machine.shakeBy({ x: HARD_SWING, intervalMs: MOTION_INTERVAL_MS });
+    harness.machine.shakeBy({ x: HARD_SWING, y: 0, intervalMs: MOTION_INTERVAL_MS });
     const right = tick(harness);
-    harness.machine.shakeBy({ x: -HARD_SWING, intervalMs: MOTION_INTERVAL_MS });
+    harness.machine.shakeBy({ x: -HARD_SWING, y: 0, intervalMs: MOTION_INTERVAL_MS });
     const left = tick(harness);
 
     expect(right.tubeOffset).not.toBe(0);
@@ -557,7 +556,7 @@ describe('摇手机', () => {
 
     /** 同一帧里一边在摇手机、一边不摇，画面一样。 */
     const compareFrame = (): SticksView => {
-      touched.machine.shakeBy({ x: HARD_SWING, intervalMs: MOTION_INTERVAL_MS });
+      touched.machine.shakeBy({ x: HARD_SWING, y: 0, intervalMs: MOTION_INTERVAL_MS });
       const view = tick(touched);
       expect(view).toEqual(tick(untouched));
       return view;
@@ -581,7 +580,7 @@ describe('摇手机', () => {
     const shaken = setup(seededRandom(7), { support: 'needs-permission' });
     const still = setup(seededRandom(7), { support: 'needs-permission' });
     for (let i = 0; i < 30; i += 1) {
-      shaken.machine.shakeBy({ x: (i % 2 === 0 ? 1 : -1) * HARD_SWING, intervalMs: MOTION_INTERVAL_MS });
+      shaken.machine.shakeBy({ x: (i % 2 === 0 ? 1 : -1) * HARD_SWING, y: 0, intervalMs: MOTION_INTERVAL_MS });
       const view = tick(shaken);
       expect(view).toEqual(tick(still));
       expect(view.motion).toBe('needs-permission');
@@ -614,7 +613,7 @@ describe('摇手机', () => {
 
   it('摇手机也算在甩：一直摇手机冒头不下降，停下后才回落', () => {
     const harness = setupMotion();
-    const barely = STICKS.motionThreshold + 1;
+    const barely = MOTION_THRESHOLD + 1;
     let previous = swing(harness, barely, 100).rise;
     for (let elapsed = 0; elapsed < 3000; elapsed += FRAME_MS) {
       const { rise } = swingFrame(harness, barely);

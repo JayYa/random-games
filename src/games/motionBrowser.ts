@@ -6,7 +6,14 @@
  */
 
 import { createById } from '../byId';
-import { motionSupport, type AccelerometerPermission, type MotionCapability, type MotionFacts, type MotionOffer } from './motionSupport';
+import {
+  motionSupport,
+  type AccelerometerPermission,
+  type MotionCapability,
+  type MotionFacts,
+  type MotionOffer,
+  type MotionSample,
+} from './motionSupport';
 
 /** 机器现读的摇手机能力；浏览器事实只经 `learn` 进来，能不能摇照 `motionSupport` 的规则重算。 */
 export interface DetectedMotion extends MotionCapability {
@@ -81,20 +88,24 @@ function requestMotionPermission(motion: DetectedMotion): void {
   );
 }
 
-/** 一个 `devicemotion` 样本：不含重力的加速度沿屏幕的两个分量（米每二次方秒），离上一个样本多久。 */
-export interface DeviceMotionSample {
-  /** 沿屏幕横向，往右为正。 */
-  readonly x: number;
-  /** 沿屏幕纵向，往上为正。 */
-  readonly y: number;
-  readonly intervalMs: number;
+/**
+ * 屏幕此刻转了多少度（逆时针为正），配 `alongScreen` 用。老 iOS 没有 `screen.orientation`，退回
+ * `window.orientation`。
+ */
+export function screenAngle(): number {
+  if (typeof screen !== 'undefined' && screen.orientation) return screen.orientation.angle;
+  const legacy = (window as unknown as { orientation?: unknown }).orientation;
+  return typeof legacy === 'number' ? legacy : 0;
 }
 
-/** 听 `devicemotion`，收到第一个带数据的样本就告诉 `motion` 能摇了。随 `signal` 撤掉。 */
+/**
+ * 听 `devicemotion`，收到第一个带数据的样本就告诉 `motion` 能摇了。随 `signal` 撤掉。样本按手机
+ * 竖拿时的屏幕给，不随屏幕转。
+ */
 export function listenDeviceMotion(
   motion: DetectedMotion,
   signal: AbortSignal,
-  onSample: (sample: DeviceMotionSample) => void,
+  onSample: (sample: MotionSample) => void,
 ): void {
   if (typeof DeviceMotionEvent === 'undefined') return;
   let lastMotionAt: number | undefined;

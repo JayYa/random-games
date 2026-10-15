@@ -341,7 +341,7 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     canvas.addEventListener(type, (event) => machine.release(event.pointerId), listen);
   }
 
-  listenDeviceMotion(motion, controller.signal, ({ x, intervalMs }) => machine.shakeBy({ x, intervalMs }));
+  listenDeviceMotion(motion, controller.signal, (sample) => machine.shakeBy(sample));
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener(
     'change',

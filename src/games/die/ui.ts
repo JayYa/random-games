@@ -10,9 +10,10 @@ import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePage';
 import { PALETTE } from '../../palette';
 import { fitCanvas } from '../fitCanvas';
-import { detectMotion, listenDeviceMotion, motionOfferHtml, wireMotionOffer } from '../motionBrowser';
+import { detectMotion, listenDeviceMotion, motionOfferHtml, screenAngle, wireMotionOffer } from '../motionBrowser';
 import { browserPromptStorage, storedPromptMemory } from '../motionPromptMemory';
-import { FACES, FACE_NORMALS, VERTICES, dot, rotate, type Vec3 } from './geometry';
+import { alongScreen } from '../motionSupport';
+import { FACES, FACE_NORMALS, VERTICES, dot, normalize, rotate, type Vec3 } from './geometry';
 import { createDieMachine, type DieView, type PointerSample, type Simulate } from './machine';
 import { CAMERA_HEIGHT, HEIGHT_PER_WIDTH, pixelsPerUnit, projector, type Point } from './projection';
 import { TABLE } from './table';
@@ -44,11 +45,6 @@ const NAME_FONT_MAX = 26;
 const NAME_FONT_MIN = 11;
 const NAME_LINE_HEIGHT = 1.15;
 const NAME_MAX_LINES = 3;
-
-function normalize(v: Vec3): Vec3 {
-  const l = Math.hypot(v.x, v.y, v.z);
-  return { x: v.x / l, y: v.y / l, z: v.z / l };
-}
 
 /** 面 i 与面 i + 6 相对，同一种颜色；相邻的面永远不同色。 */
 function faceColor(face: number): string {
@@ -324,9 +320,9 @@ function mountDieBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     listen,
   );
 
-  // 摇一下手机就是抛一次，同按键走机器里的同一个抛。
-  listenDeviceMotion(motion, controller.signal, ({ x, y }) => {
-    machine.shakeBy({ x, y });
+  // 摇一下手机就是抛一次，同按键走机器里的同一个抛。横屏时先把加速度转到屏幕上，方向才对得上盘面。
+  listenDeviceMotion(motion, controller.signal, (sample) => {
+    machine.shakeBy({ ...sample, ...alongScreen(sample, screenAngle()) });
     if (machine.view().moving) start();
   });
 

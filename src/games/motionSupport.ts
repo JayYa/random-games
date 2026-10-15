@@ -45,6 +45,32 @@ export function motionSupport(facts: MotionFacts): MotionSupport {
 export const MOTION_THRESHOLD = 3;
 
 /**
+ * 一个 `devicemotion` 样本：不含重力的加速度沿屏幕的两个分量（米每二次方秒），离上一个样本多久。
+ * 求签筒和骰子都收这一种样本，各取所需。浏览器按手机竖拿时的屏幕给，横屏要先经 `alongScreen`。
+ */
+export interface MotionSample {
+  /** 沿屏幕横向，往右为正。 */
+  readonly x: number;
+  /** 沿屏幕纵向，往上为正。 */
+  readonly y: number;
+  readonly intervalMs: number;
+}
+
+/**
+ * `devicemotion` 的加速度按手机竖拿时的轴给，不随屏幕转。屏幕转了 `screenAngle` 度（逆时针为正，
+ * 即 `screen.orientation.angle`）时，把它换成沿此刻屏幕的横向、纵向。
+ */
+export function alongScreen(
+  acceleration: { readonly x: number; readonly y: number },
+  screenAngle: number,
+): { readonly x: number; readonly y: number } {
+  const radians = (screenAngle * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return { x: acceleration.x * cos - acceleration.y * sin, y: acceleration.x * sin + acceleration.y * cos };
+}
+
+/**
  * 摇手机的能力，由渲染层按平台检测后注入。机器每次用时现读：Android 要收到第一个带数据的
  * `devicemotion` 才知道能用，iOS 授权以后也会变。
  */

@@ -19,6 +19,7 @@ import {
   motionOffer,
   type MotionCapability,
   type MotionOffer,
+  type MotionSample,
   type MotionSupport,
 } from '../motionSupport';
 
@@ -51,10 +52,8 @@ export const STICKS = {
   fallDelayMs: 500,
   /** 冒头从顶滑回筒里要多久；匀速滑，冒了一半就滑一半的时间。 */
   fallMs: 2000,
-  /** 摇手机：水平加速度（米每二次方秒）不到这个数的不算。与骰子同一个门槛。 */
-  motionThreshold: MOTION_THRESHOLD,
   /**
-   * 摇手机折成签筒的速度：超出门槛每 1 米每二次方秒，算签筒每秒走这么多盘面单位，再走拖着甩
+   * 摇手机折成签筒的速度：超出门槛（`MOTION_THRESHOLD`，与骰子同一个）每 1 米每二次方秒，算签筒每秒走这么多盘面单位，再走拖着甩
    * 同一套冒头。按两个参照点取：用力摇手机约 15 折成 `hardShake.speed`，轻轻摇手机约 7 折成
    * `gentleShake.speed`。
    */
@@ -79,16 +78,6 @@ export interface SticksDrop {
   /** 从掉出筒口（0）到立住（1）。 */
   readonly progress: number;
   readonly standing: boolean;
-}
-
-export type { MotionCapability, MotionOffer } from '../motionSupport';
-
-/** 一个手机加速度样本：`devicemotion` 里不含重力的水平加速度。 */
-export interface MotionSample {
-  /** 沿手机屏幕横向，米每二次方秒，往右为正。 */
-  readonly x: number;
-  /** 离上一个样本多久，毫秒。 */
-  readonly intervalMs: number;
 }
 
 /** 一根换下来的签：第几根、此刻还冒着多高（同 `SticksView.rise`）。 */
@@ -279,7 +268,7 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
 
     shakeBy(sample) {
       if (motion.support !== 'supported' || roll.locked) return;
-      const excess = Math.abs(sample.x) - STICKS.motionThreshold;
+      const excess = Math.abs(sample.x) - MOTION_THRESHOLD;
       if (excess <= 0) return;
       const ms = Math.min(Math.max(sample.intervalMs, 0), MAX_FRAME_MS);
       shook((excess * STICKS.motionUnitsPerAccelSecond * ms) / 1000);
