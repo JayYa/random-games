@@ -19,7 +19,7 @@ src/
   navigation/  站内导航与地址
   gamePage/    玩法页宿主、盘面契约、页面适配器与结果卡片的 interface
   games/       玩法与玩法清单；各盘面共用的对齐画布
-    wheel/  pinball/  sticks/
+    wheel/  pinball/  sticks/  die/
   browser/     核心 module 的生产 adapter：页面适配器与各屏 HTML、取名单、localStorage
   build/       只在 Node 里跑：读名单文件、主题发现插件、名单文件的构建关卡（ADR-0009）
 ```

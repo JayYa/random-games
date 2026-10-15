@@ -173,7 +173,8 @@ body {
 
 .wheel,
 .pinball,
-.sticks {
+.sticks,
+.die {
   min-height: 100vh;
   min-height: 100svh;
 }
@@ -181,14 +182,16 @@ body {
 /* 高屏上标题、盘面连同操作在页头以下的空间里居中，不全挤在顶上。标题紧贴盘面，跟着它走。 */
 .wheel .page__title,
 .pinball .page__title,
-.sticks .page__title {
+.sticks .page__title,
+.die .page__title {
   margin-top: auto;
   margin-bottom: 6px;
 }
 
 .wheel__spin,
 .pinball__stage,
-.sticks__stage {
+.sticks__stage,
+.die__stage {
   margin-bottom: auto;
 }
 
@@ -516,6 +519,55 @@ body {
   cursor: grab;
 }
 
+/* 骰子照弹球机的贴纸画框。 */
+.die {
+  /* 盘面之外的部件大致占掉的高度，让整块盘面在首屏内。 */
+  --die-chrome: 204px;
+}
+
+.die__stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.die__frame {
+  position: relative;
+  padding: 5px;
+  border-radius: 23px;
+  background: var(--sticker);
+  box-shadow: 0 8px 18px var(--shadow);
+}
+
+.die__frame .tape {
+  width: 78px;
+  top: -8px;
+}
+
+.die__frame .tape:first-child {
+  left: -22px;
+  --tape: #3fd0a8;
+  transform: rotate(-38deg);
+}
+
+.die__frame .tape:nth-child(2) {
+  right: -22px;
+  --tape: #b294ff;
+  transform: rotate(36deg);
+}
+
+.die__board {
+  display: block;
+  /* 宽高比与 ui.ts 的画布一致（11 × 14）。 */
+  width: min(calc(100vw - 42px), 540px, max(160px, calc((100vh - var(--die-chrome)) * 11 / 14)));
+  width: min(calc(100vw - 42px), 540px, max(160px, calc((100svh - var(--die-chrome)) * 11 / 14)));
+  height: auto;
+  aspect-ratio: 11 / 14;
+  border-radius: 18px;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* 求签筒照弹球机的贴纸画框。 */
 .sticks {
   /* 盘面之外的部件大致占掉的高度，让整只签筒在首屏内。 */
@@ -642,6 +694,10 @@ body {
 
   .pinball {
     --pinball-chrome: 154px;
+  }
+
+  .die {
+    --die-chrome: 154px;
   }
 
   .sticks {

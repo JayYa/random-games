@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * 三种玩法各走一次完整的开抽，外加名单毛病的错误页。
+ * 四种玩法各走一次完整的开抽，外加名单毛病的错误页。
  *
  * 只看使用者看得到的东西：「转」锁没锁、结果卡片弹没弹、卡片上的名字和按钮、
  * 错误页的种类。转盘转多久、球走哪条路不管——那是盘面的表演（ADR-0010）。
@@ -121,6 +121,33 @@ test.describe('弹球机', () => {
 
     // 收下之后能再打一发。
     await pullPlunger(page);
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+  });
+});
+
+test.describe('骰子', () => {
+  test('聚焦骰子按 Enter 掷一次、弹卡片；「再掷一次」收下之后焦点回到骰子，不自动再掷', async ({ page }) => {
+    await page.goto(`#/${THEME}/die`);
+    const die = page.getByRole('button', { name: '掷骰子' });
+    await expect(die).toBeVisible();
+    await expect(page.locator('#card-close')).toHaveText('再掷一次');
+
+    await die.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+    await expect(page.locator('#card-name')).not.toBeEmpty();
+
+    await page.locator('#card-close').click();
+    await expect(card(page)).toBeHidden();
+    await expect(die).toBeFocused();
+    await expect(die).toHaveAttribute('aria-disabled', 'false');
+
+    await page.waitForTimeout(1_500);
+    await expect(card(page)).toBeHidden();
+
+    // 收下之后再按空格也能再掷一次。
+    await page.keyboard.press(' ');
     await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
   });
 });
