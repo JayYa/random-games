@@ -565,6 +565,8 @@ body {
   height: auto;
   aspect-ratio: 11 / 14;
   border-radius: 18px;
+  /* 拖着骰子时页面别跟着滚、别缩放。 */
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
 

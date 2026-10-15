@@ -150,6 +150,28 @@ test.describe('骰子', () => {
     await page.keyboard.press(' ');
     await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
   });
+
+  test('按在盘面空白处拖不动；按住骰子拖着松手就抛出去、弹卡片', async ({ page }) => {
+    await page.goto(`#/${THEME}/die`);
+    const box = await page.locator('#die-board').boundingBox();
+    if (!box) throw new Error('骰子盘面没画出来');
+    // 骰子一开始平躺在盘面正中。
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+
+    await page.mouse.move(box.x + box.width * 0.15, box.y + box.height * 0.15);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.15, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForTimeout(1_500);
+    await expect(card(page)).toBeHidden();
+
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + box.width * 0.3, y - box.height * 0.2, { steps: 4 });
+    await page.mouse.up();
+    await expect(card(page)).toBeVisible({ timeout: CARD_TIMEOUT });
+  });
 });
 
 /**
