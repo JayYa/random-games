@@ -31,16 +31,20 @@ import {
 /** 收下之后球退回柱塞，真的能再打一发。 */
 const CLOSE_LABEL = '再打一发';
 
-/** 落格用共用调色板，其余是中性的机身色，取自 style.css 的颜色变量，跟着明暗主题变。 */
+/**
+ * 落格、钉、弹力柱、风车叶片用共用调色板（贴纸色，两套主题不换）；其余是中性的机身色和贴纸白，
+ * 取自 style.css 的颜色变量，跟着明暗主题变。
+ */
 interface PinballColors {
   readonly field: string;
   readonly wall: string;
   readonly wallEdge: string;
   readonly metal: string;
-  readonly peg: string;
   readonly bumper: string;
-  readonly windmill: string;
-  readonly pivot: string;
+  /** 贴纸白：风车轴心的垫圈、钉上那一点高光。 */
+  readonly sticker: string;
+  /** 风车轴心的钉帽、柱塞头。 */
+  readonly accent: string;
   readonly ball: string;
   readonly ballShine: string;
   /** 揭晓时盖在其余落格上，往台面色褪。 */
@@ -62,10 +66,9 @@ function readPinballColors(element: Element): PinballColors {
     wall: token('--board-wall'),
     wallEdge: token('--board-wall-edge'),
     metal: token('--board-metal'),
-    peg: token('--board-peg'),
     bumper: token('--board-bumper'),
-    windmill: token('--board-windmill'),
-    pivot: token('--accent'),
+    sticker: token('--sticker'),
+    accent: token('--accent'),
     ball: token('--board-ball'),
     ballShine: token('--board-ball-shine'),
     fade: token('--board-fade'),
@@ -117,6 +120,43 @@ const BOARD_HTML = `
 /** 落格首尾不相邻，不需要转盘那样的接缝处理。 */
 function slotColor(index: number): string {
   return PALETTE[index % PALETTE.length]!;
+}
+
+/**
+ * 钉阵一行一种糖豆色（下标对应 `BOARD.pegRowsY`）。向日葵压在白台面上太淡，小钉看不清，不给钉。
+ * 球是墨色（深色主题是白色中性笔），压在哪颗钉前都一眼分得出。
+ */
+const PEG_ROW_COLORS = [PALETTE[3]!, PALETTE[4]!, PALETTE[2]!, PALETTE[0]!] as const;
+
+/**
+ * 风车是一枚纸风车：叶片沿中线对折成两色，绕轴转半圈两色正好对调，转起来像小时候举着跑的那种。
+ * 两架各一对颜色，一暖一冷。
+ */
+const WINDMILL_COLORS = [
+  [PALETTE[0]!, PALETTE[1]!],
+  [PALETTE[3]!, PALETTE[2]!],
+] as const;
+
+/** 风车轴心：白垫圈比叶片宽一圈，钉帽压在正中，跟转盘轴心是同一种双脚钉。 */
+const WINDMILL_WASHER = BOARD.windmillBladeWidth / 2 + 1.5;
+const WINDMILL_CAP = 3.5;
+
+/**
+ * 画布里贴纸的影子：贴住时小而近，一律朝下。影子的模糊和偏移不吃变换矩阵，按设备像素算，
+ * 这里按当前缩放换算成盘面像素，旋转着的叶片影子也照样朝下。
+ */
+function withShadow(ctx: CanvasRenderingContext2D, colors: PinballColors, blur: number, y: number) {
+  const { a, b } = ctx.getTransform();
+  const scale = Math.hypot(a, b);
+  ctx.shadowColor = colors.shadow;
+  ctx.shadowBlur = blur * scale;
+  ctx.shadowOffsetY = y * scale;
+}
+
+function clearShadow(ctx: CanvasRenderingContext2D) {
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
 }
 
 /** 圆角矩形：`roundRect` 不是所有浏览器都有，自己画一条路径省心。 */
@@ -348,56 +388,28 @@ function drawBoard(
     ctx.stroke();
   }
 
-  // 弹力柱。
-  // 弹力柱：一枚枚白边的圆贴纸。
+  // 弹力柱：一枚枚白边的圆贴纸。白边外沿就是碰撞圆；带一层贴住的影子，白台面上也看得出白边。
   BOARD.bumperPositions.forEach((bumper, i) => {
     ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius - 1.5, 0, Math.PI * 2);
+    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius, 0, Math.PI * 2);
+    withShadow(ctx, colors, 4, 1.5);
+    ctx.fillStyle = colors.bumper;
+    ctx.fill();
+    clearShadow(ctx);
+    ctx.beginPath();
+    ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius - 3.25, 0, Math.PI * 2);
     ctx.fillStyle = PALETTE[(i * 2 + 1) % PALETTE.length]!;
     ctx.fill();
-    ctx.strokeStyle = colors.bumper;
-    ctx.lineWidth = 3.5;
-    ctx.stroke();
     ctx.beginPath();
     ctx.arc(bumper.x, bumper.y, BOARD.bumperRadius * 0.32, 0, Math.PI * 2);
     ctx.fillStyle = colors.onPalette;
     ctx.fill();
   });
 
-  // 钉阵。墙上那颗只露出盘面里的半颗。
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(BOARD.playLeft, VIEW_TOP, BOARD.playRight - BOARD.playLeft, VIEW_HEIGHT);
-  ctx.clip();
-  ctx.fillStyle = colors.peg;
-  for (const peg of pegPositions()) {
-    ctx.beginPath();
-    ctx.arc(peg.x, peg.y, BOARD.pegRadius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
+  drawPegs(ctx, colors);
 
-  // 风车。
   BOARD.windmillPivots.forEach((pivot, i) => {
-    const angle = view.windmillAngles[i] ?? 0;
-    ctx.save();
-    ctx.translate(pivot.x, pivot.y);
-    ctx.rotate(angle);
-    roundedRectPath(
-      ctx,
-      -BOARD.windmillBladeLength,
-      -BOARD.windmillBladeWidth / 2,
-      BOARD.windmillBladeLength * 2,
-      BOARD.windmillBladeWidth,
-      BOARD.windmillBladeWidth / 2,
-    );
-    ctx.fillStyle = colors.windmill;
-    ctx.fill();
-    ctx.restore();
-    ctx.beginPath();
-    ctx.arc(pivot.x, pivot.y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = colors.pivot;
-    ctx.fill();
+    drawWindmill(ctx, pivot, view.windmillAngles[i] ?? 0, WINDMILL_COLORS[i % 2]!, colors);
   });
 
   drawPlunger(ctx, view.power, colors);
@@ -422,6 +434,78 @@ function drawBoard(
   if (view.revealed) drawRevealLabel(ctx, view.revealed, colors);
 }
 
+/**
+ * 钉阵：一颗颗平涂的糖豆，左上点一粒贴纸白的高光，不打渐变。墙上那颗只露出盘面里的半颗。
+ * 画的圆就是碰撞圆。
+ */
+function drawPegs(ctx: CanvasRenderingContext2D, colors: PinballColors): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BOARD.playLeft, VIEW_TOP, BOARD.playRight - BOARD.playLeft, VIEW_HEIGHT);
+  ctx.clip();
+  for (const peg of pegPositions()) {
+    const row = BOARD.pegRowsY.indexOf(peg.y as (typeof BOARD.pegRowsY)[number]);
+    ctx.beginPath();
+    ctx.arc(peg.x, peg.y, BOARD.pegRadius, 0, Math.PI * 2);
+    ctx.fillStyle = PEG_ROW_COLORS[row % PEG_ROW_COLORS.length]!;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(
+      peg.x - BOARD.pegRadius * 0.36,
+      peg.y - BOARD.pegRadius * 0.36,
+      BOARD.pegRadius * 0.3,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fillStyle = colors.sticker;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * 风车：叶片外形照 `board.ts` 的碰撞矩形，沿中线对折成两色（对角同色，转半圈两色对调），
+ * 带一层贴住的影子；轴心是白垫圈上一颗番茄色钉帽。
+ */
+function drawWindmill(
+  ctx: CanvasRenderingContext2D,
+  pivot: { readonly x: number; readonly y: number },
+  angle: number,
+  [front, back]: readonly [string, string],
+  colors: PinballColors,
+): void {
+  const length = BOARD.windmillBladeLength;
+  const half = BOARD.windmillBladeWidth / 2;
+  ctx.save();
+  ctx.translate(pivot.x, pivot.y);
+
+  ctx.save();
+  ctx.rotate(angle);
+  roundedRectPath(ctx, -length, -half, length * 2, half * 2, half);
+  withShadow(ctx, colors, 3, 1.5);
+  ctx.fillStyle = front;
+  ctx.fill();
+  clearShadow(ctx);
+  ctx.clip();
+  ctx.fillStyle = back;
+  ctx.fillRect(0, 0, length, half);
+  ctx.fillRect(-length, -half, length, half);
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, WINDMILL_WASHER, 0, Math.PI * 2);
+  withShadow(ctx, colors, 3, 1);
+  ctx.fillStyle = colors.sticker;
+  ctx.fill();
+  clearShadow(ctx);
+  ctx.beginPath();
+  ctx.arc(0, 0, WINDMILL_CAP, 0, Math.PI * 2);
+  ctx.fillStyle = colors.accent;
+  ctx.fill();
+
+  ctx.restore();
+}
+
 /** 柱塞：头加弹簧。压下去的样子就是力度指示，盘面上没有数字。 */
 function drawPlunger(ctx: CanvasRenderingContext2D, power: number, colors: PinballColors): void {
   const headTop = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL;
@@ -443,10 +527,12 @@ function drawPlunger(ctx: CanvasRenderingContext2D, power: number, colors: Pinba
   ctx.lineCap = 'round';
   ctx.stroke();
 
+  // 头是一块番茄色的按钮，跟「转」同一种颜色：拉的就是它。底座留金属色。
   roundedRectPath(ctx, left - 2, headTop, right - left + 4, PLUNGER_HEAD_HEIGHT, 3);
-  ctx.fillStyle = colors.metal;
+  ctx.fillStyle = colors.accent;
   ctx.fill();
   roundedRectPath(ctx, left - 2, baseTop, right - left + 4, PLUNGER_BASE_HEIGHT, 2);
+  ctx.fillStyle = colors.metal;
   ctx.fill();
 }
 
