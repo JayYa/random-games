@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "packageManager": "pnpm@12.11.2",
+  "packageManager": "pnpm@12.13.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -17,7 +17,7 @@
     "@playwright/test": "1.64.0",
     "@types/matter-js": "0.20.2",
     "@types/node": "26.6.5",
-    "oxlint": "1.87.0",
+    "oxlint": "1.88.0",
     "subset-font": "2.9.0",
     "typescript": "7.0.2",
     "vite": "8.3.4",
