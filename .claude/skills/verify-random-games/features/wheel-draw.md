@@ -28,12 +28,12 @@ Preconditions:
 - **Reveal.** `await expect(page.locator('#card')).toBeVisible({timeout: 20_000})`. `#card-name` is non-empty and `getByRole('button', {name: '再来一次'})` is focused; the screenshot shows the same name on the sector under the pointer.
 - **Memory.** `await recentMemory()` has `random-games:recent-winners:breakfast` equal to `[<winner>]` and `random-games:recent-games` equal to `['wheel']`.
 - **Close.** Click `再来一次`. `#card` is hidden, `转` is focused and `aria-disabled="false"`, and still so after `page.waitForTimeout(1500)`.
-- **Keyboard entry.** `await page.getByRole('button', {name: '转'}).focus(); await page.keyboard.press('Enter')` (Space works too). Same lock and reveal; Enter on the focused `再来一次` closes the card and focus is back on `转`. On the next card, Tab and Shift+Tab leave focus on `再来一次`, and `await page.keyboard.press('Escape')` closes it the same way.
+- **Keyboard entry.** After **Close** focus is on `转`; `await page.keyboard.press('Enter')`. Same lock and reveal; Enter on the focused `再来一次` closes the card and focus is back on `转`. Then `page.keyboard.press('Space')` spins the same way; on that card, Tab and Shift+Tab leave focus on `再来一次`, and `await page.keyboard.press('Escape')` closes it the same way.
 - **Direct link entry.** With empty storage (a fresh drive, or `localStorage.clear()`; after a picker roll `random-games:recent-games` is already set and a direct link leaves it as it was), `page.goto('about:blank')` then `page.goto(baseURL + '#/go-out/wheel')`, spin and reveal. Storage holds only `random-games:recent-winners:go-out` = `[<winner>]`; `random-games:recent-games` stays absent (a direct link is not a roll).
 
 ## Gotchas
 
-- Without seeding the recent game, the picker roll is 1 in 3 for each of wheel, pinball and sticks; a single roll asserted to land on the wheel fails at the URL check, not in the draw.
+- Without seeding the recent game, the picker roll is 1 in 4 for each of wheel, pinball, sticks and die; a single roll asserted to land on the wheel fails at the URL check, not in the draw.
 - `转` is never `disabled`; `toBeDisabled()` passes or fails for the wrong reason. Assert `aria-disabled`.
 - The landing sector is random; never assert a sector or a specific winner name.
 - The ARIA snapshot shows `button "转" [disabled]` while locked — that is `aria-disabled`, not the attribute.
