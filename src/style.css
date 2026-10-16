@@ -47,18 +47,29 @@
   --board-wall-edge: #b4c3e0;
   --board-metal: #6c7699;
   --board-bumper: var(--sticker);
-  --board-peg: #22253a;
-  --board-windmill: #22253a;
+  /* 钉和风车叶片是调色板贴纸色（ui.ts），两套主题不换；只有球是墨水，跟着换。 */
   --board-ball: #22253a;
   --board-ball-shine: rgba(255, 255, 255, 0.75);
   --board-fade: rgba(255, 255, 255, 0.68);
   --wheel-fade: rgba(238, 243, 251, 0.66);
-  /* 求签筒的竹筒和签是实物，两套主题都不换色。 */
-  --sticks-tube: #8fbf5a;
-  --sticks-tube-shade: #4f7a2c;
-  --sticks-tube-band: #5e8f35;
-  --sticks-stick: #f4dfa8;
-  --sticks-stick-edge: #c9a861;
+  /* 骰子的台面是一张铺满画布的薄荷色游戏垫，墙那里一圈虚线缝线。不用白：模切白边的骰子贴在上面才看得出白边。 */
+  --die-mat: #e3f6ef;
+  --die-stitch: #9edcc9;
+  /* 揭晓时其余面往骰子自己的贴纸白褪成浅彩，深色主题也一样：骰子是贴纸，不往夜里的台面褪成脏色。 */
+  --die-fade: rgba(255, 255, 255, 0.68);
+  /*
+   * 求签筒和签是实物，两套主题都不换色：一只番茄色的筒贴纸，向日葵黄的箍，筒口里是砖红的暗处。
+   * 签是原木色的冰棍棍，签头蘸了调色板的颜色。
+   */
+  --sticks-tube: #ff7a5c;
+  --sticks-tube-inside: #b4321f;
+  --sticks-tube-band: #ffcf3d;
+  /* 筒身左边那道反光：平涂的半透明白，像贴纸覆膜，不打渐变。 */
+  --sticks-tube-shine: rgba(255, 255, 255, 0.42);
+  --sticks-stick: #f6e3b4;
+  --sticks-stick-edge: #d6b878;
+  /* 求签筒的台面：浅色铺一层淡天空色，筒的模切白边贴在上面才看得出来。 */
+  --sticks-mat: #e6eeff;
   font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--ink);
   background-color: var(--page);
@@ -87,12 +98,14 @@
     --board-wall: #31313d;
     --board-wall-edge: #4a4a5c;
     --board-metal: #a3a0b4;
-    --board-peg: #f3f0e8;
-    --board-windmill: #f3f0e8;
     --board-ball: #f3f0e8;
     --board-ball-shine: rgba(255, 255, 255, 0.95);
     --board-fade: rgba(35, 35, 43, 0.8);
     --wheel-fade: rgba(23, 23, 28, 0.8);
+    --die-mat: #1f2e2c;
+    --die-stitch: #3d6b60;
+    --die-fade: rgba(246, 243, 236, 0.62);
+    --sticks-mat: #23232b;
     background-image: radial-gradient(var(--grid) 1.2px, transparent 1.6px);
     background-position: 0 0;
   }
@@ -598,7 +611,7 @@ body {
 
 .sticks__frame .tape:first-child {
   left: -22px;
-  --tape: #7fd3c4;
+  --tape: #6f9bff;
   transform: rotate(-38deg);
 }
 

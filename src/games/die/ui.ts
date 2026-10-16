@@ -36,9 +36,26 @@ const SHADOW_SHIFT_PER_HEIGHT = 0.5;
 /** 躺着时影子也往右下露出一点，骰子才像放在台面上。 */
 const SHADOW_SHIFT_AT_REST = 0.18;
 
-/** 墙内沿的细轨与圆角。 */
-const RAIL_WIDTH = 2;
-const RAIL_CORNER = 14;
+/** 台面是一张平涂的游戏垫，墙所在的地方走一圈圆角虚线缝线。 */
+const STITCH_CORNER = 14;
+const STITCH_WIDTH = 2.5;
+/** 缝线是圆头短划：划长 5、间隔 7，圆头再把两头各补出半个线宽。 */
+const STITCH_DASH: readonly number[] = [5, 7];
+
+/**
+ * 平面着色压得很轻，每一面一眼还认得出是调色板的哪一色：背光面盖一层带蓝的贴纸墨
+ * （不是纯黑），正对光的面盖一层贴纸白。光照 `light` 是面法线与光的点积。
+ */
+const SHADE_FROM = 0.75;
+const SHADE_MAX = 0.16;
+const SHINE_MAX = 0.2;
+/** 十二面骰的面法线与光的点积大致在 -0.2 到 0.9 之间，按这两头把明暗摊开。 */
+const LIGHT_LOW = -0.2;
+const LIGHT_HIGH = 0.9;
+
+/** 骰子是一枚模切贴纸：面与面之间留白缝，整颗外圈一道白边。都按盘面单位，随透视放大。 */
+const SEAM_WIDTH = 0.085;
+const DIE_CUT_WIDTH = 0.2;
 
 /** 面上的名字：字号从大往小试，最小还放不下就折行，最多三行。 */
 const NAME_FONT_MAX = 26;
@@ -52,11 +69,13 @@ function faceColor(face: number): string {
 }
 
 interface DieColors {
-  readonly field: string;
-  readonly rail: string;
-  readonly edge: string;
+  readonly mat: string;
+  readonly stitch: string;
+  /** 白缝、模切白边和亮面：贴纸白，深色主题下是 sticker-white-night。 */
+  readonly sticker: string;
   readonly shadow: string;
   readonly fade: string;
+  /** 面上的字和背光面的那层压暗，都是贴纸墨。 */
   readonly ink: string;
   readonly hand: string;
 }
@@ -66,14 +85,30 @@ function readDieColors(element: Element): DieColors {
   const style = getComputedStyle(element);
   const token = (name: string) => style.getPropertyValue(name).trim();
   return {
-    field: token('--board-field'),
-    rail: token('--board-wall-edge'),
-    edge: token('--on-palette'),
+    mat: token('--die-mat'),
+    stitch: token('--die-stitch'),
+    sticker: token('--sticker'),
     shadow: token('--shadow'),
-    fade: token('--board-fade'),
+    fade: token('--die-fade'),
     ink: token('--on-palette'),
     hand: token('--hand'),
   };
+}
+
+/** 投影后各顶点的凸包（单调链），就是整颗骰子的轮廓，模切白边沿它走。 */
+function convexHull(points: readonly Point[]): Point[] {
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o: Point, a: Point, b: Point) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = (list: readonly Point[]): Point[] => {
+    const chain: Point[] = [];
+    for (const p of list) {
+      while (chain.length >= 2 && cross(chain[chain.length - 2]!, chain[chain.length - 1]!, p) <= 0) chain.pop();
+      chain.push(p);
+    }
+    chain.pop();
+    return chain;
+  };
+  return [...half(sorted), ...half([...sorted].reverse())];
 }
 
 function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -134,22 +169,29 @@ function drawBoard(
   view: DieView,
   colors: DieColors,
 ): void {
+  // 游戏垫铺满整块画布：骰子撞墙、抛高时模切白边也总压在垫子上，不会和白画框混成一片。
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = colors.field;
+  ctx.fillStyle = colors.mat;
   ctx.fillRect(0, 0, width, height);
 
   const project = projector(width, height);
 
-  // 墙的内沿：一圈细轨，画在地面上墙所在的地方。
+  // 墙所在的地方走一圈缝线。
   const topLeft = project({ x: -TABLE.halfWidth, y: -TABLE.halfDepth, z: 0 });
   const bottomRight = project({ x: TABLE.halfWidth, y: TABLE.halfDepth, z: 0 });
-  roundedRectPath(ctx, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y, RAIL_CORNER);
-  ctx.strokeStyle = colors.rail;
-  ctx.lineWidth = RAIL_WIDTH;
+  ctx.save();
+  roundedRectPath(ctx, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y, STITCH_CORNER);
+  ctx.strokeStyle = colors.stitch;
+  ctx.lineWidth = STITCH_WIDTH;
+  ctx.lineCap = 'round';
+  ctx.setLineDash(STITCH_DASH);
   ctx.stroke();
+  ctx.restore();
 
   const { position, orientation } = view.pose;
   const scale = pixelsPerUnit(width);
+  // 骰子中心处的透视放大：抛高了白边、白缝跟着变粗，像贴纸被拿近了。
+  const near = scale * (CAMERA_HEIGHT / (CAMERA_HEIGHT - position.z));
 
   // 影子：落在地面上，骰子越高越偏、越淡、越散。
   const lift = Math.max(0, position.z - TABLE.dieRadius * 0.8);
@@ -159,7 +201,7 @@ function drawBoard(
   ctx.globalAlpha = Math.max(0.25, 0.8 - lift * 0.15);
   ctx.filter = `blur(${(3 + lift * 3).toFixed(1)}px)`;
   ctx.beginPath();
-  ctx.arc(shadowCenter.x, shadowCenter.y, TABLE.dieRadius * scale * 0.95, 0, Math.PI * 2);
+  ctx.arc(shadowCenter.x, shadowCenter.y, (TABLE.dieRadius * 0.95 + DIE_CUT_WIDTH) * scale, 0, Math.PI * 2);
   ctx.fillStyle = colors.shadow;
   ctx.fill();
   ctx.restore();
@@ -178,6 +220,14 @@ function drawBoard(
   const revealedFace = view.revealed?.face;
 
   ctx.lineJoin = 'round';
+  // 模切白边：沿轮廓描一圈粗白线，面画上去盖掉里面那一半，露出外面一圈。
+  polygonPath(ctx, convexHull(screen));
+  ctx.fillStyle = colors.sticker;
+  ctx.fill();
+  ctx.strokeStyle = colors.sticker;
+  ctx.lineWidth = DIE_CUT_WIDTH * near * 2;
+  ctx.stroke();
+
   FACES.forEach((face, i) => {
     const normal = rotate(orientation, FACE_NORMALS[i]!);
     const corner = world[face[0]!]!;
@@ -188,16 +238,25 @@ function drawBoard(
     polygonPath(ctx, points);
     ctx.fillStyle = faceColor(i);
     ctx.fill();
-    // 平面着色：背光的面压暗，正对光的提亮一点。
+    // 平面着色：背光的面盖一层薄薄的贴纸墨，正对光的盖一层贴纸白；颜色本身不动。
     const light = dot(normal, LIGHT);
-    ctx.fillStyle = light >= 0.75 ? `rgba(255,255,255,${((light - 0.75) * 0.8).toFixed(3)})` : `rgba(0,0,0,${((0.75 - light) * 0.4).toFixed(3)})`;
+    ctx.save();
+    if (light >= SHADE_FROM) {
+      ctx.globalAlpha = SHINE_MAX * Math.min(1, (light - SHADE_FROM) / (LIGHT_HIGH - SHADE_FROM));
+      ctx.fillStyle = colors.sticker;
+    } else {
+      ctx.globalAlpha = SHADE_MAX * Math.min(1, (SHADE_FROM - light) / (SHADE_FROM - LIGHT_LOW));
+      ctx.fillStyle = colors.ink;
+    }
     ctx.fill();
+    ctx.restore();
     if (revealedFace !== undefined && revealedFace !== i) {
       ctx.fillStyle = colors.fade;
       ctx.fill();
     }
-    ctx.strokeStyle = colors.edge;
-    ctx.lineWidth = 1.5;
+    // 面与面之间的白缝：相邻两面各描一遍，后画的面盖掉前一遍的一半，缝宽不变。
+    ctx.strokeStyle = colors.sticker;
+    ctx.lineWidth = SEAM_WIDTH * near;
     ctx.stroke();
   });
 

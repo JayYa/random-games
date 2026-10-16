@@ -108,14 +108,26 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
   ctx.fill();
   clearShadow(ctx);
 
+  const dot = Math.max(2, size * 0.011);
   for (let i = 0; i < sectors.count; i += 1) {
     const { start, end } = sectors.arc(i, rotation);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, radius, start, end);
-    ctx.closePath();
+    const sector = () => {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, radius, start, end);
+      ctx.closePath();
+    };
+    sector();
     ctx.fillStyle = sectorColor(i, sectors.count);
     ctx.fill();
+    // 每格外圈一颗白圆点，像贴纸上的印花。放在 0.8 半径处，让开扎进来的指针尖。先画点再盖
+    // 褪色层，揭晓时点跟着格子一起褪。
+    const mid = (start + end) / 2;
+    ctx.beginPath();
+    ctx.arc(Math.cos(mid) * radius * 0.8, Math.sin(mid) * radius * 0.8, dot, 0, TAU);
+    ctx.fillStyle = colors.sticker;
+    ctx.fill();
+    sector();
     if (reveal && reveal.sector !== i) {
       ctx.fillStyle = colors.fade;
       ctx.fill();
@@ -219,7 +231,10 @@ function roundedRect(
   ctx.closePath();
 }
 
-/** 指针固定在转盘顶部，旋转的是转盘本身。一枚白边的墨色三角贴纸，尖扎进转盘。 */
+/**
+ * 指针固定在转盘顶部，旋转的是转盘本身。一颗圆头尖尾的墨色糖果水滴贴纸：白边，左上一点
+ * 平涂高光，尖尾扎进转盘。
+ */
 function drawPointer(
   ctx: CanvasRenderingContext2D,
   centerX: number,
@@ -227,20 +242,58 @@ function drawPointer(
   size: number,
   colors: WheelColors,
 ): void {
-  const width = Math.max(16, size * 0.065);
+  const head = Math.max(8, size * 0.038);
+  const border = Math.max(4, size * 0.014);
+  // 圆头压在白边外沿上；小盘面时往下让，白边不被画布顶边切掉。
+  const headY = Math.max(topY - head * 0.1, head + border / 2 + 1);
+  const tipY = headY + head * 2;
+  // 两侧从尖尾切到圆头上，再往外鼓一点，像一颗水滴而不是图钉。
+  const reach = Math.acos(head / (tipY - headY));
+  const right = Math.PI / 2 - reach;
+  const left = Math.PI / 2 + reach;
+  const bulge = head * 0.18;
+  const side = (angle: number, sign: number) => {
+    const x = centerX + Math.cos(angle) * head;
+    const y = headY + Math.sin(angle) * head;
+    // 控制点取尖尾到切点的中点，沿那一侧的法线（也就是切点的半径方向）往外推。
+    return {
+      x,
+      y,
+      cx: (centerX + x) / 2 + sign * bulge * Math.sin(reach),
+      cy: (tipY + y) / 2 + bulge * Math.cos(reach),
+    };
+  };
+  const r = side(right, 1);
+  const l = side(left, -1);
+
   ctx.save();
   ctx.beginPath();
-  ctx.moveTo(centerX - width / 2, topY - width * 0.45);
-  ctx.lineTo(centerX + width / 2, topY - width * 0.45);
-  ctx.lineTo(centerX, topY + width * 0.75);
+  ctx.moveTo(centerX, tipY);
+  ctx.quadraticCurveTo(r.cx, r.cy, r.x, r.y);
+  ctx.arc(centerX, headY, head, right, left, true);
+  ctx.quadraticCurveTo(l.cx, l.cy, centerX, tipY);
   ctx.closePath();
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(4, size * 0.014);
+  ctx.lineWidth = border;
   ctx.strokeStyle = colors.sticker;
   withShadow(ctx, colors, size * 0.02, size * 0.008);
   ctx.stroke();
   clearShadow(ctx);
   ctx.fillStyle = colors.pointer;
+  ctx.fill();
+
+  // 高光是平涂的一小片贴纸白，斜着贴在圆头左上，不打渐变。
+  ctx.beginPath();
+  ctx.ellipse(
+    centerX - head * 0.4,
+    headY - head * 0.38,
+    head * 0.26,
+    head * 0.15,
+    -Math.PI / 4,
+    0,
+    TAU,
+  );
+  ctx.fillStyle = colors.sticker;
   ctx.fill();
   ctx.restore();
 }
