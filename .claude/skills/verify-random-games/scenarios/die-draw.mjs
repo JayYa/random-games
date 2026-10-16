@@ -34,11 +34,13 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
   });
 
   // With 4 games and a 1-game cooldown, seeding wheel leaves 1/3 each for the others;
-  // retry the real picker roll until it lands on the die.
+  // retry the real picker roll until it lands on the die. Pinball has its own simulate-*.js
+  // chunk, so only requests made after the click that lands on the die count.
   await step('choose 早餐吃什么 (recent game = wheel) until the roll lands on die', async () => {
     for (let i = 0; i < 20; i += 1) {
       await page.goto(baseURL);
       await page.evaluate(() => localStorage.setItem('random-games:recent-games', '["wheel"]'));
+      scripts.length = 0;
       await page.getByRole('link', { name: '早餐吃什么' }).click();
       await page.waitForURL(/#\/breakfast\/(pinball|sticks|die)$/);
       if (page.url().endsWith('/die')) break;
@@ -55,7 +57,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
 
   await step('the die physics chunk was fetched on the die page', async () => {
     const chunks = scripts.filter((p) => /simulate/.test(p));
-    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks).toHaveLength(1);
     return chunks;
   });
 

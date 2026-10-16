@@ -5,7 +5,7 @@ The site opens on a theme picker (`#/`) titled `是但` with one link per theme 
 ## Sub-features
 
 - `picker-list` the picker lists `早餐吃什么`, `做点什么呢`, `今天去哪玩` as links to `#/breakfast`, `#/free-time`, `#/go-out`.
-- `picker-roll` `#/<slug>` becomes `#/<slug>/wheel`, `#/<slug>/pinball` or `#/<slug>/sticks`, with the theme title as the page `<h1>` and `document.title`.
+- `picker-roll` `#/<slug>` becomes `#/<slug>/wheel`, `#/<slug>/pinball`, `#/<slug>/sticks` or `#/<slug>/die`, with the theme title as the page `<h1>` and `document.title`.
 - `picker-direct` a bookmarked `#/<slug>/<game>` opens that game with the address unchanged.
 - `picker-fallback` `#/nope`, `#/breakfast/xyz`, `#/breakfast/wheel/extra`, `#/Breakfast`, `#/breakfast/Wheel`, `#/breakfast/`, `#/breakfast/wheel/`, `#/wheel`, `#/sticks`, `#breakfast` render the picker and the address becomes `#/`.
 - `picker-newtab` middle-click on a picker entry opens `#/<slug>` in a new tab (which rolls there) and leaves the picker tab as it was; middle-click or Ctrl-click on `← 换个主题` opens the picker in a new tab.
@@ -34,7 +34,7 @@ Preconditions:
 - **Back via link.** From the picker click a theme, then `getByRole('link', {name: '← 换个主题'}).click()`. URL is back to the picker's own (bare `baseURL` or `#/`), picker visible, and `history.length` unchanged from before the click. The same holds after `page.reload()` on the game page (bare `baseURL` start).
 - **Direct landing.** `page.goto('about:blank')`, then `page.goto(baseURL + '#/go-out/wheel')`, record `history.length`, click `← 换个主题`. URL ends `#/`, `history.length` unchanged, and `page.url()` still starts with `baseURL` (not `about:blank`). Skip the `about:blank` after visiting the picker and the link goes Back instead, to the picker's own URL.
 - **Shared theme link.** `page.goto('about:blank')`, then `page.goto(baseURL + '#/go-out')`. URL becomes `#/go-out/(wheel|pinball|sticks|die)` and `random-games:recent-games` = `[<rolled game>]`; clicking `← 换个主题` then replaces the page with `#/`, `history.length` unchanged.
-- **Bookmark.** For `#/breakfast/pinball`, `#/free-time/wheel` and `#/go-out/sticks`: `page.goto('about:blank')`, `page.goto(baseURL + hash)`. `page.url()` is still `baseURL + hash`, the theme `<h1>` is visible, and `#pinball-board` / `#wheel-canvas` / `#sticks-board` respectively is visible.
+- **Bookmark.** For `#/breakfast/pinball`, `#/free-time/wheel`, `#/go-out/sticks` and `#/breakfast/die`: `page.goto('about:blank')`, `page.goto(baseURL + hash)`. `page.url()` is still `baseURL + hash`, the theme `<h1>` is visible, and `#pinball-board` / `#wheel-canvas` / `#sticks-board` / `#die-board` respectively is visible.
 - **New tab.** On the picker, `const [popup] = await Promise.all([context.waitForEvent('page'), page.getByRole('link', {name: '今天去哪玩'}).click({button: 'middle'})])`. `popup` reaches `#/go-out/(wheel|pinball|sticks|die)` with h1 `今天去哪玩`; `page.url()` is unchanged. On a game page, middle-clicking `← 换个主题`, or `click({modifiers: ['Control']})`, opens a popup showing the picker at `#/` while the game page stays.
 - **Fallback.** For each hash in `picker-fallback`: `page.goto('about:blank')`, `page.goto(baseURL + hash)`. Picker visible and `expect(page).toHaveURL(baseURL + '#/')`.
 - **Evidence.** `recentMemory()` after each roll shows `random-games:recent-games` = `[<rolled game>]`; skipping the last rolled game is covered in [cooldown.md](./cooldown.md).

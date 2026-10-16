@@ -5,7 +5,7 @@ On a die page (`#/<theme>/die`) one dodecahedral die with twelve coloured, unnum
 ## Sub-features
 
 - `die-ready` the page shows the theme title and the die canvas `#die-board` (`role=button`, name `掷骰子`); no instructions on the board.
-- `die-lazy-physics` the die physics chunk (`assets/simulate-*.js`) is fetched only on the die page.
+- `die-lazy-physics` the die physics chunk (an `assets/simulate-*.js`; pinball has its own chunk of the same name pattern) is fetched only on the die page.
 - `die-key-throw` Enter or Space on the focused die throws it.
 - `die-drag-fling` pressing on the die and flinging it throws it; a drag on blank board or a too-slow release does not.
 - `die-lock` while the die is moving or the card is open, further throws are ignored.
@@ -29,7 +29,7 @@ Preconditions:
 - The roll can't be forced onto the die: seeding `localStorage['random-games:recent-games'] = '["wheel"]'` leaves pinball, sticks and die at 1/3 each, so the scenario retries the picker until it lands on the die.
 
 - **Lazy physics.** Run `$V drive --run <id> --feature die-draw .claude/skills/verify-random-games/scenarios/die-draw.mjs` for this and every bullet below. It opens `#/breakfast/wheel` first and records script requests: none matches `simulate`.
-- **Picker entry.** It seeds the recent game and clicks `getByRole('link', {name: '早餐吃什么'})` until the URL ends `#/breakfast/die` (at most 20 tries); `getByRole('button', {name: '掷骰子'})` is visible, `#card-close` has text `再掷一次`, and a `simulate-*.js` request was made.
+- **Picker entry.** It seeds the recent game and clicks `getByRole('link', {name: '早餐吃什么'})` until the URL ends `#/breakfast/die` (at most 20 tries); `getByRole('button', {name: '掷骰子'})` is visible, `#card-close` has text `再掷一次`, and exactly one `simulate-*.js` request was made after the click that landed on the die (earlier tries may land on pinball, which fetches its own `simulate-*.js`).
 - **Keyboard throw.** Tab until the die is focused, `page.keyboard.press('Enter')`. 400 ms later the card is still hidden (screenshot shows the die mid-tumble).
 - **Reveal.** `await expect(page.locator('#card')).toBeVisible({timeout: 20_000})`; `#card-name` is non-empty; screenshot shows the name on the die's top face, washed out behind the card.
 - **Memory.** `recentMemory()` has `random-games:recent-winners:breakfast` = `[<winner>]` and `random-games:recent-games` = `['die']`.

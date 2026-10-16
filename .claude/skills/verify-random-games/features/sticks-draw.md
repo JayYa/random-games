@@ -11,7 +11,7 @@ On a sticks page (`#/<theme>/sticks`) the user presses anywhere on the board and
 - `sticks-close` `再抽一根` (or `Escape`) hides the card and does not auto-roll.
 - `sticks-memory` each winner is appended to `random-games:recent-winners:<slug>`; a picker roll onto sticks records `random-games:recent-games` = `["sticks"]`.
 - `sticks-names` short, long and very long names (and quotes, commas, emoji) fit on the stick: smaller font, then two columns, then tighter spacing.
-- `sticks-motion` 摇手机 on phones, and the iOS prompt 「摇手机也能抽」 / 【开启】【不用了】 plus the 「开启摇手机」 entry. The prompt shows once (either answer stores `random-games:sticks-motion-asked` = `'1'`); the entry stays until permission is granted.
+- `sticks-motion` 摇手机 on phones, and the iOS prompt 「摇手机也能抽」 / 【开启】【不用了】 plus the 「开启摇手机」 entry. The prompt shows once per browser, shared with the die's (either answer, on either page, stores `random-games:sticks-motion-asked` = `'1'` and hides both prompts); the entry stays until permission is granted.
 
 ## How to get to it (user POV)
 

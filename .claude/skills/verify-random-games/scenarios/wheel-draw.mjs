@@ -87,9 +87,11 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     return mem;
   });
 
-  // The card is modal: Tab can't leave 再来一次, and Escape closes it like the button does.
-  await step('keyboard: Tab stays on 再来一次; Escape closes the card', async () => {
-    await page.keyboard.press('Enter');
+  // Space spins too. The card is modal: Tab can't leave 再来一次, and Escape closes it like the button does.
+  await step('keyboard: Space spins; Tab stays on 再来一次; Escape closes the card', async () => {
+    await expect(spin).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(spin).toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('#card')).toBeVisible({ timeout: 20_000 });
     const close = page.getByRole('button', { name: '再来一次' });
     await page.keyboard.press('Tab');

@@ -143,6 +143,7 @@ export default async function ({ page, context, expect, baseURL, step, shot, ari
     ['#/breakfast/pinball', '#pinball-board'],
     ['#/free-time/wheel', '#wheel-canvas'],
     ['#/go-out/sticks', '#sticks-board'],
+    ['#/breakfast/die', '#die-board'],
   ]) {
     await step(`bookmark ${hash} lands directly on that game`, async () => {
       await page.goto('about:blank');
