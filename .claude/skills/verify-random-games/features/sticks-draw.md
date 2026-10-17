@@ -1,13 +1,13 @@
 # Fortune sticks draw (求签筒)
 
-On a sticks page (`#/<theme>/sticks`) the user presses anywhere on the board and drags the tube left and right (甩), or shakes the phone. The lead stick rises faster the harder the shake and starts sliding back half a second after the user stops; shaking again after that leads with a different stick, from the bottom, while the old one keeps sinking. When the lead stick reaches the top it drops out, stands in front of the tube with the winner's name written vertically on it, and a beat later the result card pops up with a `再抽一根` button. Closing the card erases the name, puts the stick back and does not roll again on its own.
+On a sticks page (`#/<theme>/sticks`) the user presses anywhere on the board and drags the tube left and right (甩), or shakes the phone. The lead stick rises faster the harder the shake and starts sliding back half a second after the user stops; shaking again after that leads with a different stick (from the bottom, or from wherever it had sunk to if it was still sliding back), while the old one keeps sinking. When the lead stick reaches the top it drops out, stands in front of the tube with the winner's name written vertically on it, and a beat later the result card pops up in that stick's head colour with a `再抽一根` button. Closing the card erases the name, puts the stick back and does not roll again on its own.
 
 ## Sub-features
 
-- `sticks-ready` the page shows the theme title and the board canvas `#sticks-board`; the sticks are blank; on a desktop browser there is no 摇手机 prompt or entry.
+- `sticks-ready` the page shows the theme title and the board canvas `#sticks-board`; the sticks carry coloured heads but no names; on a desktop browser there is no 摇手机 prompt or entry.
 - `sticks-warmup` a short shake pokes a stick out without dropping it; it slides back and nothing is recorded.
-- `sticks-new-lead` shaking again after the lead stick has started sliding back leads with another stick from the bottom, so the old one's height is lost. After a draw, the next lead is never the stick that just dropped.
-- `sticks-draw` shaking until a stick drops shows the name on the stick, then the card with a non-empty winner.
+- `sticks-new-lead` shaking again after the lead stick has started sliding back leads with another stick, so the old one's height is lost. After a draw, the next lead is never the stick that just dropped.
+- `sticks-draw` shaking until a stick drops shows the name on the stick, then the card, filled with the dropped stick's head colour, with a non-empty winner.
 - `sticks-close` `再抽一根` (or `Escape`) hides the card and does not auto-roll.
 - `sticks-memory` each winner is appended to `random-games:recent-winners:<slug>`; a picker roll onto sticks records `random-games:recent-games` = `["sticks"]`.
 - `sticks-names` short, long and very long names (and quotes, commas, emoji) fit on the stick: smaller font, then two columns, then tighter spacing.
@@ -35,6 +35,6 @@ Preconditions:
 
 ## Gotchas
 
-- Rise only counts while the tube moves. A pause over 0.5 s starts the slide-back, and the next shake then switches to a fresh stick from the bottom, so a draw needs one continuous shake (or bursts under 0.5 s apart; the scenario waits 300 ms between 6-trip shakes, each of which drops a stick on its own).
+- Rise only counts while the tube moves. A pause over 0.5 s starts the slide-back, and the next shake then switches to another stick and the old one's height is lost, so a draw needs one continuous shake (or bursts under 0.5 s apart; the scenario waits 300 ms between 6-trip shakes, each of which drops a stick on its own).
 - Closing the card erases the name; screenshot the stick before closing.
 - The theme's last 7 winners can't be drawn again ([cooldown](./cooldown.md)), so two consecutive winners differ.

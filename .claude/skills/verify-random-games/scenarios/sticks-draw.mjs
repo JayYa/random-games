@@ -12,7 +12,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
 
   // One press, `trips` round trips of the tube to its ±70 limit, release. The tube travels
   // 70 + 140·(2·trips − 1) board units and the lead stick rises 1/1200 per unit, so
-  // 2 trips ≈ 0.41, 3 ≈ 0.64, 6 ≈ 1.6 (a stick drops).
+  // 2 trips ≈ 0.41, 3 ≈ 0.64, 6 ≈ 1.34 (a stick drops).
   async function shake(trips = 6) {
     const b = await board.boundingBox();
     const x = b.x + b.width / 2;
