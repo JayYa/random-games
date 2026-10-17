@@ -36,6 +36,30 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     return (await page.locator('#card-name').textContent())?.trim();
   }
 
+  // The card's fill, and the dropped stick's head colour read off the board. The dropped
+  // stick stands centred in front of the tube, so going down the board's centre column the
+  // first long run that isn't background is its head. Pixels are read, not compared to a
+  // fixed position, so which stick dropped doesn't matter.
+  function cardAndHeadColour() {
+    return page.evaluate(() => {
+      const fill = getComputedStyle(document.querySelector('#card .card__inner')).backgroundColor;
+      const c = document.querySelector('#sticks-board');
+      const px = c.getContext('2d').getImageData(Math.round(c.width / 2), 0, 1, c.height).data;
+      const at = (y) => `rgb(${px[y * 4]}, ${px[y * 4 + 1]}, ${px[y * 4 + 2]})`;
+      const background = at(0);
+      let head = null;
+      for (let y = 0, start = 0; y <= c.height; y += 1) {
+        if (y < c.height && at(y) === at(start)) continue;
+        if (y - start >= 40 && at(start) !== background) {
+          head = at(start);
+          break;
+        }
+        start = y;
+      }
+      return { fill, head };
+    });
+  }
+
   // With 4 games and a 1-game cooldown, seeding pinball leaves 1/3 each for the others;
   // retry the real picker roll until it lands on sticks.
   await step('picker roll lands on sticks', async () => {
@@ -93,6 +117,13 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     return name;
   });
 
+  await step("card takes the dropped stick's head colour", async () => {
+    const colours = await cardAndHeadColour();
+    expect(colours.head).toBeTruthy();
+    expect(colours.fill).toBe(colours.head);
+    return colours;
+  });
+
   await step('memory: winner and recent game recorded', async () => {
     const mem = await recentMemory();
     expect(mem['random-games:recent-winners:breakfast']).toEqual([winner]);
@@ -106,6 +137,19 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     await page.waitForTimeout(1_500);
     await expect(card).toBeHidden();
     await shot('sticks-after-close');
+    // The head colour goes with the card: the card is back to its default fill.
+    const fill = await page.evaluate(
+      () => getComputedStyle(document.querySelector('#card .card__inner')).backgroundColor,
+    );
+    const accent = await page.evaluate(() => {
+      const probe = document.body.appendChild(document.createElement('div'));
+      probe.style.color = 'var(--accent)';
+      const rgb = getComputedStyle(probe).color;
+      probe.remove();
+      return rgb;
+    });
+    expect(fill).toBe(accent);
+    return { fill };
   });
 
   await step('second stick: cooldown gives a different winner', async () => {

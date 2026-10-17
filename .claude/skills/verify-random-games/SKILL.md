@@ -43,8 +43,10 @@ First read [`features/README.md`](features/README.md) and the feature file for e
 Then write a scenario module, or reuse a committed one under `scenarios/`, and hand it to `drive`:
 
 ```
-node $V drive --run <id> --feature <feature-id> path/to/scenario.mjs [--headed]
+node $V drive --run <id> --feature <feature-id> path/to/scenario.mjs [--headed] [--quiet]
 ```
+
+`--quiet` prints only failing steps and the final `[drive] <feature> PASSED|FAILED` line; every step is still in `summary.json`. Use it for reruns of committed scenarios; leave it off while writing a new one.
 
 The scenario default-exports an async function that receives:
 
