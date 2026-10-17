@@ -12,6 +12,7 @@
 
 import { REVEAL_PAUSE_MS, type MountedBoard, type RollHandle } from '../../gamePage';
 import type { RandomSource } from '../../random';
+import type { Candidate } from '../../theme';
 import { BOARD, LANE_CENTER_X } from './board';
 import type { PinballShot, simulateShot } from './simulate';
 
@@ -87,7 +88,9 @@ export interface PointerSample {
   readonly rect: CanvasRect;
 }
 
-export interface PinballMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
+export interface PinballMachine extends Pick<MountedBoard, 'erase'> {
+  /** 把名字写进球落进的那一格，交回落格下标；渲染层照它换成铺色。 */
+  reveal(winner: Candidate): number;
   /** 按在盘面任何位置都算抓住柱塞。锁着或已有手指在拖时不接，返回接没接住。 */
   press(sample: PointerSample): boolean;
   /** 往下拉改力度，拖出界这一发作废。只认正在拖的那根手指。 */
@@ -356,6 +359,7 @@ export function createPinballMachine(
 
     reveal(winner) {
       revealed = { slotIndex: landedSlot, name: winner.name };
+      return landedSlot;
     },
 
     erase() {

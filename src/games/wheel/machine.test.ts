@@ -13,6 +13,7 @@ import {
   type WheelMachine,
   type WheelView,
 } from './machine';
+import { PALETTE } from '../../palette';
 import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
 /** 60Hz 下一帧。 */
@@ -26,6 +27,8 @@ const START_MS = 1_000;
 
 interface Harness extends HostedBoard {
   readonly machine: WheelMachine;
+  /** 机器每次揭晓交回的扇区，按先后。 */
+  readonly revealedSectors: readonly number[];
 }
 
 interface SetupOptions {
@@ -35,9 +38,13 @@ interface SetupOptions {
   readonly winners?: readonly string[];
 }
 
-/** 在真宿主上挂一页转盘。机器本身就是挂载结果。 */
+/**
+ * 在真宿主上挂一页转盘。机器扮演挂上的盘面，只有揭晓多一道：记下机器交回的扇区，
+ * 交给宿主一个固定铺色（扇区换颜色是渲染层的事）。
+ */
 function setup({ seed = 7, winners }: SetupOptions = {}): Harness {
   const machines: WheelMachine[] = [];
+  const revealedSectors: number[] = [];
   const board: Board = {
     html: '<canvas class="wheel__canvas"></canvas>',
     block: 'wheel',
@@ -45,13 +52,19 @@ function setup({ seed = 7, winners }: SetupOptions = {}): Harness {
     mount(_root, roll) {
       const machine = createWheelMachine(roll, seededRandom(seed));
       machines.push(machine);
-      return machine;
+      return {
+        ...machine,
+        reveal(winner) {
+          revealedSectors.push(machine.reveal(winner));
+          return PALETTE[0]!;
+        },
+      };
     },
   };
   const hosted = mountOnHost(board, { winners });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
-  return { ...hosted, machine };
+  return { ...hosted, machine, revealedSectors };
 }
 
 /** 刚挂上的机器起转，走到动画起点那一帧。 */
@@ -94,6 +107,23 @@ describe('指针底下就是揭晓的那一格（ADR-0003）', () => {
     }
 
     expect(pointed).toEqual(revealed);
+  });
+
+  it('揭晓交回的就是指针底下停下的那一格', () => {
+    const pointed: number[] = [];
+    const returned: number[] = [];
+    for (let seed = 1; seed <= 20; seed += 1) {
+      const harness = setup({ seed });
+      harness.machine.tick(FIRST_TICK_MS);
+      for (let spin = 0; spin < 3; spin += 1) {
+        const stopped = spinThrough(harness.machine, START_MS + spin * 2 * SPIN_DURATION_MS);
+        pointed.push(harness.machine.sectors.sectorAt(stopped.rotation));
+        harness.accept();
+      }
+      returned.push(...harness.revealedSectors);
+    }
+
+    expect(returned).toEqual(pointed);
   });
 });
 

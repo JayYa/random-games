@@ -60,6 +60,8 @@ export interface FakeResultCard extends ResultCard {
   readonly isOpen: boolean;
   /** 最近一次弹出时的中选。 */
   readonly shownWinner: Candidate | undefined;
+  /** 最近一次弹出时铺的颜色。 */
+  readonly shownTint: string | undefined;
   readonly showCount: number;
   readonly hideCount: number;
   /** 每次收起时收到的焦点去向，按先后。 */
@@ -69,6 +71,7 @@ export interface FakeResultCard extends ResultCard {
 function fakeResultCard(): FakeResultCard {
   let isOpen = false;
   let shownWinner: Candidate | undefined;
+  let shownTint: string | undefined;
   let showCount = 0;
   let hideCount = 0;
   const focusReturns: (HTMLElement | undefined)[] = [];
@@ -80,6 +83,9 @@ function fakeResultCard(): FakeResultCard {
     get shownWinner() {
       return shownWinner;
     },
+    get shownTint() {
+      return shownTint;
+    },
     get showCount() {
       return showCount;
     },
@@ -89,9 +95,10 @@ function fakeResultCard(): FakeResultCard {
     get focusReturns() {
       return [...focusReturns];
     },
-    show(winner) {
+    show(winner, tint) {
       isOpen = true;
       shownWinner = winner;
+      shownTint = tint;
       showCount += 1;
     },
     hide(focusTo: HTMLElement | undefined) {
@@ -209,6 +216,8 @@ export interface FakeBoardOptions {
   /** 给不给拆卸，默认给。 */
   readonly teardown?: boolean;
   readonly returnFocusTo?: HTMLElement;
+  /** 揭晓时交回的铺色；给函数就每次揭晓现取。默认 `#ffcf3d`。 */
+  readonly tint?: string | (() => string);
   /** 与 `fakeGamePage` 共用的调用记录，每次记一行 `board …`。 */
   readonly log?: string[];
   /** 下面三个钩子让用例在挂上、复位、拆卸那一刻摆弄句柄。 */
@@ -228,7 +237,16 @@ export interface FakeBoard extends Board {
 }
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
-  const { reset = true, teardown = true, returnFocusTo, log, onMount, onReset, onTeardown } = options;
+  const {
+    reset = true,
+    teardown = true,
+    returnFocusTo,
+    tint = '#ffcf3d',
+    log,
+    onMount,
+    onReset,
+    onTeardown,
+  } = options;
   let mountCount = 0;
   let mountedOn: HTMLElement | undefined;
   let revealed: Candidate | undefined;
@@ -263,6 +281,7 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
           log?.push(`board reveal ${winner.name}`);
           revealed = winner;
           reveals.push(winner);
+          return typeof tint === 'function' ? tint() : tint;
         },
         erase() {
           log?.push('board erase');

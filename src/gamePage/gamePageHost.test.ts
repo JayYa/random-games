@@ -89,6 +89,21 @@ describe('一整次开抽', () => {
     expect(roll.locked).toBe(true);
   });
 
+  it('结果卡片铺的颜色就是盘面揭晓时交回的那个', () => {
+    const harness = mountPage({ board: { tint: '#6f9bff' } });
+    rollOnce(harness);
+    expect(harness.page.card?.shownTint).toBe('#6f9bff');
+  });
+
+  it('收下之后再开抽，卡片铺的是这一次盘面交回的颜色', () => {
+    const tints = ['#ff7a5c', '#3fd0a8'];
+    const harness = mountPage({ board: { tint: () => tints.shift()! } });
+    rollOnce(harness);
+    harness.page.pressClose();
+    rollOnce(harness);
+    expect(harness.page.card?.shownTint).toBe('#3fd0a8');
+  });
+
   it('收下时先抹掉再复位，然后解锁；盘面回到匿名', () => {
     const harness = mountPage();
     const { board, page, log, roll } = harness;

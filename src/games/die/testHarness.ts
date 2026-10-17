@@ -3,6 +3,7 @@
  */
 
 import type { Board } from '../../gamePage';
+import { PALETTE } from '../../palette';
 import { seededRandom } from '../../random';
 import { createDieMachine, type DieMachine, type DieMotionOptions, type DieView, type PhysicsSource } from './machine';
 import { simulateThrow } from './simulate';
@@ -25,27 +26,39 @@ export interface DieBoardOptions {
 
 /**
  * 骰子盘面，交给 `mountOnHost` 挂上；挂上后 `machine()` 交回机器本身。随机源带固定种子，同样的
- * 输入掷出同样的轨迹。
+ * 输入掷出同样的轨迹。机器扮演挂上的盘面，只有揭晓多一道：记下机器交回的那一面（`revealedFaces`），
+ * 交给宿主一个固定铺色（面换颜色是渲染层的事）。
  */
 export function dieBoard({ physics = () => simulateThrow, motionOptions }: DieBoardOptions = {}): {
   readonly board: Board;
   readonly machine: () => DieMachine;
+  /** 机器每次揭晓交回的面，按先后。 */
+  readonly revealedFaces: readonly number[];
 } {
   let mounted: DieMachine | undefined;
+  const revealedFaces: number[] = [];
   return {
     board: {
       html: '<canvas class="die__board"></canvas>',
       block: 'die',
       closeLabel: '再掷一次',
       mount(_root, roll) {
-        mounted = createDieMachine(roll, physics, seededRandom(7), motionOptions);
-        return mounted;
+        const machine = createDieMachine(roll, physics, seededRandom(7), motionOptions);
+        mounted = machine;
+        return {
+          ...machine,
+          reveal(winner) {
+            revealedFaces.push(machine.reveal(winner));
+            return PALETTE[0]!;
+          },
+        };
       },
     },
     machine() {
       if (!mounted) throw new Error('机器应当已经挂上');
       return mounted;
     },
+    revealedFaces,
   };
 }
 

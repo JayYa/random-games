@@ -19,6 +19,7 @@ import {
   type PointerSample,
 } from './machine';
 import { simulateShot } from './simulate';
+import { PALETTE } from '../../palette';
 import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
 
 const POWER = 0.6;
@@ -57,11 +58,17 @@ function pointerAt(clientX: number, clientY: number, pointerId: number = FINGER)
 
 interface Harness extends HostedBoard {
   readonly machine: PinballMachine;
+  /** 机器每次揭晓交回的落格，按先后。 */
+  readonly revealedSlots: readonly number[];
 }
 
-/** 在真宿主上挂一页弹球机。机器本身就是挂载结果。物理默认一开始就在。 */
+/**
+ * 在真宿主上挂一页弹球机。机器扮演挂上的盘面，只有揭晓多一道：记下机器交回的落格，交给宿主
+ * 一个固定铺色（落格换颜色是渲染层的事）。物理默认一开始就在。
+ */
 function setup(physics: PhysicsSource = () => simulateShot): Harness {
   const machines: PinballMachine[] = [];
+  const revealedSlots: number[] = [];
   const board: Board = {
     html: '<canvas class="pinball__board"></canvas>',
     block: 'pinball',
@@ -69,13 +76,19 @@ function setup(physics: PhysicsSource = () => simulateShot): Harness {
     mount(_root, roll) {
       const machine = createPinballMachine(roll, physics, seededRandom(7));
       machines.push(machine);
-      return machine;
+      return {
+        ...machine,
+        reveal(winner) {
+          revealedSlots.push(machine.reveal(winner));
+          return PALETTE[0]!;
+        },
+      };
     },
   };
   const hosted = mountOnHost(board, { winners: NAMES });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
-  return { ...hosted, machine };
+  return { ...hosted, machine, revealedSlots };
 }
 
 /** 从盘面正中按下，把柱塞拉到 `POWER` 那么深。 */
@@ -506,6 +519,23 @@ describe('揭晓', () => {
       slotIndex: slotIndexAtX(landed.ballX, BOARD.slotCount),
       name: WINNER,
     });
+  });
+
+  it('揭晓交回的就是球最后停着的那一格', () => {
+    const landedSlots: number[] = [];
+    const harness = setup();
+    for (let shot = 0; shot < 3; shot += 1) {
+      const from = START_MS + shot * 2 * FAR_MS;
+      harness.machine.tick(from - START_MS);
+      pull(harness.machine);
+      harness.machine.release(pointerAt(MID_X, PULLED_Y));
+      harness.machine.tick(from);
+      const landed = harness.machine.tick(from + FAR_MS);
+      landedSlots.push(slotIndexAtX(landed.ballX, BOARD.slotCount));
+      harness.accept();
+    }
+
+    expect(harness.revealedSlots).toEqual(landedSlots);
   });
 
   it('抹掉之后盘面回到匿名', () => {

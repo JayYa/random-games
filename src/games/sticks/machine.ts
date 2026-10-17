@@ -13,6 +13,7 @@
 
 import { REVEAL_PAUSE_MS, type MountedBoard, type RollHandle } from '../../gamePage';
 import { randomIndex, type RandomSource } from '../../random';
+import type { Candidate } from '../../theme';
 import type { MotionPromptMemory } from '../motionPromptMemory';
 import {
   MOTION_THRESHOLD,
@@ -126,7 +127,9 @@ export interface PointerSample {
   readonly rect: CanvasRect;
 }
 
-export interface SticksMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
+export interface SticksMachine extends Pick<MountedBoard, 'erase'> {
+  /** 把名字写在立着的签上，交回掉出来的是第几根签；渲染层照它换成铺色。 */
+  reveal(winner: Candidate): number;
   /** 按在盘面任何位置都算抓住签筒。锁着或已有手指在拖时不接，返回接没接住。 */
   press(sample: PointerSample): boolean;
   /** 签筒随手指水平平移。只认正在拖的那根手指。 */
@@ -195,6 +198,8 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
   /** 盘面停住的那一帧，抹掉前原样交回。 */
   let stillView: SticksView | undefined;
   let leadStick: number | undefined;
+  /** 这一次开抽掉出来的签：掉出筒口那一刻记下，揭晓时交回，收下时清掉。 */
+  let droppedStick: number | undefined;
   /** 上一次开抽掉出来的签：收下后的第一根打头的签不能是它。 */
   let lastDroppedStick: number | undefined;
   /** 停手以后打头的签已经往回滑了：再甩就换一根。 */
@@ -241,6 +246,7 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
       return;
     }
     dropped = true;
+    droppedStick = leadStick;
     rise = 0;
     drag = undefined;
   }
@@ -349,7 +355,10 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
     },
 
     reveal(winner) {
+      // 宿主只在盘面报停之后揭晓，报停又只在签掉出来、立住之后。
+      if (droppedStick === undefined) throw new Error('揭晓时应当已经掉出一根签');
       revealed = winner.name;
+      return droppedStick;
     },
     erase() {
       revealed = undefined;
@@ -364,7 +373,8 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
       rise = 0;
       travel = 0;
       idleMs = 0;
-      lastDroppedStick = leadStick;
+      lastDroppedStick = droppedStick;
+      droppedStick = undefined;
       leadStick = undefined;
       leadSinking = false;
       sinking = [];

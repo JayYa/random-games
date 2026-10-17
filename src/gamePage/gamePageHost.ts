@@ -44,8 +44,11 @@ export interface RollHandle {
 
 /** 盘面挂上之后交回给宿主的东西。 */
 export interface MountedBoard {
-  /** 把中选的名字亮在盘面停下的那一格上。 */
-  reveal(winner: Candidate): void;
+  /**
+   * 把中选的名字亮在盘面停下的那一格上，交回这次的铺色：停下那一格的颜色，出自全站调色板
+   * （`PALETTE`）。宿主停完一拍后把它交给结果卡片。
+   */
+  reveal(winner: Candidate): string;
   /** 抹掉名字，盘面回到匿名。 */
   erase(): void;
   /** 收下之后、锁解开时复位：弹球机把球退回柱塞。转盘不需要。 */
@@ -76,8 +79,12 @@ export type GamePageView = Pick<Board, 'html' | 'block' | 'closeLabel'> & {
 
 /** 结果卡片 (Result Card)：不论哪种玩法都是同一张。生产实现在 `browser` module，用例用假卡片。 */
 export interface ResultCard {
-  /** 写上中选的名字，撒花，焦点落到收下按钮上。 */
-  show(winner: Candidate): void;
+  /**
+   * 写上中选的名字，铺上颜色，撒花，焦点落到收下按钮上。
+   *
+   * @param tint 卡片的底色，盘面揭晓时交回的那个。
+   */
+  show(winner: Candidate, tint: string): void;
   /**
    * 收起卡片。本来就没开时什么都不做。
    *
@@ -124,7 +131,14 @@ export interface GamePageHostOptions {
 type RollState =
   | { readonly phase: 'idle' }
   | { readonly phase: 'rolling' }
-  | { readonly phase: 'revealing'; readonly cancel: CancelScheduled }
+  | {
+      readonly phase: 'revealing';
+      readonly shownOn: MountedBoard;
+      readonly winner: Candidate;
+      /** 盘面揭晓时交回的铺色，那一拍走完交给结果卡片。 */
+      readonly tint: string;
+      readonly cancel: CancelScheduled;
+    }
   | { readonly phase: 'settled'; readonly shownOn: MountedBoard }
   | { readonly phase: 'tornDown' };
 
@@ -170,6 +184,14 @@ export function mountGamePage(options: GamePageHostOptions): () => void {
     shownOn.reset?.();
   }
 
+  /** 揭晓那一拍走完：弹出结果卡片，带上揭晓时存下的名字和铺色。 */
+  function settle(): void {
+    if (state.phase !== 'revealing') return;
+    const { shownOn, winner, tint } = state;
+    moveTo({ phase: 'settled', shownOn });
+    card.show(winner, tint);
+  }
+
   const handle: RollHandle = {
     begin() {
       if (isLocked()) return false;
@@ -181,12 +203,9 @@ export function mountGamePage(options: GamePageHostOptions): () => void {
       const shownOn = mounted;
       if (!shownOn) return;
       const winner = drawWinner();
-      shownOn.reveal(winner);
-      const cancel = schedule(() => {
-        moveTo({ phase: 'settled', shownOn });
-        card.show(winner);
-      }, REVEAL_PAUSE_MS);
-      moveTo({ phase: 'revealing', cancel });
+      const tint = shownOn.reveal(winner);
+      const cancel = schedule(settle, REVEAL_PAUSE_MS);
+      moveTo({ phase: 'revealing', shownOn, winner, tint, cancel });
     },
     get locked() {
       return isLocked();

@@ -17,6 +17,7 @@ import {
   type SticksView,
 } from './machine';
 import type { RandomSource } from '../../random';
+import { PALETTE } from '../../palette';
 import { fakeStorage, mountOnHost, scriptedRandom, seededRandom, type HostedBoard } from '../../testHelpers';
 import { storedPromptMemory, type MotionPromptMemory } from '../motionPromptMemory';
 import { MOTION_THRESHOLD, type MotionCapability, type MotionSupport } from '../motionSupport';
@@ -42,6 +43,8 @@ function pointerAt(clientX: number, clientY: number = MID_Y, pointerId: number =
 
 interface Harness extends HostedBoard {
   readonly machine: SticksMachine;
+  /** 机器每次揭晓交回的签，按先后。 */
+  readonly revealedSticks: readonly number[];
   /** 机器此刻的时间，`tick` 一次往前一帧。 */
   now: number;
   /** 手指此刻的横坐标。 */
@@ -50,13 +53,18 @@ interface Harness extends HostedBoard {
   direction: 1 | -1;
 }
 
-/** 在真宿主上挂一页求签筒，先 tick 一次作基准。随机源默认带固定种子，默认是摇不了手机的设备。 */
+/**
+ * 在真宿主上挂一页求签筒，先 tick 一次作基准。随机源默认带固定种子，默认是摇不了手机的设备。
+ * 机器扮演挂上的盘面，只有揭晓多一道：记下机器交回的签，交给宿主一个固定铺色（签换颜色是
+ * 渲染层的事）。
+ */
 function setup(
   random: RandomSource = seededRandom(7),
   motion: MotionCapability = { support: 'unsupported' },
   promptMemory: MotionPromptMemory = storedPromptMemory(fakeStorage()),
 ): Harness {
   const machines: SticksMachine[] = [];
+  const revealedSticks: number[] = [];
   const board: Board = {
     html: '<canvas class="sticks__board"></canvas>',
     block: 'sticks',
@@ -64,14 +72,20 @@ function setup(
     mount(_root, roll) {
       const machine = createSticksMachine(roll, { random, motion, promptMemory });
       machines.push(machine);
-      return machine;
+      return {
+        ...machine,
+        reveal(winner) {
+          revealedSticks.push(machine.reveal(winner));
+          return PALETTE[0]!;
+        },
+      };
     },
   };
   const hosted = mountOnHost(board, { winners: NAMES });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
   machine.tick(0);
-  return { ...hosted, machine, now: 0, fingerX: MID_X, direction: 1 };
+  return { ...hosted, machine, revealedSticks, now: 0, fingerX: MID_X, direction: 1 };
 }
 
 function tick(harness: Harness): SticksView {
@@ -430,6 +444,47 @@ describe('抽一根签', () => {
     first.accept();
     expect(tick(first).leadStick).toBeUndefined();
     expect(shake(first, HARD, 100).leadStick).toBe(otherLead);
+  });
+
+  it('揭晓交回的就是掉出来的那根签', () => {
+    const harness = setup();
+    const { view: dropped } = shakeUntil(harness, HARD, hasDropped);
+    harness.machine.release(FINGER);
+    waitUntil(harness, isRevealed);
+
+    expect(dropped.leadStick).toBeDefined();
+    expect(harness.revealedSticks).toEqual([dropped.leadStick]);
+  });
+
+  it('冒头往回滑、换了一根签之后才掉出来：揭晓交回的是换上来掉出的那根', () => {
+    // 随机源一直吐 0：第一根打头的是 0 号；换签时排除 0 号，剩下的里取第一根，即 1 号。
+    const harness = setup(scriptedRandom([0]));
+    const { view: first } = shakeUntil(harness, HARD, (view) => view.rise > 0.5);
+    expect(first.leadStick).toBe(0);
+    harness.machine.release(FINGER);
+    waitUntil(harness, (view) => view.rise < first.rise / 2);
+
+    const { view: dropped } = shakeUntil(harness, HARD, hasDropped);
+    expect(dropped.leadStick).toBe(1);
+    harness.machine.release(FINGER);
+    waitUntil(harness, isRevealed);
+
+    expect(harness.revealedSticks).toEqual([1]);
+  });
+
+  it('收下以后再抽一根，揭晓交回的是这一次掉出来的签', () => {
+    const harness = setup(scriptedRandom([0]));
+    shakeUntil(harness, HARD, hasDropped);
+    harness.machine.release(FINGER);
+    waitUntil(harness, isRevealed);
+    harness.accept();
+
+    const { view: dropped } = shakeUntil(harness, HARD, hasDropped);
+    harness.machine.release(FINGER);
+    waitUntil(harness, isRevealed);
+
+    expect(dropped.leadStick).toBe(1);
+    expect(harness.revealedSticks).toEqual([0, 1]);
   });
 
   it('收下以后第一根打头的签，不是刚掉出来的那根', () => {

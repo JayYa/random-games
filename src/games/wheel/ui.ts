@@ -94,22 +94,19 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
 
   return {
     reveal: (winner) => {
-      machine.reveal(winner);
-      // 结果卡片照停下那一格的颜色铺色（style.css 的 .card__inner）。
-      const shown = machine.view().reveal;
-      if (shown) root.style.setProperty('--win', sectorColor(shown.sector, machine.sectors.count));
+      const sector = machine.reveal(winner);
       redraw();
+      // 结果卡片照停下那一格的颜色铺色。
+      return sectorColor(sector, machine.sectors.count);
     },
     erase: () => {
       machine.erase();
-      root.style.removeProperty('--win');
       redraw();
     },
     // 焦点回到「转」，键盘用户敲 Enter 就是下一次开抽。
     returnFocusTo: spinButton,
     teardown: () => {
       if (rafId !== undefined) cancelAnimationFrame(rafId);
-      root.style.removeProperty('--win');
       controller.abort();
       resizeObserver?.disconnect();
     },
