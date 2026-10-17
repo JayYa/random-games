@@ -5,7 +5,7 @@
  *
  *   node .claude/skills/verify-random-games/verify.mjs start  [--run ID] [--port N]
  *   node .claude/skills/verify-random-games/verify.mjs doctor --run ID
- *   node .claude/skills/verify-random-games/verify.mjs drive  --run ID --feature NAME SCENARIO.mjs [--headed]
+ *   node .claude/skills/verify-random-games/verify.mjs drive  --run ID --feature NAME SCENARIO.mjs [--headed] [--quiet]
  *   node .claude/skills/verify-random-games/verify.mjs stop   --run ID [--force]
  *   node .claude/skills/verify-random-games/verify.mjs list
  *
@@ -284,7 +284,7 @@ async function drive(flags, positional) {
     try {
       const result = await fn();
       steps.push({ step: name, ok: true, ms: Date.now() - t0, result: result ?? null, url: page.url() });
-      console.log(`  ✓ ${name}${result !== undefined ? ` → ${JSON.stringify(result)}` : ''}`);
+      if (!flags.quiet) console.log(`  ✓ ${name}${result !== undefined ? ` → ${JSON.stringify(result)}` : ''}`);
       return result;
     } catch (e) {
       steps.push({ step: name, ok: false, ms: Date.now() - t0, error: String(e), url: page.url() });
@@ -296,7 +296,7 @@ async function drive(flags, positional) {
 
   const mod = await import(pathToFileURL(scenarioPath).href);
   let failed;
-  console.log(`[drive] ${feature} against ${state.url} (${state.revision})`);
+  if (!flags.quiet) console.log(`[drive] ${feature} against ${state.url} (${state.revision})`);
   try {
     await mod.default({ page, context, expect, baseURL: state.url, step, shot, aria, recentMemory });
   } catch (e) {
@@ -321,7 +321,7 @@ async function drive(flags, positional) {
   };
   fs.writeFileSync(path.join(outDir, 'summary.json'), JSON.stringify(summary, null, 2));
   fs.writeFileSync(path.join(outDir, 'browser.log'), logLines.join('\n'));
-  console.log(`[drive] ${summary.passed ? 'PASSED' : 'FAILED'}; evidence: ${outDir}`);
+  console.log(`[drive] ${feature} ${summary.passed ? 'PASSED' : 'FAILED'}; evidence: ${outDir}`);
   if (pageErrors.length) console.log(`[drive] page errors: ${pageErrors.join(' | ')}`);
   process.exit(summary.passed ? 0 : 1);
 }

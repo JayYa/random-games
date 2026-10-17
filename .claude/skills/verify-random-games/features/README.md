@@ -22,7 +22,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 
 ## Features
 
-Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run all seven with `for f in theme-picker wheel-draw pinball-draw sticks-draw die-draw cooldown roster-errors; do $V drive --run <id> --feature $f .claude/skills/verify-random-games/scenarios/$f.mjs; done` (Git Bash).
+Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run all seven with `for f in theme-picker wheel-draw pinball-draw sticks-draw die-draw cooldown roster-errors; do $V drive --run <id> --feature $f .claude/skills/verify-random-games/scenarios/$f.mjs --quiet; done` (Git Bash).
 
 - [Theme picker and routing](./theme-picker.md) covers the picker, the game roll from `#/<theme>` (picker link or shared link), bookmarked `#/<theme>/<game>`, middle-/Ctrl-click new tabs, Back, unknown-route fallback (including wrong case and stray `/`), and `← 换个主题` (also after a reload). Scenario: `scenarios/theme-picker.mjs`.
 - [Wheel draw](./wheel-draw.md) covers 转, the lock, the reveal and card, 再来一次, the stored winner, keyboard entry, the modal card (Tab stays, Escape closes), and a direct link. Scenario: `scenarios/wheel-draw.mjs`.
