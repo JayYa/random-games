@@ -2,8 +2,7 @@
  * 骰子用例共用的小工具。只被 `*.test.ts` 引用，不进产物。
  */
 
-import type { Board } from '../../gamePage';
-import { PALETTE } from '../../palette';
+import type { Board, MountedBoard } from '../../gamePage';
 import { seededRandom } from '../../random';
 import { createDieMachine, type DieMachine, type DieMotionOptions, type DieView, type PhysicsSource } from './machine';
 import { simulateThrow } from './simulate';
@@ -22,14 +21,18 @@ export interface DieBoardOptions {
   readonly physics?: PhysicsSource;
   /** 不给就当摇不了手机。 */
   readonly motionOptions?: DieMotionOptions;
+  /**
+   * 把机器包成挂上的盘面，揭晓时把朝上的面记进 `revealed`。用例传 `recordingReveals`：
+   * 本文件不是用例文件，不能引用 `testHelpers`（ADR-0014）。
+   */
+  readonly asMounted: (machine: DieMachine, revealed: number[]) => MountedBoard;
 }
 
 /**
  * 骰子盘面，交给 `mountOnHost` 挂上；挂上后 `machine()` 交回机器本身。随机源带固定种子，同样的
- * 输入掷出同样的轨迹。机器扮演挂上的盘面，只有揭晓多一道：记下机器交回的那一面（`revealedFaces`），
- * 交给宿主一个固定铺色（面换颜色是渲染层的事）。
+ * 输入掷出同样的轨迹。
  */
-export function dieBoard({ physics = () => simulateThrow, motionOptions }: DieBoardOptions = {}): {
+export function dieBoard({ physics = () => simulateThrow, motionOptions, asMounted }: DieBoardOptions): {
   readonly board: Board;
   readonly machine: () => DieMachine;
   /** 机器每次揭晓交回的面，按先后。 */
@@ -45,13 +48,7 @@ export function dieBoard({ physics = () => simulateThrow, motionOptions }: DieBo
       mount(_root, roll) {
         const machine = createDieMachine(roll, physics, seededRandom(7), motionOptions);
         mounted = machine;
-        return {
-          ...machine,
-          reveal(winner) {
-            revealedFaces.push(machine.reveal(winner));
-            return PALETTE[0]!;
-          },
-        };
+        return asMounted(machine, revealedFaces);
       },
     },
     machine() {

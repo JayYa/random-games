@@ -12,7 +12,7 @@ import { projector } from './projection';
 import { simulateThrow } from './simulate';
 import { restingPose } from './table';
 import { FAR_MS, FRAME_MS, NAMES, dieBoard, stepEvery, throwToStop, travelled } from './testHarness';
-import { mountOnHost, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, recordingReveals, type HostedBoard } from '../../testHelpers';
 
 const ENTER = { key: 'Enter' } as const;
 const SPACE = { key: ' ' } as const;
@@ -25,7 +25,7 @@ interface Harness extends HostedBoard {
 
 /** 在真宿主上挂一页骰子。物理默认一开始就在。 */
 function setup(physics?: PhysicsSource): Harness {
-  const die = dieBoard({ physics });
+  const die = dieBoard({ physics, asMounted: recordingReveals });
   const hosted = mountOnHost(die.board, { winners: NAMES });
   return { ...hosted, machine: die.machine(), revealedFaces: die.revealedFaces };
 }

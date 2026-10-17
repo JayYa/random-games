@@ -16,8 +16,7 @@ import {
   type SticksView,
 } from './machine';
 import type { RandomSource } from '../../random';
-import { PALETTE } from '../../palette';
-import { fakeStorage, mountOnHost, scriptedRandom, seededRandom, type HostedBoard } from '../../testHelpers';
+import { fakeStorage, mountOnHost, recordingReveals, scriptedRandom, seededRandom, type HostedBoard } from '../../testHelpers';
 import { storedPromptMemory, type MotionPromptMemory } from '../motionPromptMemory';
 import { MOTION_THRESHOLD, type MotionCapability, type MotionSupport } from '../motionSupport';
 
@@ -54,8 +53,7 @@ interface Harness extends HostedBoard {
 
 /**
  * 在真宿主上挂一页求签筒，先 tick 一次作基准。随机源默认带固定种子，默认是摇不了手机的设备。
- * 机器扮演挂上的盘面，只有揭晓多一道：记下机器交回的签，交给宿主一个固定铺色（签换颜色是
- * 渲染层的事）。
+ * 揭晓经 `recordingReveals` 记下签。
  */
 function setup(
   random: RandomSource = seededRandom(7),
@@ -71,13 +69,7 @@ function setup(
     mount(_root, roll) {
       const machine = createSticksMachine(roll, { random, motion, promptMemory });
       machines.push(machine);
-      return {
-        ...machine,
-        reveal(winner) {
-          revealedSticks.push(machine.reveal(winner));
-          return PALETTE[0]!;
-        },
-      };
+      return recordingReveals(machine, revealedSticks);
     },
   };
   const hosted = mountOnHost(board, { winners: NAMES });

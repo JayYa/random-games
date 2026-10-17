@@ -18,8 +18,7 @@ import {
   type PointerSample,
 } from './machine';
 import { simulateShot } from './simulate';
-import { PALETTE } from '../../palette';
-import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, recordingReveals, seededRandom, type HostedBoard } from '../../testHelpers';
 
 const POWER = 0.6;
 
@@ -61,10 +60,7 @@ interface Harness extends HostedBoard {
   readonly revealedSlots: readonly number[];
 }
 
-/**
- * 在真宿主上挂一页弹球机。机器扮演挂上的盘面，只有揭晓多一道：记下机器交回的落格，交给宿主
- * 一个固定铺色（落格换颜色是渲染层的事）。物理默认一开始就在。
- */
+/** 在真宿主上挂一页弹球机，揭晓经 `recordingReveals` 记下落格。物理默认一开始就在。 */
 function setup(physics: PhysicsSource = () => simulateShot): Harness {
   const machines: PinballMachine[] = [];
   const revealedSlots: number[] = [];
@@ -75,13 +71,7 @@ function setup(physics: PhysicsSource = () => simulateShot): Harness {
     mount(_root, roll) {
       const machine = createPinballMachine(roll, physics, seededRandom(7));
       machines.push(machine);
-      return {
-        ...machine,
-        reveal(winner) {
-          revealedSlots.push(machine.reveal(winner));
-          return PALETTE[0]!;
-        },
-      };
+      return recordingReveals(machine, revealedSlots);
     },
   };
   const hosted = mountOnHost(board, { winners: NAMES });

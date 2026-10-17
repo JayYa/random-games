@@ -13,8 +13,7 @@ import {
   type WheelMachine,
   type WheelView,
 } from './machine';
-import { PALETTE } from '../../palette';
-import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, recordingReveals, seededRandom, type HostedBoard } from '../../testHelpers';
 
 /** 60Hz 下一帧。 */
 const FRAME_MS = 16;
@@ -38,10 +37,7 @@ interface SetupOptions {
   readonly winners?: readonly string[];
 }
 
-/**
- * 在真宿主上挂一页转盘。机器扮演挂上的盘面，只有揭晓多一道：记下机器交回的扇区，
- * 交给宿主一个固定铺色（扇区换颜色是渲染层的事）。
- */
+/** 在真宿主上挂一页转盘，揭晓经 `recordingReveals` 记下扇区。 */
 function setup({ seed = 7, winners }: SetupOptions = {}): Harness {
   const machines: WheelMachine[] = [];
   const revealedSectors: number[] = [];
@@ -52,13 +48,7 @@ function setup({ seed = 7, winners }: SetupOptions = {}): Harness {
     mount(_root, roll) {
       const machine = createWheelMachine(roll, seededRandom(seed));
       machines.push(machine);
-      return {
-        ...machine,
-        reveal(winner) {
-          revealedSectors.push(machine.reveal(winner));
-          return PALETTE[0]!;
-        },
-      };
+      return recordingReveals(machine, revealedSectors);
     },
   };
   const hosted = mountOnHost(board, { winners });

@@ -4,6 +4,7 @@
 
 import type { RecentStorage } from './cooldown';
 import type { Game } from './games';
+import { PALETTE } from './palette';
 import type { Candidate, RosterError, Theme } from './theme';
 import {
   mountGamePage,
@@ -16,6 +17,28 @@ import {
   type RollHandle,
   type Schedule,
 } from './gamePage';
+
+/** 替身交给宿主的固定铺色。盘面换什么颜色是渲染层的事，用例不看。 */
+export const FIXED_TINT = PALETTE[0]!;
+
+/** 揭晓时交回的不是铺色、而是停在哪一格的机器，例如转盘机器交回扇区。 */
+export type RevealingMachine<Stop> = Omit<MountedBoard, 'reveal'> & {
+  reveal(winner: Candidate): Stop;
+};
+
+/**
+ * 让机器扮演挂上的盘面，只有揭晓多一道：把机器交回的那一格记进 `revealed`，
+ * 交给宿主固定铺色 `FIXED_TINT`。
+ */
+export function recordingReveals<Stop>(machine: RevealingMachine<Stop>, revealed: Stop[]): MountedBoard {
+  return {
+    ...machine,
+    reveal(winner) {
+      revealed.push(machine.reveal(winner));
+      return FIXED_TINT;
+    },
+  };
+}
 
 /** 与弹球模拟用同一份，用来把一条性质放在多个种子上过一遍。 */
 export { seededRandom } from './random';
@@ -219,7 +242,7 @@ export interface FakeBoardOptions {
   /** 给不给盖住，默认给。 */
   readonly cover?: boolean;
   readonly returnFocusTo?: HTMLElement;
-  /** 揭晓时交回的铺色；给函数就每次揭晓现取。默认 `#ffcf3d`。 */
+  /** 揭晓时交回的铺色；给函数就每次揭晓现取。默认 `FIXED_TINT`。 */
   readonly tint?: string | (() => string);
   /** 与 `fakeGamePage` 共用的调用记录，每次记一行 `board …`。 */
   readonly log?: string[];
@@ -247,7 +270,7 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
     teardown = true,
     cover = true,
     returnFocusTo,
-    tint = '#ffcf3d',
+    tint = FIXED_TINT,
     log,
     onMount,
     onReset,

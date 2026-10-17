@@ -465,7 +465,6 @@ function mountDieBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     reveal: (winner) => {
       const face = machine.reveal(winner);
       redraw();
-      // 结果卡片照朝上那一面的颜色铺色。
       return faceColor(face);
     },
     erase: () => {

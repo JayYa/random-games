@@ -96,7 +96,6 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     reveal: (winner) => {
       const sector = machine.reveal(winner);
       redraw();
-      // 结果卡片照停下那一格的颜色铺色。
       return sectorColor(sector, machine.sectors.count);
     },
     erase: () => {
