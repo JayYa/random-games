@@ -10,7 +10,6 @@ import { describe, expect, it } from 'vitest';
 import type { Board } from '../../gamePage';
 import {
   STICKS,
-  STILL_AFTER_REVEAL_MS,
   createSticksMachine,
   type PointerSample,
   type SticksMachine,
@@ -500,19 +499,28 @@ describe('抽一根签', () => {
     expect(next).not.toBe(dropped.leadStick);
   });
 
-  it('揭晓之后盘面停住，渲染层可以停帧；抹掉后接着动', () => {
+  it('揭晓那一拍里再久也照常走帧，盘面不自己停', () => {
+    const harness = setup();
+    shakeUntil(harness, HARD, hasDropped);
+    harness.machine.release(FINGER);
+    waitUntil(harness, isRevealed);
+
+    harness.now += FAR_MS;
+    expect(harness.page.card?.isOpen).toBe(false);
+    expect(tick(harness).still).toBe(false);
+  });
+
+  it('卡片弹出、宿主通知盖住之后停在盖住那一刻的画面，再过多久都原样交回那一帧；抹掉后接着动', () => {
     const harness = setup();
     shakeUntil(harness, HARD, hasDropped);
     harness.machine.release(FINGER);
     const revealed = waitUntil(harness, isRevealed);
-    expect(revealed.still).toBe(false);
 
-    // 停住不早于结果卡片盖上盘面。
-    const revealedAt = harness.now;
     harness.finishReveal();
-    const still = waitUntil(harness, (view) => view.still);
+    const still = tick(harness);
+    harness.now += FAR_MS;
     expect(harness.page.card?.isOpen).toBe(true);
-    expect(harness.now - revealedAt).toBeGreaterThanOrEqual(STILL_AFTER_REVEAL_MS);
+    expect(still).toEqual({ ...revealed, still: true });
     expect(tick(harness)).toBe(still);
 
     harness.accept();

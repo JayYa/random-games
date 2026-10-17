@@ -1,7 +1,7 @@
 /**
  * 玩法页宿主 (Game Page Host)：把开抽和结果卡片接到盘面上，与玩法无关（ADR-0012）。
  *
- * 它是唯一的开抽状态机：盘面停下 → 抽中选 → 揭晓 → 停一拍 → 弹结果卡片 → 收下 →
+ * 它是唯一的开抽状态机：盘面停下 → 抽中选 → 揭晓 → 停一拍 → 弹结果卡片、通知盘面盖住 → 收下 →
  * 抹掉 → 复位。中选在盘面停下之后才抽，盘面从接口上拿不到名单，也没法指定中选（ADR-0010）。
  * 名单由站内导航打开，宿主只拿到「抽一个中选」。
  *
@@ -49,8 +49,13 @@ export interface MountedBoard {
    * （`PALETTE`）。宿主停完一拍后把它交给结果卡片。
    */
   reveal(winner: Candidate): string;
-  /** 抹掉名字，盘面回到匿名。 */
+  /** 抹掉名字，盘面回到匿名。收下时宿主先收卡片再叫它，抹掉也就是卡片揭开了盘面。 */
   erase(): void;
+  /**
+   * 结果卡片弹出、盖住了盘面：画面在抹掉之前看不清，常转帧的盘面可以停帧（ADR-0013）。
+   * 每次开抽在卡片弹出之后叫一次，揭晓那一拍里不叫。转盘和骰子不常转帧，不给。
+   */
+  cover?(): void;
   /** 收下之后、锁解开时复位：弹球机把球退回柱塞。转盘不需要。 */
   reset?(): void;
   /** 结果卡片收起后焦点交给谁。弹球机没有可聚焦的操作（ADR-0006），不给。 */
@@ -184,12 +189,13 @@ export function mountGamePage(options: GamePageHostOptions): () => void {
     shownOn.reset?.();
   }
 
-  /** 揭晓那一拍走完：弹出结果卡片，带上揭晓时存下的名字和铺色。 */
+  /** 揭晓那一拍走完：弹出结果卡片，带上揭晓时存下的名字和铺色，再告诉盘面它被盖住了。 */
   function settle(): void {
     if (state.phase !== 'revealing') return;
     const { shownOn, winner, tint } = state;
     moveTo({ phase: 'settled', shownOn });
     card.show(winner, tint);
+    shownOn.cover?.();
   }
 
   const handle: RollHandle = {

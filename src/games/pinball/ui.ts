@@ -596,7 +596,7 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   function frame(now: number): void {
     lastView = machine.tick(now);
     draw(lastView);
-    // 结果卡片盖住了盘面：停帧，抹掉时再起。
+    // 宿主通知结果卡片盖住了盘面：停帧，抹掉时再起。
     running = !lastView.still;
     if (running) rafId = requestAnimationFrame(frame);
   }
@@ -666,6 +666,8 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   return {
     // 揭晓时 rAF 还在转，下一帧自然画上。结果卡片照球落进那一格的颜色铺色。
     reveal: (winner) => slotColor(machine.reveal(winner)),
+    // 宿主在结果卡片弹出之后通知：下一帧起机器交回停住的那一帧，帧循环就此停下。
+    cover: machine.cover,
     erase: () => {
       machine.erase();
       start();

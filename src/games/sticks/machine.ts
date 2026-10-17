@@ -11,7 +11,7 @@
  * 所以一直晃的人一定等得到签掉出来（ADR-0015）。
  */
 
-import { REVEAL_PAUSE_MS, type MountedBoard, type RollHandle } from '../../gamePage';
+import type { MountedBoard, RollHandle } from '../../gamePage';
 import { randomIndex, type RandomSource } from '../../random';
 import type { Candidate } from '../../theme';
 import type { MotionPromptMemory } from '../motionPromptMemory';
@@ -64,12 +64,6 @@ export const STICKS = {
   /** 签从掉出筒口到在筒前立住要多久：掉下来、弹一下、立住。立住才报盘面停下。 */
   dropMs: 900,
 } as const;
-
-/**
- * 揭晓之后过多久盘面停住：结果卡片盖住盘面以后不必再画。多等一会儿，宿主的计时器可能晚到
- * （同弹球机）。
- */
-export const STILL_AFTER_REVEAL_MS = REVEAL_PAUSE_MS + 200;
 
 /** 掉帧时单帧时间最多算这么长。 */
 export const MAX_FRAME_MS = 100;
@@ -140,8 +134,13 @@ export interface SticksMachine extends Pick<MountedBoard, 'erase'> {
   shakeBy(sample: MotionSample): void;
   /** 使用者答了摇手机的提示（开启或不用了）：记下问过，提示不再显示。真正请求授权在渲染层。 */
   answerMotionPrompt(): void;
-  /** 推进到 `now`（毫秒，rAF 口径），交回画面。第一次只作基准。 */
+  /** 推进到 `now`（毫秒，rAF 口径），交回画面。第一次只作基准；盘面停住时原样交回停住那一帧。 */
   tick(now: number): SticksView;
+  /**
+   * 结果卡片盖住了盘面：此后每次 `tick` 原样交回盖住那一刻的画面并标记静止，直到抹掉。
+   * 停着的那段不算时间，抹掉后第一次 `tick` 只作基准。
+   */
+  cover(): void;
   /** 收下之后复位：签回到筒里、冒头归零。不自动开抽。 */
   reset(): void;
 }
@@ -193,8 +192,10 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
   let dropped = false;
   let stood = false;
   let revealed: string | undefined;
-  /** 揭晓之后第一次 tick 的时刻。 */
-  let revealedAt: number | undefined;
+  /** 最近一次 tick 交回的画面，盖住时就停在它上面。 */
+  let lastView: SticksView | undefined;
+  /** 盖住到抹掉之间为真。 */
+  let covered = false;
   /** 盘面停住的那一帧，抹掉前原样交回。 */
   let stillView: SticksView | undefined;
   let leadStick: number | undefined;
@@ -332,8 +333,6 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
         }
       }
       const tubeTilt = offset === 0 ? 0 : (offset / STICKS.tubeLimit) * STICKS.tubeMaxTilt;
-      if (revealed !== undefined) revealedAt ??= now;
-      const still = revealedAt !== undefined && now - revealedAt >= STILL_AFTER_REVEAL_MS;
       const view: SticksView = {
         tubeOffset: offset,
         tubeTilt,
@@ -344,14 +343,19 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
         revealed,
         motion: motion.support === 'unsupported' ? undefined : motion.support,
         motionOffer: motionOffer(motion.support, promptAsked),
-        still,
+        still: covered,
       };
-      if (still) {
-        stillView = view;
-        // 停住的这段不算时间：抹掉后第一次 tick 只作基准。
-        lastTickAt = undefined;
-      }
+      // 盖住之前一帧都还没走过：停在这一帧上。
+      if (covered) stillView = view;
+      lastView = view;
       return view;
+    },
+
+    cover() {
+      covered = true;
+      if (lastView) stillView = { ...lastView, still: true };
+      // 停住的这段不算时间：抹掉后第一次 tick 只作基准。
+      lastTickAt = undefined;
     },
 
     reveal(winner) {
@@ -362,7 +366,7 @@ export function createSticksMachine(roll: RollHandle, options: SticksOptions): S
     },
     erase() {
       revealed = undefined;
-      revealedAt = undefined;
+      covered = false;
       stillView = undefined;
     },
 

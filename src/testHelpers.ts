@@ -68,7 +68,7 @@ export interface FakeResultCard extends ResultCard {
   readonly focusReturns: readonly (HTMLElement | undefined)[];
 }
 
-function fakeResultCard(): FakeResultCard {
+function fakeResultCard(log?: string[]): FakeResultCard {
   let isOpen = false;
   let shownWinner: Candidate | undefined;
   let shownTint: string | undefined;
@@ -96,6 +96,7 @@ function fakeResultCard(): FakeResultCard {
       return [...focusReturns];
     },
     show(winner, tint) {
+      log?.push('page card show');
       isOpen = true;
       shownWinner = winner;
       shownTint = tint;
@@ -199,7 +200,7 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
     showGamePage(view, close) {
       log?.push('page game');
       gamePages.push(view);
-      card = fakeResultCard();
+      card = fakeResultCard(log);
       onClose = close;
       return { card, boardRoot };
     },
@@ -215,6 +216,8 @@ export interface FakeBoardOptions {
   readonly reset?: boolean;
   /** 给不给拆卸，默认给。 */
   readonly teardown?: boolean;
+  /** 给不给盖住，默认给。 */
+  readonly cover?: boolean;
   readonly returnFocusTo?: HTMLElement;
   /** 揭晓时交回的铺色；给函数就每次揭晓现取。默认 `#ffcf3d`。 */
   readonly tint?: string | (() => string);
@@ -234,12 +237,15 @@ export interface FakeBoard extends Board {
   readonly revealed: Candidate | undefined;
   readonly reveals: readonly Candidate[];
   readonly teardownCount: number;
+  /** 被通知盖住的次数。 */
+  readonly coverCount: number;
 }
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
   const {
     reset = true,
     teardown = true,
+    cover = true,
     returnFocusTo,
     tint = '#ffcf3d',
     log,
@@ -252,6 +258,7 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
   let revealed: Candidate | undefined;
   const reveals: Candidate[] = [];
   let teardownCount = 0;
+  let coverCount = 0;
 
   return {
     html: '<canvas class="fake__board" id="fake-board"></canvas>',
@@ -271,6 +278,9 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
     },
     get teardownCount() {
       return teardownCount;
+    },
+    get coverCount() {
+      return coverCount;
     },
     mount(root, roll) {
       log?.push('board mount');
@@ -292,6 +302,12 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
           reset() {
             log?.push('board reset');
             onReset?.(roll);
+          },
+        }),
+        ...(cover && {
+          cover() {
+            log?.push('board cover');
+            coverCount += 1;
           },
         }),
         ...(teardown && {

@@ -104,6 +104,32 @@ describe('一整次开抽', () => {
     expect(harness.page.card?.shownTint).toBe('#3fd0a8');
   });
 
+  it('揭晓那一拍里不通知盘面盖住；卡片弹出之后恰好通知一次', () => {
+    const harness = mountPage();
+    const { board, log, roll, timer } = harness;
+    roll.begin();
+    roll.boardStopped();
+
+    timer.advance(REVEAL_PAUSE_MS - 1);
+    expect(board.coverCount).toBe(0);
+
+    log.length = 0;
+    timer.advance(1);
+    expect(log).toEqual(['page card show', 'board cover']);
+    expect(board.coverCount).toBe(1);
+
+    timer.advance(REVEAL_PAUSE_MS * 2);
+    expect(board.coverCount).toBe(1);
+  });
+
+  it('收下之后再开抽，又在卡片弹出之后通知一次盖住', () => {
+    const harness = mountPage();
+    rollOnce(harness);
+    harness.page.pressClose();
+    rollOnce(harness);
+    expect(harness.board.coverCount).toBe(2);
+  });
+
   it('收下时先抹掉再复位，然后解锁；盘面回到匿名', () => {
     const harness = mountPage();
     const { board, page, log, roll } = harness;
@@ -353,6 +379,17 @@ describe('换页拆卸', () => {
     expect(page.card?.showCount).toBe(0);
   });
 
+  it('揭晓那一拍里拆卸：盘面不会再被通知盖住', () => {
+    const harness = mountPage();
+    const { teardown, timer, board, roll } = harness;
+    roll.begin();
+    roll.boardStopped();
+
+    teardown();
+    timer.advance(REVEAL_PAUSE_MS * 2);
+    expect(board.coverCount).toBe(0);
+  });
+
   it('拆卸调用了盘面自己的拆卸', () => {
     const { teardown, board } = mountPage();
     teardown();
@@ -436,8 +473,8 @@ describe('换页拆卸', () => {
   });
 });
 
-describe('盘面不给复位、拆卸时', () => {
-  const bare = { reset: false, teardown: false } as const;
+describe('盘面不给复位、拆卸、盖住时', () => {
+  const bare = { reset: false, teardown: false, cover: false } as const;
 
   it('一整次开抽照常走完：揭晓、弹卡片、收下时抹掉并解锁', () => {
     const harness = mountPage({ board: bare });

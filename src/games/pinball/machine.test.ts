@@ -11,7 +11,6 @@ import { BOARD, slotIndexAtX } from './board';
 import {
   FULL_PULL_PX,
   MAX_FRAME_MS,
-  STILL_AFTER_REVEAL_MS,
   createPinballMachine,
   type PhysicsSource,
   type PinballMachine,
@@ -580,12 +579,15 @@ describe('风车', () => {
     // 刚揭晓，球还在落格里弹。
     const { reached: revealed } = stepUntil(machine, launched, isRevealed);
 
+    // 收下要先走完那一拍、弹过卡片，盘面被盖住过：收下后第一帧只作基准。
     harness.accept();
-    const next = machine.tick(revealed.at + FRAME_MS);
+    const resumed = machine.tick(revealed.at + FRAME_MS);
+    const next = machine.tick(revealed.at + FRAME_MS * 2);
 
-    expect(ballOf(next)).toEqual(ballOf(atRest));
-    next.windmillAngles.forEach((angle, i) => {
-      expect(angle - (revealed.view.windmillAngles[i] ?? 0)).toBeCloseTo(turn[i] ?? 0, 6);
+    expect(ballOf(resumed)).toEqual(ballOf(atRest));
+    resumed.windmillAngles.forEach((angle, i) => {
+      expect(angle).toBeCloseTo(revealed.view.windmillAngles[i] ?? 0, 9);
+      expect((next.windmillAngles[i] ?? 0) - angle).toBeCloseTo(turn[i] ?? 0, 6);
     });
   });
 
@@ -603,20 +605,29 @@ describe('风车', () => {
 });
 
 describe('结果卡片盖住盘面时停住', () => {
-  it('揭晓之后那一拍照常走帧；卡片弹出之后停住，再过多久都原样交回那一帧', () => {
+  it('揭晓那一拍里再久也照常走帧，盘面不自己停', () => {
     const harness = setup();
     const { machine } = harness;
     const { reached } = stepUntil(machine, fire(harness), isRevealed);
 
-    const justBefore = machine.tick(reached.at + STILL_AFTER_REVEAL_MS - 1);
-    const stilled = machine.tick(reached.at + STILL_AFTER_REVEAL_MS);
-    const later = machine.tick(reached.at + STILL_AFTER_REVEAL_MS + FAR_MS);
+    const later = machine.tick(reached.at + FAR_MS);
 
-    expect({ justBefore: justBefore.still, stilled: stilled.still, later }).toEqual({
-      justBefore: false,
-      stilled: true,
-      later: stilled,
-    });
+    expect(harness.page.card?.isOpen).toBe(false);
+    expect(later.still).toBe(false);
+  });
+
+  it('卡片弹出、宿主通知盖住之后停在盖住那一刻的画面，再过多久都原样交回那一帧', () => {
+    const harness = setup();
+    const { machine } = harness;
+    const { reached } = stepUntil(machine, fire(harness), isRevealed);
+
+    harness.finishReveal();
+    const stilled = machine.tick(reached.at + FRAME_MS);
+    const later = machine.tick(reached.at + FAR_MS);
+
+    expect(harness.page.card?.isOpen).toBe(true);
+    expect(stilled).toEqual({ ...reached.view, still: true });
+    expect(later).toBe(stilled);
   });
 
   it('收下之后风车从停住的角度接着转，停着的那段不算时间、不跳', () => {
@@ -626,10 +637,11 @@ describe('结果卡片盖住盘面时停住', () => {
     fire(harness);
     const landedAt = START_MS + FAR_MS;
     machine.tick(landedAt);
-    const stilled = machine.tick(landedAt + STILL_AFTER_REVEAL_MS);
+    harness.finishReveal();
+    const stilled = machine.tick(landedAt + FRAME_MS);
 
     harness.accept();
-    const resumedAt = landedAt + STILL_AFTER_REVEAL_MS + FAR_MS;
+    const resumedAt = landedAt + FAR_MS;
     const resumed = machine.tick(resumedAt);
     const next = machine.tick(resumedAt + FRAME_MS);
 
