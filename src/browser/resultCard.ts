@@ -65,13 +65,14 @@ export function createResultCard(root: HTMLElement, onClose: () => void): Result
   };
 
   return {
-    show(winner: Candidate): void {
+    show(winner: Candidate, tint: string): void {
       cardName.textContent = winner.name;
       // 名字越短字越大，铺满贴纸的宽（.card__name 照它定字号）。
       cardName.style.setProperty('--len', String(Math.max(2, Array.from(winner.name).length)));
-      // 顶上那截胶带每次换个颜色，不和卡片撞色（卡片铺的是盘面写进 --win 的颜色）。
-      const win = getComputedStyle(card).getPropertyValue('--win').trim().toLowerCase();
-      const tapes = PALETTE.filter((color) => color !== win);
+      // 卡片底色（.card__inner）继承这里的 --win，收起时清掉。
+      card.style.setProperty('--win', tint);
+      // 顶上那截胶带每次换个颜色，不和卡片撞色。
+      const tapes = PALETTE.filter((color) => color !== tint.toLowerCase());
       card.style.setProperty('--card-tape', tapes[Math.floor(Math.random() * tapes.length)]!);
       setBehindInert(true);
       card.hidden = false;
@@ -82,6 +83,7 @@ export function createResultCard(root: HTMLElement, onClose: () => void): Result
       // 没开时不动，免得抢走当前的焦点。
       if (card.hidden) return;
       card.hidden = true;
+      card.style.removeProperty('--win');
       peelConfetti();
       // 先解开再交焦点：`inert` 里的元素聚焦不了。
       setBehindInert(false);

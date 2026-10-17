@@ -11,7 +11,6 @@ import { BOARD, slotIndexAtX } from './board';
 import {
   FULL_PULL_PX,
   MAX_FRAME_MS,
-  STILL_AFTER_REVEAL_MS,
   createPinballMachine,
   type PhysicsSource,
   type PinballMachine,
@@ -19,7 +18,7 @@ import {
   type PointerSample,
 } from './machine';
 import { simulateShot } from './simulate';
-import { mountOnHost, seededRandom, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, recordingReveals, seededRandom, type HostedBoard } from '../../testHelpers';
 
 const POWER = 0.6;
 
@@ -57,11 +56,14 @@ function pointerAt(clientX: number, clientY: number, pointerId: number = FINGER)
 
 interface Harness extends HostedBoard {
   readonly machine: PinballMachine;
+  /** 机器每次揭晓交回的落格，按先后。 */
+  readonly revealedSlots: readonly number[];
 }
 
-/** 在真宿主上挂一页弹球机。机器本身就是挂载结果。物理默认一开始就在。 */
+/** 在真宿主上挂一页弹球机，揭晓经 `recordingReveals` 记下落格。物理默认一开始就在。 */
 function setup(physics: PhysicsSource = () => simulateShot): Harness {
   const machines: PinballMachine[] = [];
+  const revealedSlots: number[] = [];
   const board: Board = {
     html: '<canvas class="pinball__board"></canvas>',
     block: 'pinball',
@@ -69,13 +71,13 @@ function setup(physics: PhysicsSource = () => simulateShot): Harness {
     mount(_root, roll) {
       const machine = createPinballMachine(roll, physics, seededRandom(7));
       machines.push(machine);
-      return machine;
+      return recordingReveals(machine, revealedSlots);
     },
   };
   const hosted = mountOnHost(board, { winners: NAMES });
   const [machine] = machines;
   if (!machine) throw new Error('机器应当已经挂上');
-  return { ...hosted, machine };
+  return { ...hosted, machine, revealedSlots };
 }
 
 /** 从盘面正中按下，把柱塞拉到 `POWER` 那么深。 */
@@ -508,6 +510,23 @@ describe('揭晓', () => {
     });
   });
 
+  it('揭晓交回的就是球最后停着的那一格', () => {
+    const landedSlots: number[] = [];
+    const harness = setup();
+    for (let shot = 0; shot < 3; shot += 1) {
+      const from = START_MS + shot * 2 * FAR_MS;
+      harness.machine.tick(from - START_MS);
+      pull(harness.machine);
+      harness.machine.release(pointerAt(MID_X, PULLED_Y));
+      harness.machine.tick(from);
+      const landed = harness.machine.tick(from + FAR_MS);
+      landedSlots.push(slotIndexAtX(landed.ballX, BOARD.slotCount));
+      harness.accept();
+    }
+
+    expect(harness.revealedSlots).toEqual(landedSlots);
+  });
+
   it('抹掉之后盘面回到匿名', () => {
     const harness = setup();
     fire(harness);
@@ -550,12 +569,15 @@ describe('风车', () => {
     // 刚揭晓，球还在落格里弹。
     const { reached: revealed } = stepUntil(machine, launched, isRevealed);
 
+    // 收下要先走完那一拍、弹过卡片，盘面被盖住过：收下后第一帧只作基准。
     harness.accept();
-    const next = machine.tick(revealed.at + FRAME_MS);
+    const resumed = machine.tick(revealed.at + FRAME_MS);
+    const next = machine.tick(revealed.at + FRAME_MS * 2);
 
-    expect(ballOf(next)).toEqual(ballOf(atRest));
-    next.windmillAngles.forEach((angle, i) => {
-      expect(angle - (revealed.view.windmillAngles[i] ?? 0)).toBeCloseTo(turn[i] ?? 0, 6);
+    expect(ballOf(resumed)).toEqual(ballOf(atRest));
+    resumed.windmillAngles.forEach((angle, i) => {
+      expect(angle).toBeCloseTo(revealed.view.windmillAngles[i] ?? 0, 9);
+      expect((next.windmillAngles[i] ?? 0) - angle).toBeCloseTo(turn[i] ?? 0, 6);
     });
   });
 
@@ -573,20 +595,29 @@ describe('风车', () => {
 });
 
 describe('结果卡片盖住盘面时停住', () => {
-  it('揭晓之后那一拍照常走帧；卡片弹出之后停住，再过多久都原样交回那一帧', () => {
+  it('揭晓那一拍里再久也照常走帧，盘面不自己停', () => {
     const harness = setup();
     const { machine } = harness;
     const { reached } = stepUntil(machine, fire(harness), isRevealed);
 
-    const justBefore = machine.tick(reached.at + STILL_AFTER_REVEAL_MS - 1);
-    const stilled = machine.tick(reached.at + STILL_AFTER_REVEAL_MS);
-    const later = machine.tick(reached.at + STILL_AFTER_REVEAL_MS + FAR_MS);
+    const later = machine.tick(reached.at + FAR_MS);
 
-    expect({ justBefore: justBefore.still, stilled: stilled.still, later }).toEqual({
-      justBefore: false,
-      stilled: true,
-      later: stilled,
-    });
+    expect(harness.page.card?.isOpen).toBe(false);
+    expect(later.still).toBe(false);
+  });
+
+  it('卡片弹出、宿主通知盖住之后停在盖住那一刻的画面，再过多久都原样交回那一帧', () => {
+    const harness = setup();
+    const { machine } = harness;
+    const { reached } = stepUntil(machine, fire(harness), isRevealed);
+
+    harness.finishReveal();
+    const stilled = machine.tick(reached.at + FRAME_MS);
+    const later = machine.tick(reached.at + FAR_MS);
+
+    expect(harness.page.card?.isOpen).toBe(true);
+    expect(stilled).toEqual({ ...reached.view, still: true });
+    expect(later).toBe(stilled);
   });
 
   it('收下之后风车从停住的角度接着转，停着的那段不算时间、不跳', () => {
@@ -596,10 +627,11 @@ describe('结果卡片盖住盘面时停住', () => {
     fire(harness);
     const landedAt = START_MS + FAR_MS;
     machine.tick(landedAt);
-    const stilled = machine.tick(landedAt + STILL_AFTER_REVEAL_MS);
+    harness.finishReveal();
+    const stilled = machine.tick(landedAt + FRAME_MS);
 
     harness.accept();
-    const resumedAt = landedAt + STILL_AFTER_REVEAL_MS + FAR_MS;
+    const resumedAt = landedAt + FAR_MS;
     const resumed = machine.tick(resumedAt);
     const next = machine.tick(resumedAt + FRAME_MS);
 

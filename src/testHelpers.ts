@@ -4,6 +4,7 @@
 
 import type { RecentStorage } from './cooldown';
 import type { Game } from './games';
+import { PALETTE } from './palette';
 import type { Candidate, RosterError, Theme } from './theme';
 import {
   mountGamePage,
@@ -16,6 +17,28 @@ import {
   type RollHandle,
   type Schedule,
 } from './gamePage';
+
+/** 替身交给宿主的固定铺色。盘面换什么颜色是渲染层的事，用例不看。 */
+export const FIXED_TINT = PALETTE[0]!;
+
+/** 揭晓时交回的不是铺色、而是停在哪一格的机器，例如转盘机器交回扇区。 */
+export type RevealingMachine<Stop> = Omit<MountedBoard, 'reveal'> & {
+  reveal(winner: Candidate): Stop;
+};
+
+/**
+ * 让机器扮演挂上的盘面，只有揭晓多一道：把机器交回的那一格记进 `revealed`，
+ * 交给宿主固定铺色 `FIXED_TINT`。
+ */
+export function recordingReveals<Stop>(machine: RevealingMachine<Stop>, revealed: Stop[]): MountedBoard {
+  return {
+    ...machine,
+    reveal(winner) {
+      revealed.push(machine.reveal(winner));
+      return FIXED_TINT;
+    },
+  };
+}
 
 /** 与弹球模拟用同一份，用来把一条性质放在多个种子上过一遍。 */
 export { seededRandom } from './random';
@@ -60,15 +83,18 @@ export interface FakeResultCard extends ResultCard {
   readonly isOpen: boolean;
   /** 最近一次弹出时的中选。 */
   readonly shownWinner: Candidate | undefined;
+  /** 最近一次弹出时铺的颜色。 */
+  readonly shownTint: string | undefined;
   readonly showCount: number;
   readonly hideCount: number;
   /** 每次收起时收到的焦点去向，按先后。 */
   readonly focusReturns: readonly (HTMLElement | undefined)[];
 }
 
-function fakeResultCard(): FakeResultCard {
+function fakeResultCard(log?: string[]): FakeResultCard {
   let isOpen = false;
   let shownWinner: Candidate | undefined;
+  let shownTint: string | undefined;
   let showCount = 0;
   let hideCount = 0;
   const focusReturns: (HTMLElement | undefined)[] = [];
@@ -80,6 +106,9 @@ function fakeResultCard(): FakeResultCard {
     get shownWinner() {
       return shownWinner;
     },
+    get shownTint() {
+      return shownTint;
+    },
     get showCount() {
       return showCount;
     },
@@ -89,9 +118,11 @@ function fakeResultCard(): FakeResultCard {
     get focusReturns() {
       return [...focusReturns];
     },
-    show(winner) {
+    show(winner, tint) {
+      log?.push('page card show');
       isOpen = true;
       shownWinner = winner;
+      shownTint = tint;
       showCount += 1;
     },
     hide(focusTo: HTMLElement | undefined) {
@@ -192,7 +223,7 @@ export function fakeGamePage(log?: string[]): FakeGamePage {
     showGamePage(view, close) {
       log?.push('page game');
       gamePages.push(view);
-      card = fakeResultCard();
+      card = fakeResultCard(log);
       onClose = close;
       return { card, boardRoot };
     },
@@ -208,7 +239,11 @@ export interface FakeBoardOptions {
   readonly reset?: boolean;
   /** 给不给拆卸，默认给。 */
   readonly teardown?: boolean;
+  /** 给不给盖住，默认给。 */
+  readonly cover?: boolean;
   readonly returnFocusTo?: HTMLElement;
+  /** 揭晓时交回的铺色；给函数就每次揭晓现取。默认 `FIXED_TINT`。 */
+  readonly tint?: string | (() => string);
   /** 与 `fakeGamePage` 共用的调用记录，每次记一行 `board …`。 */
   readonly log?: string[];
   /** 下面三个钩子让用例在挂上、复位、拆卸那一刻摆弄句柄。 */
@@ -225,15 +260,28 @@ export interface FakeBoard extends Board {
   readonly revealed: Candidate | undefined;
   readonly reveals: readonly Candidate[];
   readonly teardownCount: number;
+  /** 被通知盖住的次数。 */
+  readonly coverCount: number;
 }
 
 export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
-  const { reset = true, teardown = true, returnFocusTo, log, onMount, onReset, onTeardown } = options;
+  const {
+    reset = true,
+    teardown = true,
+    cover = true,
+    returnFocusTo,
+    tint = FIXED_TINT,
+    log,
+    onMount,
+    onReset,
+    onTeardown,
+  } = options;
   let mountCount = 0;
   let mountedOn: HTMLElement | undefined;
   let revealed: Candidate | undefined;
   const reveals: Candidate[] = [];
   let teardownCount = 0;
+  let coverCount = 0;
 
   return {
     html: '<canvas class="fake__board" id="fake-board"></canvas>',
@@ -254,6 +302,9 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
     get teardownCount() {
       return teardownCount;
     },
+    get coverCount() {
+      return coverCount;
+    },
     mount(root, roll) {
       log?.push('board mount');
       mountCount += 1;
@@ -263,6 +314,7 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
           log?.push(`board reveal ${winner.name}`);
           revealed = winner;
           reveals.push(winner);
+          return typeof tint === 'function' ? tint() : tint;
         },
         erase() {
           log?.push('board erase');
@@ -273,6 +325,12 @@ export function fakeBoard(options: FakeBoardOptions = {}): FakeBoard {
           reset() {
             log?.push('board reset');
             onReset?.(roll);
+          },
+        }),
+        ...(cover && {
+          cover() {
+            log?.push('board cover');
+            coverCount += 1;
           },
         }),
         ...(teardown && {

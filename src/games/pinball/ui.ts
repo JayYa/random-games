@@ -593,19 +593,10 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   let lastView: PinballView | undefined;
   let running = false;
 
-  /** 结果卡片照中选落格的颜色铺色（style.css 的 .card__inner）。 */
-  let winColor: string | undefined;
-
   function frame(now: number): void {
     lastView = machine.tick(now);
     draw(lastView);
-    const revealedColor = lastView.revealed ? slotColor(lastView.revealed.slotIndex) : undefined;
-    if (revealedColor !== winColor) {
-      winColor = revealedColor;
-      if (winColor) root.style.setProperty('--win', winColor);
-      else root.style.removeProperty('--win');
-    }
-    // 结果卡片盖住了盘面：停帧，抹掉时再起。
+    // 宿主通知结果卡片盖住了盘面：停帧，抹掉时再起。
     running = !lastView.still;
     if (running) rafId = requestAnimationFrame(frame);
   }
@@ -673,8 +664,10 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   start();
 
   return {
-    // 揭晓时 rAF 还在转，下一帧自然画上。
-    reveal: machine.reveal,
+    // 揭晓时 rAF 还在转，下一帧自然画上。结果卡片照球落进那一格的颜色铺色。
+    reveal: (winner) => slotColor(machine.reveal(winner)),
+    // 宿主在结果卡片弹出之后通知：下一帧起机器交回停住的那一帧，帧循环就此停下。
+    cover: machine.cover,
     erase: () => {
       machine.erase();
       start();
@@ -684,7 +677,6 @@ function mountPinballBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     teardown: () => {
       cancelAnimationFrame(rafId);
       controller.abort();
-      root.style.removeProperty('--win');
     },
   };
 }

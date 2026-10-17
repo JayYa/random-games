@@ -7,6 +7,7 @@
 
 import type { MountedBoard, RollHandle } from '../../gamePage';
 import { randomIndex, type RandomSource } from '../../random';
+import type { Candidate } from '../../theme';
 import { createSectors, type Sectors } from './sectors';
 
 /** 一整圈的弧度。 */
@@ -36,7 +37,9 @@ export interface WheelView {
   readonly spinning: boolean;
 }
 
-export interface WheelMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
+export interface WheelMachine extends Pick<MountedBoard, 'erase'> {
+  /** 把名字写进停下的那个扇区，交回扇区下标；渲染层照它换成铺色。 */
+  reveal(winner: Candidate): number;
   /** 机器自己用的扇区换算，画布和用例照它算。 */
   readonly sectors: Sectors;
   /** 按下「转」：`roll.begin()` 受理了才定扇区、起转，返回受没受理。 */
@@ -124,6 +127,7 @@ export function createWheelMachine(
 
     reveal(winner) {
       reveal = { sector: stoppedSector, name: winner.name };
+      return stoppedSector;
     },
 
     erase() {

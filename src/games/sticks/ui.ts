@@ -418,7 +418,7 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     lastView = machine.tick(now);
     draw(lastView);
     showOffer(lastView.motionOffer);
-    // 结果卡片盖住了盘面：停帧，抹掉时再起。
+    // 宿主通知结果卡片盖住了盘面：停帧，抹掉时再起。
     running = !lastView.still;
     if (running) rafId = requestAnimationFrame(frame);
   }
@@ -476,24 +476,18 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   start();
 
   return {
-    // 揭晓时 rAF 还在转，下一帧自然画上。
-    reveal: (winner) => {
-      machine.reveal(winner);
-      // 结果卡片照掉出来那根签的签头色铺色（style.css 的 .card__inner）。揭晓发生在帧里报停的
-      // 当下，此时 `lastView` 还是上一帧，但掉签以后打头的签不再换，就是掉出来的这根。
-      const stick = lastView?.leadStick;
-      if (stick !== undefined) root.style.setProperty('--win', stickColor(stick));
-    },
+    // 揭晓时 rAF 还在转，下一帧自然画上。结果卡片照掉出来那根签的签头色铺色。
+    reveal: (winner) => stickColor(machine.reveal(winner)),
+    // 宿主在结果卡片弹出之后通知：下一帧起机器交回停住的那一帧，帧循环就此停下。
+    cover: machine.cover,
     erase: () => {
       machine.erase();
-      root.style.removeProperty('--win');
       start();
     },
     reset: machine.reset,
     // 没有可聚焦的操作（ADR-0015），不给 returnFocusTo。撤掉 window 上的监听含 `devicemotion`。
     teardown: () => {
       cancelAnimationFrame(rafId);
-      root.style.removeProperty('--win');
       controller.abort();
     },
   };

@@ -413,7 +413,7 @@ body {
   }
 }
 
-/* 底色是盘面上中选那一格的颜色（盘面揭晓时写进 --win）。 */
+/* 底色是盘面上中选那一格的颜色（结果卡片弹出时写进 --win）。 */
 .card__inner {
   --rest: rotate(-2.5deg);
   --lift-shadow: 0 56px 80px var(--shadow-lift);

@@ -12,20 +12,22 @@ import { projector } from './projection';
 import { simulateThrow } from './simulate';
 import { restingPose } from './table';
 import { FAR_MS, FRAME_MS, NAMES, dieBoard, stepEvery, throwToStop, travelled } from './testHarness';
-import { mountOnHost, type HostedBoard } from '../../testHelpers';
+import { mountOnHost, recordingReveals, type HostedBoard } from '../../testHelpers';
 
 const ENTER = { key: 'Enter' } as const;
 const SPACE = { key: ' ' } as const;
 
 interface Harness extends HostedBoard {
   readonly machine: DieMachine;
+  /** 机器每次揭晓交回的面，按先后。 */
+  readonly revealedFaces: readonly number[];
 }
 
-/** 在真宿主上挂一页骰子。机器本身就是挂载结果。物理默认一开始就在。 */
+/** 在真宿主上挂一页骰子。物理默认一开始就在。 */
 function setup(physics?: PhysicsSource): Harness {
-  const die = dieBoard({ physics });
+  const die = dieBoard({ physics, asMounted: recordingReveals });
   const hosted = mountOnHost(die.board, { winners: NAMES });
-  return { ...hosted, machine: die.machine() };
+  return { ...hosted, machine: die.machine(), revealedFaces: die.revealedFaces };
 }
 
 function cardShows({ page }: Harness): number {
@@ -123,6 +125,23 @@ describe('骰子机器', () => {
     expect(roll.locked).toBe(true);
     harness.finishReveal();
     expect(cardShows(harness)).toBe(1);
+  });
+
+  it('揭晓交回的就是停稳时朝上的那一面，收下再掷交回的是新的那一面', () => {
+    const harness = setup();
+    const { machine } = harness;
+    machine.tick(0);
+    const upFaces: number[] = [];
+    let from = 0;
+    for (let i = 0; i < 3; i += 1) {
+      machine.key(ENTER);
+      const stopped = throwToStop(machine, from);
+      upFaces.push(topFace(stopped.view.pose.orientation));
+      harness.accept();
+      from = stopped.at;
+    }
+
+    expect(harness.revealedFaces).toEqual(upFaces);
   });
 
   it('物理没加载完就按键：先压着、不开抽；物理一到，那一帧出手', () => {

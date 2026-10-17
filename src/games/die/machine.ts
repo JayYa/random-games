@@ -13,6 +13,7 @@
 
 import type { MountedBoard, RollHandle } from '../../gamePage';
 import type { RandomSource } from '../../random';
+import type { Candidate } from '../../theme';
 import { lerpPose, type DiePose } from './geometry';
 import type { DieThrow, FlingVelocity, simulateThrow } from './simulate';
 import { unproject } from './projection';
@@ -79,7 +80,9 @@ export interface PointerSample {
   readonly rect: CanvasRect;
 }
 
-export interface DieMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
+export interface DieMachine extends Pick<MountedBoard, 'erase'> {
+  /** 把名字写在朝上的那一面，交回是哪一面；渲染层照它换成铺色。 */
+  reveal(winner: Candidate): number;
   /**
    * 按键。Enter / 空格以随机方向和力度抛一次；在滚、盘面锁着时不算。返回这个键归不归骰子，
    * 归的话渲染层拦下浏览器的默认动作（空格翻页）。
@@ -369,6 +372,7 @@ export function createDieMachine(
 
     reveal(winner) {
       revealed = { face: landedFace, name: winner.name };
+      return landedFace;
     },
 
     erase() {

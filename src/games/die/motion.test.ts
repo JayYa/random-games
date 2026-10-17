@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { fakeStorage, mountOnHost, type HostedBoard } from '../../testHelpers';
+import { fakeStorage, mountOnHost, recordingReveals, type HostedBoard } from '../../testHelpers';
 import { storedPromptMemory, type MotionPromptMemory } from '../motionPromptMemory';
 import { MOTION_THRESHOLD, type MotionSupport } from '../motionSupport';
 import type { DieMachine, PhysicsSource, PointerSample } from './machine';
@@ -44,7 +44,7 @@ function setup({
   promptMemory = storedPromptMemory(fakeStorage()),
   physics,
 }: Setup = {}): Harness {
-  const die = dieBoard({ physics, motionOptions: { motion, promptMemory } });
+  const die = dieBoard({ physics, motionOptions: { motion, promptMemory }, asMounted: recordingReveals });
   const hosted = mountOnHost(die.board, { winners: NAMES });
   const machine = die.machine();
   machine.tick(0);
@@ -258,7 +258,7 @@ describe('摇手机抛', () => {
   });
 
   it('没给摇手机的能力就当摇不了手机，按键照样能掷', () => {
-    const die = dieBoard();
+    const die = dieBoard({ asMounted: recordingReveals });
     const { roll } = mountOnHost(die.board, { winners: NAMES });
     const machine = die.machine();
 

@@ -463,22 +463,18 @@ function mountDieBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
 
   return {
     reveal: (winner) => {
-      machine.reveal(winner);
-      // 结果卡片照朝上那一面的颜色铺色（style.css 的 .card__inner）。
-      const shown = machine.view().revealed;
-      if (shown) root.style.setProperty('--win', faceColor(shown.face));
+      const face = machine.reveal(winner);
       redraw();
+      return faceColor(face);
     },
     erase: () => {
       machine.erase();
-      root.style.removeProperty('--win');
       redraw();
     },
     // 焦点回到骰子，键盘用户再按 Enter 就是下一次开抽。
     returnFocusTo: canvas,
     teardown: () => {
       if (rafId !== undefined) cancelAnimationFrame(rafId);
-      root.style.removeProperty('--win');
       controller.abort();
       resizeObserver?.disconnect();
     },

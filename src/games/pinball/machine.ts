@@ -10,8 +10,9 @@
  * 物理模拟从外面递进来：渲染层按需加载它（matter.js 单独成包），用例直接给。
  */
 
-import { REVEAL_PAUSE_MS, type MountedBoard, type RollHandle } from '../../gamePage';
+import type { MountedBoard, RollHandle } from '../../gamePage';
 import type { RandomSource } from '../../random';
+import type { Candidate } from '../../theme';
 import { BOARD, LANE_CENTER_X } from './board';
 import type { PinballShot, simulateShot } from './simulate';
 
@@ -26,12 +27,6 @@ const WINDMILL_RADIANS_PER_MS = BOARD.windmillAngularVelocity / (1000 / 60);
 
 /** 掉帧时单帧时间最多算这么长，风车不会一下转出半圈。 */
 export const MAX_FRAME_MS = 100;
-
-/**
- * 揭晓之后过多久盘面停住：宿主停一拍就弹结果卡片，全屏遮罩盖住盘面，再画也看不清，
- * 白费手机的电。多等一会儿：宿主的计时器可能晚到，早停了风车会在卡片弹出前就定住。
- */
-export const STILL_AFTER_REVEAL_MS = REVEAL_PAUSE_MS + 200;
 
 /** 柱塞头静止时的上沿（球底就坐在上面），与拉满时往下走的距离。机器摆球、渲染层画柱塞共用。 */
 export const PLUNGER_REST_TOP = BOARD.launchY + BOARD.ballRadius;
@@ -87,7 +82,14 @@ export interface PointerSample {
   readonly rect: CanvasRect;
 }
 
-export interface PinballMachine extends Pick<MountedBoard, 'reveal' | 'erase'> {
+export interface PinballMachine extends Pick<MountedBoard, 'erase'> {
+  /**
+   * 结果卡片盖住了盘面：此后每次 `tick` 原样交回盖住那一刻的画面并标记静止，直到抹掉。
+   * 停着的那段不算时间，抹掉后第一次 `tick` 只作基准。
+   */
+  cover(): void;
+  /** 把名字写进球落进的那一格，交回落格下标；渲染层照它换成铺色。 */
+  reveal(winner: Candidate): number;
   /** 按在盘面任何位置都算抓住柱塞。锁着或已有手指在拖时不接，返回接没接住。 */
   press(sample: PointerSample): boolean;
   /** 往下拉改力度，拖出界这一发作废。只认正在拖的那根手指。 */
@@ -187,8 +189,10 @@ export function createPinballMachine(
   let lastTickAt: number | undefined;
   let landedSlot = 0;
   let revealed: PinballReveal | undefined;
-  /** 揭晓之后第一次 `tick` 的时刻。 */
-  let revealedAt: number | undefined;
+  /** 最近一次 `tick` 交回的画面，盖住时就停在它上面。 */
+  let lastView: PinballView | undefined;
+  /** 盖住到抹掉之间为真。 */
+  let covered = false;
   /** 盘面停住的那一帧，抹掉前原样交回。 */
   let stillView: PinballView | undefined;
 
@@ -342,25 +346,28 @@ export function createPinballMachine(
         ballY = PLUNGER_REST_TOP + power * PLUNGER_TRAVEL - BOARD.ballRadius;
       }
 
-      // 宿主在报停当下揭晓，往往就在这一次 tick 里。
-      if (revealed) revealedAt ??= now;
-      const still = revealedAt !== undefined && now - revealedAt >= STILL_AFTER_REVEAL_MS;
-      const view = { ballX, ballY, windmillAngles: angles, power, revealed, still };
-      if (still) {
-        stillView = view;
-        // 停住的这段不算时间：抹掉后第一次 tick 只作基准，风车不会一下转出一截。
-        lastTickAt = undefined;
-      }
+      const view = { ballX, ballY, windmillAngles: angles, power, revealed, still: covered };
+      // 盖住之前一帧都还没走过：停在这一帧上。
+      if (covered) stillView = view;
+      lastView = view;
       return view;
+    },
+
+    cover() {
+      covered = true;
+      if (lastView) stillView = { ...lastView, still: true };
+      // 停住的这段不算时间：抹掉后第一次 tick 只作基准，风车不会一下转出一截。
+      lastTickAt = undefined;
     },
 
     reveal(winner) {
       revealed = { slotIndex: landedSlot, name: winner.name };
+      return landedSlot;
     },
 
     erase() {
       revealed = undefined;
-      revealedAt = undefined;
+      covered = false;
       stillView = undefined;
     },
 
