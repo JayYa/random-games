@@ -4,6 +4,8 @@
   "categories": {
     "correctness": "off"
   },
+  // impeccable 的脚本是原样拷进来的第三方产物，不归这里管。
+  "ignorePatterns": [".claude/skills/impeccable/**"],
   "rules": {
     // 闭包读下面才声明的 const：tsc 放行，真被提前叫到就是 ReferenceError。
     // 函数声明会提升，照常先用后写。
