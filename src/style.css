@@ -657,6 +657,8 @@ body {
   padding: 8px 10px 8px 16px;
   border-radius: 999px;
   background: var(--sticker);
+  /* 提示条是贴纸，字用贴纸墨，不跟着纸面墨水翻成浅色。 */
+  color: var(--on-palette);
   box-shadow: 0 4px 10px var(--shadow);
 }
 
@@ -678,7 +680,7 @@ body {
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: var(--ink);
+  color: var(--on-palette);
   font-family: var(--hand);
   font-size: 1.05rem;
   cursor: pointer;
@@ -688,7 +690,11 @@ body {
 
 .motion-offer__button--yes {
   background: var(--accent);
-  color: var(--on-palette);
+}
+
+/* 焦点框压在白贴纸上，同结果卡片的按钮改用深墨。 */
+.motion-offer__button:focus-visible {
+  outline-color: var(--on-palette);
 }
 
 .motion-offer-entry {

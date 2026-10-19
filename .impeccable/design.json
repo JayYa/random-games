@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-02T12:15:13.958Z",
+  "generatedAt": "2026-10-19T04:41:47.387Z",
   "title": "Design System: 是但",
   "extensions": {
     "seedKey": "202c587b",
@@ -430,6 +430,23 @@
           "oklch(95.0% 0.055 272.2)"
         ]
       },
+      "board-ball-shine": {
+        "role": "neutral",
+        "displayName": "弹球高光 Ball Shine",
+        "canonical": "rgba(255, 255, 255, 0.75)",
+        "oklch": "oklch(100.0% 0.000 0.0 / 0.75)",
+        "source": "--board-ball-shine (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
       "board-fade": {
         "role": "neutral",
         "displayName": "落格褪色 Slot Fade",
@@ -685,6 +702,23 @@
           "oklch(95.0% 0.029 292.5)"
         ]
       },
+      "board-ball-shine-night": {
+        "role": "neutral",
+        "displayName": "弹球高光·夜 Ball Shine Night",
+        "canonical": "rgba(255, 255, 255, 0.95)",
+        "oklch": "oklch(100.0% 0.000 0.0 / 0.95)",
+        "source": "--board-ball-shine (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
       "board-fade-night": {
         "role": "neutral",
         "displayName": "夜间落格褪色 Night Slot Fade",
@@ -718,6 +752,244 @@
           "oklch(83.6% 0.010 285.5)",
           "oklch(95.0% 0.010 285.5)"
         ]
+      },
+      "die-mat": {
+        "role": "neutral",
+        "displayName": "薄荷游戏垫 Mint Play Mat",
+        "canonical": "#e3f6ef",
+        "oklch": "oklch(95.7% 0.022 171.8)",
+        "source": "--die-mat (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.022 171.8)",
+          "oklch(26.4% 0.022 171.8)",
+          "oklch(37.9% 0.022 171.8)",
+          "oklch(49.3% 0.022 171.8)",
+          "oklch(60.7% 0.022 171.8)",
+          "oklch(72.1% 0.022 171.8)",
+          "oklch(83.6% 0.022 171.8)",
+          "oklch(95.0% 0.022 171.8)"
+        ]
+      },
+      "die-stitch": {
+        "role": "neutral",
+        "displayName": "垫子缝线 Mat Stitch",
+        "canonical": "#9edcc9",
+        "oklch": "oklch(84.7% 0.069 173.6)",
+        "source": "--die-stitch (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.069 173.6)",
+          "oklch(26.4% 0.069 173.6)",
+          "oklch(37.9% 0.069 173.6)",
+          "oklch(49.3% 0.069 173.6)",
+          "oklch(60.7% 0.069 173.6)",
+          "oklch(72.1% 0.069 173.6)",
+          "oklch(83.6% 0.069 173.6)",
+          "oklch(95.0% 0.069 173.6)"
+        ]
+      },
+      "die-fade": {
+        "role": "neutral",
+        "displayName": "骰子褪白 Die Fade",
+        "canonical": "rgba(255, 255, 255, 0.68)",
+        "oklch": "oklch(100.0% 0.000 0.0 / 0.68)",
+        "source": "--die-fade (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
+      "die-mat-night": {
+        "role": "neutral",
+        "displayName": "薄荷游戏垫·夜 Mint Play Mat Night",
+        "canonical": "#1f2e2c",
+        "oklch": "oklch(28.7% 0.020 185.9)",
+        "source": "--die-mat (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.020 185.9)",
+          "oklch(26.4% 0.020 185.9)",
+          "oklch(37.9% 0.020 185.9)",
+          "oklch(49.3% 0.020 185.9)",
+          "oklch(60.7% 0.020 185.9)",
+          "oklch(72.1% 0.020 185.9)",
+          "oklch(83.6% 0.020 185.9)",
+          "oklch(95.0% 0.020 185.9)"
+        ]
+      },
+      "die-stitch-night": {
+        "role": "neutral",
+        "displayName": "垫子缝线·夜 Mat Stitch Night",
+        "canonical": "#3d6b60",
+        "oklch": "oklch(49.1% 0.054 176.9)",
+        "source": "--die-stitch (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.054 176.9)",
+          "oklch(26.4% 0.054 176.9)",
+          "oklch(37.9% 0.054 176.9)",
+          "oklch(49.3% 0.054 176.9)",
+          "oklch(60.7% 0.054 176.9)",
+          "oklch(72.1% 0.054 176.9)",
+          "oklch(83.6% 0.054 176.9)",
+          "oklch(95.0% 0.054 176.9)"
+        ]
+      },
+      "die-fade-night": {
+        "role": "neutral",
+        "displayName": "骰子褪白·夜 Die Fade Night",
+        "canonical": "rgba(246, 243, 236, 0.62)",
+        "oklch": "oklch(96.5% 0.010 87.5 / 0.62)",
+        "source": "--die-fade (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 87.5)",
+          "oklch(26.4% 0.010 87.5)",
+          "oklch(37.9% 0.010 87.5)",
+          "oklch(49.3% 0.010 87.5)",
+          "oklch(60.7% 0.010 87.5)",
+          "oklch(72.1% 0.010 87.5)",
+          "oklch(83.6% 0.010 87.5)",
+          "oklch(95.0% 0.010 87.5)"
+        ]
+      },
+      "sticks-mat": {
+        "role": "neutral",
+        "displayName": "天空游戏垫 Sky Play Mat",
+        "canonical": "#e6eeff",
+        "oklch": "oklch(94.8% 0.024 265.6)",
+        "source": "--sticks-mat (light)",
+        "tonalRamp": [
+          "oklch(15.0% 0.024 265.6)",
+          "oklch(26.4% 0.024 265.6)",
+          "oklch(37.9% 0.024 265.6)",
+          "oklch(49.3% 0.024 265.6)",
+          "oklch(60.7% 0.024 265.6)",
+          "oklch(72.1% 0.024 265.6)",
+          "oklch(83.6% 0.024 265.6)",
+          "oklch(95.0% 0.024 265.6)"
+        ]
+      },
+      "sticks-mat-night": {
+        "role": "neutral",
+        "displayName": "天空游戏垫·夜 Sky Play Mat Night",
+        "canonical": "#23232b",
+        "oklch": "oklch(26.0% 0.015 285.3)",
+        "source": "--sticks-mat (dark)",
+        "tonalRamp": [
+          "oklch(15.0% 0.015 285.3)",
+          "oklch(26.4% 0.015 285.3)",
+          "oklch(37.9% 0.015 285.3)",
+          "oklch(49.3% 0.015 285.3)",
+          "oklch(60.7% 0.015 285.3)",
+          "oklch(72.1% 0.015 285.3)",
+          "oklch(83.6% 0.015 285.3)",
+          "oklch(95.0% 0.015 285.3)"
+        ]
+      },
+      "sticks-tube": {
+        "role": "tertiary",
+        "displayName": "番茄签筒 Tomato Tube",
+        "canonical": "#ff7a5c",
+        "oklch": "oklch(72.9% 0.169 34.1)",
+        "source": "--sticks-tube",
+        "tonalRamp": [
+          "oklch(15.0% 0.169 34.1)",
+          "oklch(26.4% 0.169 34.1)",
+          "oklch(37.9% 0.169 34.1)",
+          "oklch(49.3% 0.169 34.1)",
+          "oklch(60.7% 0.169 34.1)",
+          "oklch(72.1% 0.169 34.1)",
+          "oklch(83.6% 0.169 34.1)",
+          "oklch(95.0% 0.169 34.1)"
+        ]
+      },
+      "sticks-tube-inside": {
+        "role": "tertiary",
+        "displayName": "砖红筒口 Brick Tube Mouth",
+        "canonical": "#b4321f",
+        "oklch": "oklch(51.4% 0.170 31.4)",
+        "source": "--sticks-tube-inside",
+        "tonalRamp": [
+          "oklch(15.0% 0.170 31.4)",
+          "oklch(26.4% 0.170 31.4)",
+          "oklch(37.9% 0.170 31.4)",
+          "oklch(49.3% 0.170 31.4)",
+          "oklch(60.7% 0.170 31.4)",
+          "oklch(72.1% 0.170 31.4)",
+          "oklch(83.6% 0.170 31.4)",
+          "oklch(95.0% 0.170 31.4)"
+        ]
+      },
+      "sticks-tube-band": {
+        "role": "tertiary",
+        "displayName": "向日葵箍 Sunflower Band",
+        "canonical": "#ffcf3d",
+        "oklch": "oklch(87.3% 0.161 89.5)",
+        "source": "--sticks-tube-band",
+        "tonalRamp": [
+          "oklch(15.0% 0.161 89.5)",
+          "oklch(26.4% 0.161 89.5)",
+          "oklch(37.9% 0.161 89.5)",
+          "oklch(49.3% 0.161 89.5)",
+          "oklch(60.7% 0.161 89.5)",
+          "oklch(72.1% 0.161 89.5)",
+          "oklch(83.6% 0.161 89.5)",
+          "oklch(95.0% 0.161 89.5)"
+        ]
+      },
+      "sticks-tube-shine": {
+        "role": "tertiary",
+        "displayName": "签筒反光 Tube Shine",
+        "canonical": "rgba(255, 255, 255, 0.42)",
+        "oklch": "oklch(100.0% 0.000 0.0 / 0.42)",
+        "source": "--sticks-tube-shine",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 0.0)",
+          "oklch(26.4% 0.000 0.0)",
+          "oklch(37.9% 0.000 0.0)",
+          "oklch(49.3% 0.000 0.0)",
+          "oklch(60.7% 0.000 0.0)",
+          "oklch(72.1% 0.000 0.0)",
+          "oklch(83.6% 0.000 0.0)",
+          "oklch(95.0% 0.000 0.0)"
+        ]
+      },
+      "sticks-stick": {
+        "role": "tertiary",
+        "displayName": "原木签身 Wood Stick",
+        "canonical": "#f6e3b4",
+        "oklch": "oklch(92.0% 0.064 88.6)",
+        "source": "--sticks-stick",
+        "tonalRamp": [
+          "oklch(15.0% 0.064 88.6)",
+          "oklch(26.4% 0.064 88.6)",
+          "oklch(37.9% 0.064 88.6)",
+          "oklch(49.3% 0.064 88.6)",
+          "oklch(60.7% 0.064 88.6)",
+          "oklch(72.1% 0.064 88.6)",
+          "oklch(83.6% 0.064 88.6)",
+          "oklch(95.0% 0.064 88.6)"
+        ]
+      },
+      "sticks-stick-edge": {
+        "role": "tertiary",
+        "displayName": "签身描边 Stick Edge",
+        "canonical": "#d6b878",
+        "oklch": "oklch(79.4% 0.089 85.3)",
+        "source": "--sticks-stick-edge",
+        "tonalRamp": [
+          "oklch(15.0% 0.089 85.3)",
+          "oklch(26.4% 0.089 85.3)",
+          "oklch(37.9% 0.089 85.3)",
+          "oklch(49.3% 0.089 85.3)",
+          "oklch(60.7% 0.089 85.3)",
+          "oklch(72.1% 0.089 85.3)",
+          "oklch(83.6% 0.089 85.3)",
+          "oklch(95.0% 0.089 85.3)"
+        ]
       }
     },
     "typographyMeta": {
@@ -741,13 +1013,25 @@
         "displayName": "Label LG 主题贴纸",
         "purpose": "选主题页三枚主题贴纸上的字。"
       },
+      "label-note": {
+        "displayName": "Label Note 便利贴标题",
+        "purpose": "名单出错时便利贴上的砖红手写标题。"
+      },
       "label": {
         "displayName": "Label 手写按钮",
-        "purpose": "「再来一次 / 再打一发」、加载态、引导语。"
+        "purpose": "「再来一次 / 再打一发 / 再抽一根 / 再掷一次」、加载态、引导语。"
+      },
+      "label-prompt": {
+        "displayName": "Label Prompt 摇手机提示",
+        "purpose": "摇手机提示条上的「摇手机也能抽」。"
+      },
+      "label-prompt-sm": {
+        "displayName": "Label Prompt SM 提示按钮",
+        "purpose": "提示条上的「开启 / 不用了」与常驻的「开启摇手机」入口。"
       },
       "label-sm": {
         "displayName": "Label SM 胶带条",
-        "purpose": "「← 换个主题」胶带条。"
+        "purpose": "「← 换个主题」胶带条，矮屏 0.85rem。"
       },
       "body": {
         "displayName": "Body 便利贴正文",
@@ -763,6 +1047,11 @@
         "name": "rest",
         "value": "0 6px 14px var(--shadow)",
         "purpose": "贴纸贴住时的影子（「转」；主题贴纸 0 7px 14px，字母贴纸 0 8px 16px，盘面贴纸 0 8px 18px，便利贴 0 10px 20px）。"
+      },
+      {
+        "name": "small-sticker",
+        "value": "0 4px 10px var(--shadow)",
+        "purpose": "压在别的东西上的白色小贴纸：「再来一次」按钮（按下收到 0 1px 2px）、摇手机提示条。"
       },
       {
         "name": "hover-lift",
@@ -829,7 +1118,7 @@
       {
         "name": "wobble",
         "value": "1.4s ease-in-out infinite，±2deg 摆动、上浮 4px",
-        "purpose": "加载态的手写字。"
+        "purpose": "加载态「正在加载名单…」的手写字；唯一不属于「啪」和按压的动效，不回弹。"
       }
     ],
     "breakpoints": [
@@ -906,11 +1195,19 @@
       "description": "名单开不了抽时「啪」地贴上来一张黄色便利贴；深色主题也还是黄的。",
       "html": "<div class=\"ds-note\" role=\"alert\"><span class=\"ds-tape\" style=\"--tape:#b294ff\"></span><p class=\"ds-note__title\">名单读不懂</p><p class=\"ds-note__detail\">第 3 行少了一列。</p><p class=\"ds-note__hint\">改好 CSV 推到 master 就行。</p></div>",
       "css": ".ds-tape { position: absolute; pointer-events: none; height: 24px; background-color: var(--tape, #6f9bff); background-image: radial-gradient(rgba(255,255,255,0.55) 1.4px, transparent 1.8px); background-size: 8px 8px; opacity: 0.82; -webkit-mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; } .ds-note { --rest: rotate(-1.5deg); position: relative; width: 100%; max-width: 32rem; padding: 26px 20px 20px; background: var(--note, #fff1a6); color: var(--note-ink, #3b3320); text-align: left; transform: var(--rest); box-shadow: 0 10px 20px var(--shadow, rgba(30,42,90,0.2)); } .ds-note .ds-tape { top: -12px; left: calc(50% - 48px); width: 96px; transform: rotate(-3deg); } .ds-note__title { margin: 0 0 0.6rem; font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 1.35rem; color: var(--note-title, #b4321f); } .ds-note__detail { margin: 0 0 0.6rem; font-size: 0.95rem; line-height: 1.55; } .ds-note__hint { margin: 0; font-size: 0.85rem; line-height: 1.5; opacity: 0.8; }"
+    },
+    {
+      "name": "摇手机提示条",
+      "kind": "custom",
+      "refersTo": "motion-offer",
+      "description": "求签筒、骰子下方，只在要先授权的 iOS 上出现：白色胶囊小贴纸，番茄色「开启」与透明底「不用了」。",
+      "html": "<div class=\"ds-motion-offer\"><p class=\"ds-motion-offer__text\">摇手机也能抽</p><button class=\"ds-motion-offer__btn ds-motion-offer__btn--yes\" type=\"button\">开启</button><button class=\"ds-motion-offer__btn\" type=\"button\">不用了</button></div>",
+      "css": ".ds-motion-offer { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; padding: 8px 10px 8px 16px; border-radius: 999px; background: var(--sticker, #fff); color: var(--on-palette, #22253a); box-shadow: 0 4px 10px var(--shadow, rgba(30,42,90,0.2)); } .ds-motion-offer__text { margin: 0; font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-size: 1.15rem; } .ds-motion-offer__btn { min-height: 40px; padding: 0 16px; border: none; border-radius: 999px; background: transparent; color: var(--on-palette, #22253a); font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-size: 1.05rem; cursor: pointer; } .ds-motion-offer__btn--yes { background: var(--accent, #ff7a5c); } .ds-motion-offer__btn:active { transform: translateY(1px) scale(0.97); } .ds-motion-offer__btn:focus-visible { outline: 3px solid var(--on-palette, #22253a); outline-offset: 4px; }"
     }
   ],
   "narrative": {
     "northStar": "手帐贴纸本",
-    "overview": "整站是她的一本手帐。浅色是一本蓝格子本：淡蓝纸面、22px 的浅蓝方格。深色是一本黑卡纸本：近黑的纸、白色点阵、白色中性笔写的字。纸上的东西都是实物：模切贴纸带一圈白边和柔和的偏移影子，半透明的和纸胶带两头是锯齿撕口，名单出错时贴上来一张黄色便利贴。主题是三枚歪着贴的贴纸，盘面是用胶带贴进本子里的一张贴纸，中选是一枚铺满中选颜色、从上方「啪」地拍下来的大贴纸。\n\n这个世界拒绝这一类小工具的默认长相：粉彩圆角卡片、渐变按钮、白色弹窗加彩带。它的密度很低，一屏只有几样东西，每样都是大块的、歪一点的、能用拇指按的实物。随机性是装饰的一部分：贴纸的歪度、错位、颜色和胶带每次打开都重新发一遍（直接调 `Math.random`，只管装饰，不经过抽签的代码路径），所以每次翻开本子都略有不同。\n\n动效只有两种语法：东西落到纸上用一个「啪」（从上方 1.25 倍大、带一大圈悬空影子落下，压过头一点再回弹），按下去用 60ms 按进、240ms 弹回。锁住的控件被一条胶带横着封上，从不变淡。",
+    "overview": "整站是她的一本手帐。浅色是一本蓝格子本：淡蓝纸面、22px 的浅蓝方格。深色是一本黑卡纸本：近黑的纸、白色点阵、白色中性笔写的字。纸上的东西都是实物：模切贴纸带一圈白边和柔和的偏移影子，半透明的和纸胶带两头是锯齿撕口，名单出错时贴上来一张黄色便利贴。主题是三枚歪着贴的贴纸，盘面是用胶带贴进本子里的一张贴纸，中选是一枚铺满中选颜色、从上方「啪」地拍下来的大贴纸。\n\n这个世界拒绝这一类小工具的默认长相：粉彩圆角卡片、渐变按钮、白色弹窗加彩带。它的密度很低，一屏只有几样东西，每样都是大块的、歪一点的、能用拇指按的实物。随机性是装饰的一部分：贴纸的歪度、错位、颜色和胶带每次打开都重新发一遍（直接调 `Math.random`，只管装饰，不经过抽签的代码路径），所以每次翻开本子都略有不同。\n\n动效只有两种语法：东西落到纸上用一个「啪」（从上方 1.25 倍大、带一大圈悬空影子落下，压过头一点再回弹），按下去用 60ms 按进、240ms 弹回。唯一不属于这两种的是加载态：「正在加载名单…」那行手写字原地左右晃（±2°、上浮 4px，1.4s 一个来回，不回弹）。锁住的控件被一条胶带横着封上，从不变淡。",
     "keyCharacteristics": [
       "纸会变，贴纸不变：明暗主题只换纸和墨水，贴纸、胶带、便利贴两套都是同一种颜色。",
       "六色和纸调色板（番茄、向日葵、薄荷、天空、粉、丁香），扇区、落格、贴纸、胶带、撒花、结果卡片共用一套。",
@@ -963,7 +1260,8 @@
       "**Don't** 在贴纸表面打渐变；渐变只用来画纸的材料（格线、点阵、胶带白点、荧光笔那一道）。",
       "**Don't** 在贴纸上用浅色字，或按底色切换字色。",
       "**Don't** 给手写体加粗，或用手写体排正文段落。",
-      "**Don't** 在 `PALETTE` 之外另起贴纸色、扇区色或撒花色。",
+      "**Don't** 在 `PALETTE` 之外另起贴纸色、扇区色或撒花色；盘面里的钉、风车、签头、骰子面也一样。",
+      "**Don't** 给调色板色叠纯黑来做明暗，会出暗红、墨绿这种脏色；要压暗只叠很淡的贴纸墨。",
       "**Don't** 用硬边偏移影子或纯黑影子做浅色主题的深度；浅色影子是带蓝的墨色。",
       "**Don't** 把装饰随机接进抽签的代码路径，或让任何装饰影响中选。"
     ]
