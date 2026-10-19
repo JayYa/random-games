@@ -27,6 +27,7 @@ colors:
   board-wall: "#d9e2f3"
   board-wall-edge: "#b4c3e0"
   board-metal: "#6c7699"
+  board-ball-shine: "rgba(255, 255, 255, 0.75)"
   board-fade: "rgba(255, 255, 255, 0.68)"
   wheel-fade: "rgba(238, 243, 251, 0.66)"
   night-paper: "#17171c"
@@ -42,6 +43,7 @@ colors:
   board-wall-night: "#31313d"
   board-wall-edge-night: "#4a4a5c"
   board-metal-night: "#a3a0b4"
+  board-ball-shine-night: "rgba(255, 255, 255, 0.95)"
   board-fade-night: "rgba(35, 35, 43, 0.8)"
   wheel-fade-night: "rgba(23, 23, 28, 0.8)"
   die-mat: "#e3f6ef"
@@ -83,9 +85,21 @@ typography:
     fontFamily: "'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 400
+  label-note:
+    fontFamily: "'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
+    fontSize: "1.35rem"
+    fontWeight: 400
   label:
     fontFamily: "'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
     fontSize: "1.25rem"
+    fontWeight: 400
+  label-prompt:
+    fontFamily: "'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
+    fontSize: "1.15rem"
+    fontWeight: 400
+  label-prompt-sm:
+    fontFamily: "'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
+    fontSize: "1.05rem"
     fontWeight: 400
   label-sm:
     fontFamily: "'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
@@ -111,7 +125,7 @@ rounded:
   sticker-lg: "28px"
   pill: "999px"
 spacing:
-  header-gap: "8px"
+  title-gap: "6px"
   page-gutter: "16px"
   page-stack: "18px"
   sticker-stack: "22px"
@@ -168,6 +182,24 @@ components:
     typography: "{typography.body}"
     padding: "26px 20px 20px"
     width: "min(100%, 32rem)"
+  motion-offer:
+    backgroundColor: "{colors.sticker-white}"
+    textColor: "{colors.on-palette}"
+    typography: "{typography.label-prompt}"
+    rounded: "{rounded.pill}"
+    padding: "8px 10px 8px 16px"
+  motion-offer-yes:
+    backgroundColor: "{colors.tomato}"
+    textColor: "{colors.on-palette}"
+    typography: "{typography.label-prompt-sm}"
+    rounded: "{rounded.pill}"
+    padding: "0 16px"
+    height: "40px"
+  motion-offer-entry:
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.label-prompt-sm}"
+    padding: "0 16px"
+    height: "40px"
 ---
 
 # Design System: 是但
@@ -180,7 +212,7 @@ components:
 
 这个世界拒绝这一类小工具的默认长相：粉彩圆角卡片、渐变按钮、白色弹窗加彩带。它的密度很低，一屏只有几样东西，每样都是大块的、歪一点的、能用拇指按的实物。随机性是装饰的一部分：贴纸的歪度、错位、颜色和胶带每次打开都重新发一遍（直接调 `Math.random`，只管装饰，不经过抽签的代码路径），所以每次翻开本子都略有不同。
 
-动效只有两种语法：东西落到纸上用一个「啪」（从上方 1.25 倍大、带一大圈悬空影子落下，压过头一点再回弹），按下去用 60ms 按进、240ms 弹回。锁住的控件被一条胶带横着封上，从不变淡。
+动效只有两种语法：东西落到纸上用一个「啪」（从上方 1.25 倍大、带一大圈悬空影子落下，压过头一点再回弹），按下去用 60ms 按进、240ms 弹回。唯一不属于这两种的是加载态：「正在加载名单…」那行手写字原地左右晃（±2°、上浮 4px，1.4s 一个来回，不回弹）。锁住的控件被一条胶带横着封上，从不变淡。
 
 **Key Characteristics:**
 - 纸会变，贴纸不变：明暗主题只换纸和墨水，贴纸、胶带、便利贴两套都是同一种颜色。
@@ -212,10 +244,10 @@ components:
 - **贴纸白** (sticker-white / sticker-white-night)：贴纸的模切白边、转盘的白缝与轴心垫圈、揭晓白标签、「再来一次」按钮。
 - **影子** (shadow、shadow-lift，深色各有 -night)：浅色是带蓝的墨色影子，不是纯黑；深色才用黑。
 - **褪色层** (scrim、wheel-fade、board-fade，各有 -night)：揭晓和结果卡片挂着时，把其余一切往纸色褪。
-- **盘面** (board-field、board-wall、board-wall-edge、board-metal，各有 -night)：弹球机的台面、墙、描边、柱塞金属。球用 ink / gel-ink；钉子、风车叶片、柱塞头是贴纸色（见 Components）。
+- **盘面** (board-field、board-wall、board-wall-edge、board-metal，各有 -night)：弹球机的台面、墙、描边、柱塞金属。球用 ink / gel-ink，左上一粒 board-ball-shine 高光（深色更亮）；钉子、风车叶片、柱塞头是贴纸色（见 Components）。
 - **游戏垫** (die-mat、die-stitch、sticks-mat，各有 -night)：骰子和求签筒的台面。它们的主角带模切白边，铺在白台面上看不出白边，所以各铺一张淡色垫子：骰子是薄荷垫加一圈虚线缝线，求签筒是淡天空色。
 - **签筒与签** (sticks-tube、sticks-tube-inside、sticks-tube-band、sticks-tube-shine、sticks-stick、sticks-stick-edge)：番茄色筒、砖红筒口、向日葵黄箍、平涂半透明白反光、原木色签身。实物，两套主题不换。
-- **焦点** (focus / focus-night)：3px 实线焦点框，外扩 4px；结果卡片上的按钮改用 on-palette。
+- **焦点** (focus / focus-night)：3px 实线焦点框，外扩 4px；结果卡片和摇手机提示条上的按钮压在贴纸上，改用 on-palette。
 
 ### Named Rules
 **The Physical Sticker Rule.** 贴纸、胶带、便利贴是实物，明暗主题都不换色；换主题只换纸（graph-paper ↔ night-paper）和墨水（ink ↔ gel-ink）。唯一的例外是贴纸白：深色下用 sticker-white-night 而不是纯白，夜里在微信里打开不刺眼。
@@ -237,11 +269,14 @@ components:
 - **Title**（400，1.85rem，行高 1.25）：玩法页的手写主题标题，下面划荧光笔。矮屏缩到 1.3rem。
 - **Label XL**（400，2.2rem，字距 0.2em）：「转」这一个字。矮屏 1.7rem。
 - **Label LG**（400，1.75rem）：选主题页的主题贴纸。
-- **Label**（400，1.25rem）：结果卡片的「再来一次 / 再打一发」、加载态。选主题页引导语用 1.3rem。
-- **Label SM**（400，0.95rem，行高 1.2）：「← 换个主题」胶带条。
+- **Label Note**（400，1.35rem）：便利贴的砖红标题。
+- **Label**（400，1.25rem）：结果卡片的「再来一次 / 再打一发 / 再抽一根 / 再掷一次」、加载态。选主题页引导语用 1.3rem。
+- **Label Prompt**（400，1.15rem）：摇手机提示条上的「摇手机也能抽」。
+- **Label Prompt SM**（400，1.05rem）：提示条上的「开启 / 不用了」，以及常驻的「开启摇手机」入口。
+- **Label SM**（400，0.95rem，行高 1.2）：「← 换个主题」胶带条。矮屏 0.85rem。
 - **Body**（400，0.95rem，行高 1.55）：便利贴上的错误说明，最长 32rem 一行。
 - **Body SM**（400，0.85rem，行高 1.5）：便利贴上的修改提示。
-- 画布里的揭晓标签也用手写体：转盘标签字号为盘面边长的 6%（最小 15px）；弹球标签 20px 起往下试到 13px，再放不下才折行。
+- 画布里的揭晓标签也用手写体：转盘标签字号为盘面边长的 6%（最小 15px）；弹球标签 20px 起往下试到 13px，再放不下才折行；骰子把名字写在朝上那一面上，26px 起往下试到 11px，最多 3 行；求签筒把名字竖写在立住的签身上，28px 起往下试到 14px，再放不下排成两列。
 
 ### Named Rules
 **The One Hand Rule.** 手写体只有一个字重（400），永远不加粗、不合成粗体；层级靠字号和贴纸大小拉开。正文永远是系统字体，不用手写体排段落。
@@ -250,9 +285,9 @@ components:
 
 单栏，居中，手机竖屏优先。玩法页最宽 640px，选主题页最宽 520px，左右留 16px（选主题页 24px）并加上安全区内边距。页面元素之间纵向间距 18px（矮屏 12px），选主题页三枚贴纸之间 22px。
 
-页头是三列网格（`1fr auto 1fr`）：胶带条入口靠左，手写标题在正中，左右两列等宽，标题才相对整行居中。
+页头只有一样东西：靠左的「← 换个主题」胶带条。手写标题不在页头里，它紧贴在盘面上方（间距 6px），跟着盘面走。
 
-盘面是首屏的主角：转盘边长取容器宽度与「视口高度减去其余部件」两者中较小者（保持正方形，最小 200px）；弹球机按 360:540 的比例取宽度，最宽 630px。在高屏上盘面连同操作在页头以下的空间里上下居中。矮屏（`max-height: 560px`，多半是横过来的手机）压掉标题和留白，把高度让给盘面。
+盘面是首屏的主角：转盘边长取容器宽度与「视口高度减去其余部件」两者中较小者（保持正方形，最小 200px）；弹球机按 360:540 的比例取宽度，最宽 630px；骰子按 11:14、求签筒按 360:480，最宽都是 540px。画框盘面左右各让出 21px 给白边和胶带。在高屏上标题、盘面连同操作在页头以下的空间里上下居中。骰子和求签筒下方出现摇手机提示条或入口时，给它让出 58px 高（矮屏 50px）。矮屏（`max-height: 560px`，多半是横过来的手机）压掉标题和留白，把高度让给盘面。
 
 选主题页整块落在视觉中线略偏上（顶部留 40px、底部留 96px）。「是但」两枚字母贴纸靠左偏一点，互相压住 10px；三枚主题贴纸左右交替错开 4 到 14px、交替歪 1.5° 到 4°；字母贴纸歪 5° 到 10°。歪着贴的东西不许撑出横向滚动（`body` 横向溢出隐藏）。
 
@@ -264,6 +299,7 @@ components:
 
 ### Shadow Vocabulary
 - **贴住** (`box-shadow: 0 6px 14px var(--shadow)` 到 `0 8px 18px var(--shadow)`)：贴纸静止时的影子；「转」6px/14px，主题贴纸 7px/14px，字母贴纸 8px/16px，弹球盘面贴纸 8px/18px，便利贴 10px/20px。
+- **小贴纸** (`box-shadow: 0 4px 10px var(--shadow)`)：压在别的东西上的白色小贴纸：「再来一次」按钮（按下收到 `0 1px 2px`）、摇手机提示条。
 - **拿起** (`box-shadow: 0 10px 20px var(--shadow-lift)` / `0 12px 22px var(--shadow-lift)`)：有悬停的设备上，贴纸被指尖抬起一点。
 - **按进纸里** (`box-shadow: 0 1px 2px var(--shadow)`)：按下的那一瞬间。
 - **封住** (`box-shadow: 0 2px 4px var(--shadow)`)：被胶带封住的「转」，贴得更平。
@@ -280,14 +316,17 @@ components:
 
 和纸胶带是这个世界的第二种形：24px 高的半透明色条（不透明度 0.82），8px 间距的白点花纹，两头用遮罩剪出 6px 的锯齿撕口。胶带总是歪着贴（3° 到 38°），颜色和角度由用它的地方给。
 
-「再来一次」是唯一的胶囊形（999px）：它是一枚白色小贴纸，压在彩色大贴纸上。便利贴是直角的。
+胶囊形（999px）只给小东西：「再来一次」是一枚压在彩色大贴纸上的白色小贴纸；摇手机提示条是一枚白色胶囊贴纸，里面的「开启」是一颗番茄色胶囊。大贴纸从不用胶囊形。便利贴是直角的。
 
 ## Components
 
 ### Buttons
 - **「转」大贴纸：** 番茄底、深墨字、5px 白边、22px 圆角，最宽 300px、至少 76px 高，静止时歪 -1.5°。悬停时摆正并抬起 3px；按下时沿原来的歪度往纸里按 3px、缩到 0.97，60ms 到位，松手 240ms 弹回（`--press-ease`）。
 - **锁住（`aria-disabled="true"`）：** 一条天空色胶带以 -9° 横着拍上来（不透明度 0 → 0.88，260ms `--slap-ease`），影子收平；按下没有任何反馈。按钮留在 Tab 序里。不变淡、不变灰。
-- **「再来一次 / 再打一发」：** 白色胶囊小贴纸，52px 高，左右 28px，手写体 1.25rem；按下下沉 2px、缩到 0.96。焦点框改用深墨，压在彩色卡片上看得见。
+- **「再来一次 / 再打一发 / 再抽一根 / 再掷一次」：** 每个玩法自己的说法，同一个按钮。白色胶囊小贴纸，52px 高，左右 28px，手写体 1.25rem；按下下沉 2px、缩到 0.96。焦点框改用深墨，压在彩色卡片上看得见。
+
+### Signature: 摇手机提示（求签筒、骰子）
+只在要先授权的设备（iOS）上出现，挂在盘面下方 14px。第一次是一枚白色胶囊提示条（小贴纸影子）：手写「摇手机也能抽」，后面跟一颗番茄色胶囊「开启」和一颗透明底的「不用了」，按钮都是 40px 高。答过之后提示条收起，换成一行常驻的「开启摇手机」：灰墨手写字加下划线（下移 4px），直接写在纸上，不是贴纸。按下都只下沉 1px、缩到 0.97。提示条上的字遵守 The Dark Ink Rule，用 on-palette。
 
 ### Cards / Containers
 - **结果贴纸：** 整页先铺一层纸色褪色层（120ms 淡入），70ms 后中选贴纸「啪」地落下（520ms）。底色是盘面揭晓时交回、结果卡片弹出时写进 `--win` 的中选格颜色，8px 白边、28px 圆角、歪 -2.5°，最宽 360px，内边距 44px 22px 28px。顶上一截胶带，颜色每次从调色板里另取一种、不和卡片撞色。名字铺满贴纸的宽。
@@ -300,13 +339,13 @@ components:
 - **骰子：** 十二个面取调色板色，背光面只叠一层很淡的贴纸墨（最多 0.16），向光面叠一层贴纸白，每一面都认得出是哪一色。面与面之间是贴纸白缝，整颗骰子沿轮廓一圈白色模切边，抛高时白边跟着变粗。揭晓时其余面往贴纸白褪成浅彩（die-fade），深色主题也一样：骰子是贴纸，不往夜色台面褪成脏色。
 
 ### Navigation
-- **「← 换个主题」胶带条：** 一截撕下来的胶带（颜色每次从调色板随机取），上面写手写字，歪 -4°，只占那几个字的宽；可点区域由伪元素撑到 48px 高。悬停时摆正一点、往左挪 2px；按下时朝箭头那边让 6px。
+- **「← 换个主题」胶带条：** 一截撕下来的胶带（颜色每次从调色板随机取），上面写手写字，歪 -4°，只占那几个字的宽；可点区域由伪元素撑到 48px 高。矮屏缩成 0.85rem、内边距 2px 10px。悬停时摆正一点、往左挪 2px；按下时朝箭头那边让 6px。
 
 ### Signature: 主题贴纸（选主题页）
 整块可点的大贴纸，至少 84px 高，6px 白边、24px 圆角、手写体 1.75rem。颜色、歪度、错位、胶带颜色与歪度都是每次打开重发的行内变量；胶带贴在歪向那一侧的对角上。进场是「啪」：字母贴纸每枚间隔 70ms，主题贴纸从 200ms 起每枚间隔 90ms。悬停抬起 4px、歪度减到 0.4 倍；按下按平进纸里。
 
 ### Signature: 揭晓（盘面画布）
-揭晓时其余扇区或落格盖一层往纸色褪的色（wheel-fade / board-fade），只留中选那一格。转盘把名字写在一枚白标签上，贴在停下那一格中线的 0.6 半径处，微歪 -0.05 弧度；弹球机把名字写在落格上方一枚带尖角的白标签气泡里，中选落格描一圈 3px 深墨框。盘面颜色是在画布上画的，从 style.css 的变量读取，主题切换后重读。
+揭晓时其余扇区或落格盖一层往纸色褪的色（wheel-fade / board-fade），只留中选那一格。转盘把名字写在一枚白标签上，贴在停下那一格中线的 0.6 半径处，微歪 -0.05 弧度；弹球机把名字写在落格上方一枚带尖角的白标签气泡里，中选落格描一圈 3px 深墨框。骰子其余面往贴纸白褪（die-fade），名字写在朝上那一面上；求签筒只有掉出来立住的那一根签，名字竖写在签头下面。盘面颜色是在画布上画的，从 style.css 的变量读取，主题切换后重读。
 
 ### Signature: 撒花
 结果卡片弹出时撒一把 64 枚带白边的小贴纸，从屏幕中段往上撒，按真实重力落到屏幕底部，弹一下就贴住不动，一直留到收下时一起撕掉（180ms 淡出）。白边取当前主题的贴纸白。不挡点击。

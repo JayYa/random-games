@@ -9,6 +9,9 @@ playwright-report/
 # 手写字体的子集，构建时由 src/build/handFont.ts 现裁。
 fonts/build/
 
+# impeccable 的平台二进制，启动脚本缺它时从用户缓存 ~/.impeccable/bin/<版本>/ 取，没有再下载。
+.claude/skills/impeccable/scripts/bin/
+
 # impeccable-ignore-start
 # Ephemeral output, runtime state, and per-dev overrides.
 # The **/ prefix covers .impeccable at the repo root or in a nested workspace.
@@ -32,5 +35,3 @@ fonts/build/
 **/.impeccable/live/deferred-svelte-component-accepts.json
 **/.impeccable/live/*.png
 # impeccable-ignore-end
-# impeccable 的平台二进制，启动脚本缺它时从用户缓存 ~/.impeccable/bin/<版本>/ 取，没有再下载。
-.claude/skills/impeccable/scripts/bin/
