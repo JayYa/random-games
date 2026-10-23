@@ -1,25 +1,27 @@
 /**
- * 渲染层：转盘的盘面——「转」按钮、rAF 循环、尺寸观察与绘制。薄，不测。
+ * 渲染层：转盘的盘面——轴心的「转」按钮、rAF 循环、尺寸观察与绘制。薄，不测。
  *
- * 状态全在转盘机器（`./machine.ts`）。静止时不跑 rAF，只在转动、揭晓、抹掉和尺寸变化时画
- * （ADR-0013）。
+ * 状态全在转盘机器（`./machine.ts`）。静止时不跑 rAF，只在转动、拨片回弹、揭晓、抹掉和
+ * 尺寸变化时画（ADR-0013）。
  */
 
 import { createById } from '../../byId';
 import type { Board, MountedBoard, RollHandle } from '../../gamePage';
+import { PALETTE } from '../../palette';
 import { fitCanvas } from '../fitCanvas';
 import { createWheelMachine, type WheelView } from './machine';
-import { drawWheel, readWheelColors, sectorColor } from './wheelCanvas';
+import { drawWheel, FLAP_RETURN_MS, flapAngle, readWheelColors, type WheelLivery } from './wheelCanvas';
 
 /** 收下只收卡片，转不转由使用者再按「转」。 */
 const CLOSE_LABEL = '再来一次';
 
 const BOARD_HTML = `
       <div class="wheel__stage">
-        <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
-        <span class="tape wheel__tape"></span>
+        <div class="wheel__toy" id="wheel-toy">
+          <canvas class="wheel__canvas" id="wheel-canvas"></canvas>
+          <button class="wheel__spin" id="wheel-spin" type="button"><span class="wheel__cap">转</span></button>
+        </div>
       </div>
-      <button class="wheel__spin" id="wheel-spin" type="button"><span class="tape"></span>转</button>
     `;
 
 export function createWheelBoard(): Board {
@@ -31,38 +33,67 @@ export function createWheelBoard(): Board {
   };
 }
 
+/**
+ * 每次进页面给这台转盘重新上色：机身、拨片连同按钮、揭晓那一格各取一色，两两不撞。
+ * 是装饰，与抽签无关，直接用 `Math.random`。
+ */
+function dealLivery(): WheelLivery {
+  const colors = [...PALETTE];
+  for (let i = colors.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [colors[i], colors[j]] = [colors[j]!, colors[i]!];
+  }
+  return { body: colors[0]!, flapper: colors[1]!, win: colors[2]! };
+}
+
 function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   const machine = createWheelMachine(roll);
+  const { sectors } = machine;
 
   const byId = createById(root);
+  const toy = byId<HTMLDivElement>('wheel-toy');
   const canvas = byId<HTMLCanvasElement>('wheel-canvas');
   const spinButton = byId<HTMLButtonElement>('wheel-spin');
+
+  const livery = dealLivery();
+  toy.style.setProperty('--wheel-cap', livery.flapper);
 
   /** 静止时为空。 */
   let rafId: number | undefined;
   let colors = readWheelColors(canvas);
+  /** 拨片底下上一次换格的时刻和那时的格子，用来起回弹。 */
+  let tickAt = -Infinity;
+  let lastSector = sectors.sectorAt(0);
 
-  const draw = (view: WheelView) => {
-    // 边长由 CSS 决定（.wheel__canvas）。
+  const draw = (view: WheelView, now: number) => {
+    // 边长由 CSS 决定（.wheel__toy）。
     const fitted = fitCanvas(canvas, 1);
     if (!fitted) return;
     const { context, width: size } = fitted;
     drawWheel(context, {
-      sectors: machine.sectors,
+      sectors,
       rotation: view.rotation,
       size,
       reveal: view.reveal,
+      flap: flapAngle(view.rotation, sectors.count, now - tickAt),
       colors,
+      livery,
     });
   };
 
   /** 补画一帧，不推进时间。 */
-  const redraw = () => draw(machine.view());
+  const redraw = () => draw(machine.view(), performance.now());
 
   const frame = (now: number) => {
     const view = machine.tick(now);
-    draw(view);
-    rafId = view.spinning ? requestAnimationFrame(frame) : undefined;
+    const sector = sectors.sectorAt(view.rotation);
+    if (sector !== lastSector) {
+      lastSector = sector;
+      tickAt = now;
+    }
+    draw(view, now);
+    const flapping = now - tickAt < FLAP_RETURN_MS;
+    rafId = view.spinning || flapping ? requestAnimationFrame(frame) : undefined;
   };
 
   // 按钮跟着锁走，而不只是「正在转」：揭晓那一拍和卡片挂着时也按不动。用 `aria-disabled`
@@ -94,9 +125,9 @@ function mountWheelBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
 
   return {
     reveal: (winner) => {
-      const sector = machine.reveal(winner);
+      machine.reveal(winner);
       redraw();
-      return sectorColor(sector, machine.sectors.count);
+      return livery.win;
     },
     erase: () => {
       machine.erase();
