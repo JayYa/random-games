@@ -7,12 +7,14 @@ import { fitCanvas, type FittableCanvas } from './fitCanvas';
 interface FakeContext {
   /** 最后一次 `setTransform` 的六个参数。 */
   readonly transform: readonly number[] | undefined;
+  /** 最后一次 `clearRect` 按设备像素算的矩形：清的时候变换必须是单位变换才算数。 */
+  readonly cleared: readonly number[] | undefined;
 }
 
 interface FakeCanvas extends FittableCanvas {
   /** 改它模拟画布变了大小。 */
   clientWidth: number;
-  /** 与真画布一样，写一次宽或高就清空一次。 */
+  /** 与真画布一样，写一次宽或高就重开一次缓冲。 */
   readonly clearCount: number;
   readonly context: FakeContext;
 }
@@ -22,12 +24,20 @@ function fakeCanvas(clientWidth: number): FakeCanvas {
   let height = 0;
   let clearCount = 0;
   let transform: number[] | undefined;
+  let cleared: number[] | undefined;
   const context = {
     get transform() {
       return transform;
     },
+    get cleared() {
+      return cleared;
+    },
     setTransform(a: number, b: number, c: number, d: number, e: number, f: number) {
       transform = [a, b, c, d, e, f];
+    },
+    clearRect(x: number, y: number, w: number, h: number) {
+      const identity = transform?.join() === '1,0,0,1,0,0';
+      cleared = identity ? [x, y, w, h] : undefined;
     },
   };
   return {
@@ -50,7 +60,7 @@ function fakeCanvas(clientWidth: number): FakeCanvas {
       return clearCount;
     },
     context,
-    // 对齐画布只用 `setTransform`。
+    // 对齐画布只用 `setTransform` 和 `clearRect`。
     getContext: () => context as unknown as CanvasRenderingContext2D,
   };
 }
@@ -104,7 +114,7 @@ describe('fitCanvas', () => {
     }
   });
 
-  it('尺寸没变时再对齐一次，画布不被清空', () => {
+  it('尺寸没变时再对齐一次，缓冲不重开', () => {
     const canvas = fakeCanvas(300);
     fitCanvas(canvas, 1, 2);
     const clearsAfterFirstFit = canvas.clearCount;
@@ -118,6 +128,12 @@ describe('fitCanvas', () => {
     canvas.clientWidth = 400;
     fitCanvas(canvas, 0.5, 2);
     expect({ width: canvas.width, height: canvas.height }).toEqual({ width: 800, height: 400 });
+  });
+
+  it('每次都按设备像素清整块缓冲，取整多出的那一列也清到', () => {
+    const canvas = fakeCanvas(301);
+    fitCanvas(canvas, 1, 1.5);
+    expect(canvas.context.cleared).toEqual([0, 0, 452, 452]);
   });
 
   it('上下文的变换按像素比缩放、无平移', () => {

@@ -233,13 +233,7 @@ function disc(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fi
 
 export function drawPinball(ctx: CanvasRenderingContext2D, options: DrawOptions): void {
   const { view, colors, livery, width } = options;
-  // 按设备像素清整块缓冲。像素比不是整数时，缓冲宽度取整后比盘面多出不到一个像素；按盘面
-  // 坐标清会漏掉最后一列，影子的残色逐帧叠成一道黑线。
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.restore();
-  // 缩放到盘面坐标，可视区域的左上角对齐画布左上角。
+  // 画布由对齐画布清好。缩放到盘面坐标，可视区域的左上角对齐画布左上角。
   const scale = width / VIEW_WIDTH;
   ctx.scale(scale, scale);
   ctx.translate(-VIEW_LEFT, -VIEW_TOP);
