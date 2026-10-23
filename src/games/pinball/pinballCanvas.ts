@@ -29,7 +29,7 @@ export interface PinballColors {
   readonly cartonField: string;
   /** 落格隔格交替的那一种。 */
   readonly cartonPocket: string;
-  /** 台面一圈凹槽、纸筒、拉杆、瓦楞的楞。 */
+  /** 台面一圈凹槽、纸筒、瓦楞的楞。 */
   readonly cartonShade: string;
   /** 纸板的切边和瓦楞侧壁的底色。 */
   readonly cartonCut: string;
@@ -482,7 +482,7 @@ function drawWindmill(
 
 /**
  * 柱塞：纸板拨片，一根橡皮筋两头钉在通道两壁上。往下拉时橡皮筋拉成 V 形，看它就知道力度，
- * 盘面上没有数字。拨片中间一根拉杆穿出机身，接到底下的拉片。
+ * 盘面上没有数字。拨片和底下的拉片之间不画连杆。
  */
 function drawPlunger(
   ctx: CanvasRenderingContext2D,
@@ -494,9 +494,6 @@ function drawPlunger(
   const bottom = top + PADDLE_HEIGHT;
   const left = LANE_INNER_LEFT + 2;
   const right = LANE_INNER_RIGHT - 2;
-
-  ctx.fillStyle = colors.cartonShade;
-  ctx.fillRect(LANE_CENTER_X - 2, bottom, 4, SLOT_FLOOR_Y - bottom);
 
   ctx.beginPath();
   ctx.moveTo(left + 1, BAND_ANCHOR_Y);
