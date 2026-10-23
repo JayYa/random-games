@@ -2,7 +2,7 @@
 
 This directory is the maintained source for what to cover when verifying the user-facing behavior of 是但 (random-games). Map the round's changed files to features with the [scope map](#scope-map) and use each feature file in scope as the recipe. Harness commands, driving standards and the done criterion are in [../SKILL.md](../SKILL.md); `$V` below means `node .claude/skills/verify-random-games/verify.mjs`.
 
-Source reviewed at: fb92f32
+Source reviewed at: eb4a934
 
 ## Baseline preconditions
 
