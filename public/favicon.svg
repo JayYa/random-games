@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 一枚模切骰子贴纸：白边、番茄红底、墨色点，歪着贴，角上压一截天蓝胶带。 -->
+  <g transform="rotate(-9 32 32)">
+    <rect x="9" y="11" width="48" height="48" rx="13" fill="#1e2a5a" opacity="0.22"/>
+    <rect x="7" y="7" width="48" height="48" rx="13" fill="#fff"/>
+    <rect x="11.5" y="11.5" width="39" height="39" rx="9" fill="#ff7a5c"/>
+    <circle cx="21" cy="21" r="4.6" fill="#22253a"/>
+    <circle cx="31" cy="31" r="4.6" fill="#22253a"/>
+    <circle cx="41" cy="41" r="4.6" fill="#22253a"/>
+  </g>
+  <rect x="40" y="8.5" width="20" height="7" fill="#6f9bff" opacity="0.85" transform="rotate(40 50 12)"/>
+</svg>
