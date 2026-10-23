@@ -1,13 +1,12 @@
 # 是但 verification map
 
-This directory is the maintained source for what to cover when verifying the user-facing behavior of 是但 (random-games). Map the round's changed files to features with the [scope map](#scope-map) and use each feature file in scope as the recipe. Harness commands, driving standards and the done criterion are in [../SKILL.md](../SKILL.md); `$V` below means `node .claude/skills/verify-random-games/verify.mjs`.
+This directory is the maintained source for what to cover when verifying the user-facing behavior of 是但 (random-games). Map the round's changed files to features with the [scope map](#scope-map) and use each feature file in scope as the recipe. The flow and the done criterion are in [../SKILL.md](../SKILL.md), scenario handles and driving standards in [../scenarios/WRITING.md](../scenarios/WRITING.md); `$V` below means `node .claude/skills/verify-random-games/verify.mjs`.
 
 Source reviewed at: eb4a934
 
 ## Baseline preconditions
 
-- A run started with `$V start` printed `READY run=<id> url=http://127.0.0.1:<port>/random-games/`.
-- `$V doctor --run <id>` exits 0 (including "build is current").
+- Steps 2 and 3 of [../SKILL.md](../SKILL.md#steps) are done: the run printed `READY` and doctor exits 0.
 - Each `$V drive` starts in a fresh browser context: `localStorage` has no `random-games:*` keys.
 - `public/` has the three committed themes: `breakfast.csv` (早餐吃什么), `free-time.csv` (做点什么呢), `go-out.csv` (今天去哪玩).
 
@@ -31,17 +30,6 @@ Match each changed file against the first row whose path fits, top to bottom. "a
 | `src/navigation/` | theme-picker, roster-errors |
 | everything else under `src/`, `public/`, `index.html`, `vite.config.ts` | all |
 
-## Feature entry contract
-
-Each feature file starts with an H1 title and one paragraph describing the user-visible behavior. It then uses exactly four H2 sections in this order.
-
-1. `Sub-features` lists short IDs with one line for each behavior.
-2. `How to get to it (user POV)` lists every user entry point.
-3. `Driving it with verify.mjs` starts with `Preconditions:` and uses labeled bullets that pair each user action with an exact Playwright call and observable result.
-4. `Gotchas` lists traps that can waste or invalidate a verification run.
-
-Keep implementation details out of the map. Name only user paths, stable handles, required state, commands, and observable evidence.
-
 ## Features
 
 Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run the features in scope with `for f in <feature-ids>; do $V drive --run <id> --feature $f .claude/skills/verify-random-games/scenarios/$f.mjs --quiet; done` (Git Bash).
@@ -57,3 +45,14 @@ Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run the 
 Scenarios don't cover the real-file variant of roster errors; its recipe is in [roster-errors.md](./roster-errors.md) but unproven.
 
 Not yet mapped: adding a theme by dropping a CSV into `public/` (needs a restart of the run; build prints `[themes] 跳过 …` for a bad file), confetti timing, and the reveal-then-navigate race (covered by `e2e/smoke.spec.ts`).
+
+## Maintaining this map
+
+Each feature file starts with an H1 title and one paragraph describing the user-visible behavior. It then uses exactly four H2 sections in this order.
+
+1. `Sub-features` lists short IDs with one line for each behavior.
+2. `How to get to it (user POV)` lists every user entry point.
+3. `Driving it with verify.mjs` starts with `Preconditions:` and uses labeled bullets that pair each user action with an exact Playwright call and observable result.
+4. `Gotchas` lists traps that can waste or invalidate a verification run.
+
+Keep implementation details out of the map. Name only user paths, stable handles, required state, commands, and observable evidence.

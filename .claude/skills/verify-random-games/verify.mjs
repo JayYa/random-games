@@ -8,6 +8,7 @@
  *   node .claude/skills/verify-random-games/verify.mjs drive  --run ID --feature NAME SCENARIO.mjs [--headed] [--quiet]
  *   node .claude/skills/verify-random-games/verify.mjs stop   --run ID [--force]
  *   node .claude/skills/verify-random-games/verify.mjs list
+ *   node .claude/skills/verify-random-games/verify.mjs base
  *
  * Layout:
  *   <tmp>/random-games-verify/<run>/   scratch: build output, server log, state.json   (removed by `stop`)
@@ -177,7 +178,8 @@ async function start(flags) {
   };
   fs.writeFileSync(d.state, JSON.stringify(state, null, 2));
   // Outlives `stop`, so the next round can find the revision this one verified.
-  fs.writeFileSync(d.meta, JSON.stringify({ run, revision, startedAt: state.startedAt }, null, 2));
+  const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
+  fs.writeFileSync(d.meta, JSON.stringify({ run, branch, revision, startedAt: state.startedAt }, null, 2));
 
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
@@ -362,8 +364,8 @@ async function stop(flags) {
   console.log(`evidence kept: ${d.evidence}`);
 }
 
-/** Every run with evidence or scratch, oldest first, so the last line is the newest run. */
-function list() {
+/** Every run with evidence or scratch, oldest first. */
+function allRuns() {
   const dirs = (root) =>
     fs.existsSync(root) ? fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name) : [];
   const runs = [...new Set([...dirs(EVIDENCE_ROOT), ...dirs(ROOT)])].map((run) => {
@@ -371,11 +373,15 @@ function list() {
     const meta = fs.existsSync(d.meta) ? JSON.parse(fs.readFileSync(d.meta, 'utf8')) : {};
     return { run, d, meta };
   });
+  return runs.sort((a, b) => (a.meta.startedAt ?? '').localeCompare(b.meta.startedAt ?? ''));
+}
+
+function list() {
+  const runs = allRuns();
   if (!runs.length) return console.log('no runs');
-  runs.sort((a, b) => (a.meta.startedAt ?? '').localeCompare(b.meta.startedAt ?? ''));
   for (const { run, d, meta } of runs) {
     if (!fs.existsSync(d.state)) {
-      console.log(`${run}  stopped ${meta.revision ?? '?'} ${meta.startedAt ?? ''}  evidence ${d.evidence}`);
+      console.log(`${run}  stopped ${meta.branch ?? '?'} ${meta.revision ?? '?'} ${meta.startedAt ?? ''}  evidence ${d.evidence}`);
       continue;
     }
     const s = JSON.parse(fs.readFileSync(d.state, 'utf8'));
@@ -383,8 +389,34 @@ function list() {
   }
 }
 
+/**
+ * The round's diff base: the newest run on this branch whose commit is still an ancestor of HEAD
+ * (so a rebase, a squash or another branch's run can't skew the scope), else the merge-base with
+ * master. Also prints how that run's features ended, for step 3 of the scope.
+ */
+function base() {
+  const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
+  const isAncestor = (sha) => spawnSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: REPO }).status === 0;
+  const prev = allRuns()
+    .reverse()
+    .find(({ meta }) => meta.branch === branch && meta.revision && isAncestor(meta.revision.split('+')[0]));
+  if (!prev) {
+    console.log(`base=${git('merge-base', 'master', 'HEAD')} from=merge-base(master)`);
+    return;
+  }
+  console.log(`base=${git('rev-parse', prev.meta.revision.split('+')[0])} from=run ${prev.run} (${prev.meta.revision})`);
+  // Latest drive per feature decides how that feature ended.
+  const features = fs.readdirSync(prev.d.evidence, { withFileTypes: true }).filter((e) => e.isDirectory());
+  for (const f of features) {
+    const stamps = fs.readdirSync(path.join(prev.d.evidence, f.name)).sort();
+    const summary = path.join(prev.d.evidence, f.name, stamps.at(-1) ?? '', 'summary.json');
+    const passed = fs.existsSync(summary) && JSON.parse(fs.readFileSync(summary, 'utf8')).passed;
+    console.log(`  ${f.name} ${passed ? 'PASSED' : 'FAILED'}`);
+  }
+}
+
 const [cmd, ...rest] = process.argv.slice(2);
 const { flags, positional } = parseArgs(rest);
-const commands = { start, doctor, drive: (f) => drive(f, positional), stop, list };
-if (!commands[cmd]) die(`usage: verify.mjs start|doctor|drive|stop|list (see header of ${fileURLToPath(import.meta.url)})`);
+const commands = { start, doctor, drive: (f) => drive(f, positional), stop, list, base };
+if (!commands[cmd]) die(`usage: verify.mjs start|doctor|drive|stop|list|base (see header of ${fileURLToPath(import.meta.url)})`);
 await commands[cmd](flags);
