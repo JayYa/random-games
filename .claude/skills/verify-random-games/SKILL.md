@@ -1,6 +1,6 @@
 ---
 name: verify-random-games
-description: Verify 是但 (random-games) in a real browser, producing the PR body's Evidence. Use before writing or updating any PR body whose diff touches src/ or public/, refactors meant to change nothing user-visible included.
+description: Verify 是但 (random-games) in a real browser, producing the PR body's Evidence. Run once per implementation round that touches src/ or public/ (refactors meant to change nothing user-visible included), after the round's code is finished, right before writing or updating the PR body.
 ---
 
 # Verify 是但 (random-games)
@@ -14,13 +14,25 @@ V=.claude/skills/verify-random-games/verify.mjs        # Git Bash
 $V = '.claude/skills/verify-random-games/verify.mjs'   # PowerShell
 ```
 
+## Round and scope
+
+A **round** is one finished batch of code changes: the first implementation, then each later batch of fixes (review feedback, or a fix for a feature that failed here). Verify each round once, when its code is finished (`pnpm test` passes, no edit in progress) and the PR body is the next thing to write or update. Every new round gets its own verification, scoped to what that round changed.
+
+Work out the round's **scope** before `start`:
+
+1. List the round's changed files: `git diff --name-only <base>` plus `git ls-files --others --exclude-standard`. `<base>` is `$(git merge-base master HEAD)` in the first round; in later rounds it is the commit of the newest run in `node $V list` (its revision without the `+dirty-…` suffix).
+2. Map each file to feature IDs through the scope map in [`features/README.md`](features/README.md#scope-map).
+3. Add every feature that failed or stayed unverified in the previous round.
+
+The scope is done when every changed file has a row in the scope map (possibly "none") and you hold the resulting feature list, each feature with the file that put it there. A scope of no features needs no run; say so in the report. Features outside the scope stay undriven and are listed as skipped in the report.
+
 ## Launch
 
 ```
 node $V start [--run <id>] [--port <n>]
 ```
 
-- Runs `vite build` (no `tsc`) into `<tmp>/random-games-verify/<run>/scratch/dist`, never touching the repo's `dist/`, then spawns `vite preview` on `127.0.0.1` at a free port other than 4173 and 5173 (or `--port`, strict), detached, and records the pid. On Windows the free port is often a low one like 1897; that's normal.
+- Runs `vite build` (no `tsc`) into `<tmp>/random-games-verify/<run>/dist`, never touching the repo's `dist/`, then spawns `vite preview` on `127.0.0.1` at a free port other than 4173 and 5173 (or `--port`, strict), detached, and records the pid. On Windows the free port is often a low one like 1897; that's normal.
 - **Ready** when it prints `READY run=<id> url=http://127.0.0.1:<port>/random-games/ pid=<pid>`. It also echoes any `[themes] 跳过 public/...` build warning (a CSV skipped by theme discovery).
 - The site lives under `/random-games/` (Vite `base`); the bare port root is not the app.
 - The build is a snapshot. After changing `src/`, `public/` or `vite.config.ts`, `stop` and `start` again — doctor flags a stale build.
@@ -38,7 +50,7 @@ Read-only. Checks: pid alive; URL answers 200; the served `index.html` is byte-i
 
 ## Drive
 
-First read [`features/README.md`](features/README.md) and the feature file for each surface the change touches. They list every entry point to cover and the proven recipe for each.
+First read [`features/README.md`](features/README.md) and the feature file for each feature in the round's scope. They list every entry point to cover and the proven recipe for each.
 
 Then write a scenario module, or reuse a committed one under `scenarios/`, and hand it to `drive`:
 
@@ -86,12 +98,14 @@ Standards:
 
 ## Evidence
 
-Each `drive` writes `<tmp>/random-games-verify/<run>/evidence/<feature>/<timestamp>/`:
+Evidence lives in the repo under `.verify/` (git-ignored): `start` writes `.verify/<run>/run.json` (run, revision, start time), and each `drive` writes `.verify/<run>/<feature>/<timestamp>/`:
 
 - `summary.json` — pass/fail, revision, URL, every step with its result, uncaught page errors (any page error fails the drive).
 - numbered `*.png` and `*.aria.yml` from `shot`/`aria`; `FAIL-*.png` on a failing step.
 - `trace.zip` (open with `pnpm exec playwright show-trace <path>`), `video.webm` of the whole session, `browser.log` (console, page errors, failed requests), `scenario.mjs` as run.
-- After `stop`: `server.log` from the preview server at the evidence root.
+- After `stop`: `server.log` from the preview server in `.verify/<run>/`.
+
+The evidence shows conformance: the current build against the behavior the feature files define. There is no baseline build to diff against; a step's before and after are the `shot`s around its action.
 
 ## Cleanup
 
@@ -99,13 +113,13 @@ Each `drive` writes `<tmp>/random-games-verify/<run>/evidence/<feature>/<timesta
 node $V stop --run <id> [--force]
 ```
 
-Kills only the recorded pid, and only if its port still serves this run's build (otherwise it refuses; `--force` after you've checked it's ours). Copies `server.log` into the evidence dir, then deletes `scratch/` (build, state). **Evidence is kept** at `<tmp>/random-games-verify/<run>/evidence/`. Stop servers only through `stop` — the user may have `pnpm dev` or an e2e run going, so killing `node`/`vite` by name hits theirs too. Run `stop` after failed attempts too. If you ran the real-file variant of [roster errors](features/roster-errors.md) (the only recipe that edits `public/`), restore it with `git checkout -- public/`.
+Kills only the recorded pid, and only if its port still serves this run's build (otherwise it refuses; `--force` after you've checked it's ours). Copies `server.log` into `.verify/<run>/`, then deletes `<tmp>/random-games-verify/<run>/` (build, state). **Evidence is kept** in `.verify/<run>/`. Stop servers only through `stop` — the user may have `pnpm dev` or an e2e run going, so killing `node`/`vite` by name hits theirs too. Run `stop` after failed attempts too. If you ran the real-file variant of [roster errors](features/roster-errors.md) (the only recipe that edits `public/`), restore it with `git checkout -- public/`.
 
 ## Report
 
-The report is the evidence the next step's PR body cites (the `pr` skill's `## Evidence`): the revision you built, each claim with its feature ID, entry point, and evidence dir, and any roster route you used. The verification is done when:
+The report is the evidence the next step's PR body cites (the `pr` skill's `## Evidence`): the revision you built, the round's scope (each feature with the file that put it there, and the skipped features), each claim with its feature ID, entry point, and evidence dir, and any roster route you used. The verification is done when:
 
-- every entry point under "How to get to it" in each touched feature file has a ✓ step in a `summary.json`, or is reported as unverified with the command you tried and the precondition that was unmet. An entry point you didn't drive is unverified, even if a neighbour passed;
+- every entry point under "How to get to it" in each feature file in scope has a ✓ step in a `summary.json`, or is reported as unverified with the command you tried and the precondition that was unmet. An entry point you didn't drive is unverified, even if a neighbour passed;
 - `node $V list` shows every run you started as `stopped`;
 - `git status` shows only your intended work.
 

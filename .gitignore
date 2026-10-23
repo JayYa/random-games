@@ -35,3 +35,6 @@ fonts/build/
 **/.impeccable/live/deferred-svelte-component-accepts.json
 **/.impeccable/live/*.png
 # impeccable-ignore-end
+
+# verify-random-games 的证据（截图、trace、视频），按 run 存放，不进仓库。
+.verify/

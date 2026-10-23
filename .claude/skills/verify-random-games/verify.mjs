@@ -9,9 +9,9 @@
  *   node .claude/skills/verify-random-games/verify.mjs stop   --run ID [--force]
  *   node .claude/skills/verify-random-games/verify.mjs list
  *
- * Layout under <tmp>/random-games-verify/<run>/:
- *   scratch/   build output, server log, state.json   (removed by `stop`)
- *   evidence/  one dir per `drive --feature`           (kept by `stop`)
+ * Layout:
+ *   <tmp>/random-games-verify/<run>/   scratch: build output, server log, state.json   (removed by `stop`)
+ *   <repo>/.verify/<run>/              evidence: run.json, one dir per `drive --feature` (kept by `stop`; git-ignored)
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -24,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const SKILL_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(SKILL_DIR, '..', '..', '..');
 const ROOT = path.join(os.tmpdir(), 'random-games-verify');
+const EVIDENCE_ROOT = path.join(REPO, '.verify');
 const VITE = path.join(REPO, 'node_modules', 'vite', 'bin', 'vite.js');
 const BASE_PATH = '/random-games/';
 
@@ -48,14 +49,15 @@ function die(msg) {
 }
 
 function runDirs(run) {
-  const dir = path.join(ROOT, run);
+  const scratch = path.join(ROOT, run);
+  const evidence = path.join(EVIDENCE_ROOT, run);
   return {
-    dir,
-    scratch: path.join(dir, 'scratch'),
-    evidence: path.join(dir, 'evidence'),
-    state: path.join(dir, 'scratch', 'state.json'),
-    dist: path.join(dir, 'scratch', 'dist'),
-    log: path.join(dir, 'scratch', 'server.log'),
+    scratch,
+    evidence,
+    meta: path.join(evidence, 'run.json'),
+    state: path.join(scratch, 'state.json'),
+    dist: path.join(scratch, 'dist'),
+    log: path.join(scratch, 'server.log'),
   };
 }
 
@@ -174,6 +176,8 @@ async function start(flags) {
     indexSha: createHash('sha1').update(fs.readFileSync(path.join(d.dist, 'index.html'))).digest('hex'),
   };
   fs.writeFileSync(d.state, JSON.stringify(state, null, 2));
+  // Outlives `stop`, so the next round can find the revision this one verified.
+  fs.writeFileSync(d.meta, JSON.stringify({ run, revision, startedAt: state.startedAt }, null, 2));
 
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
@@ -358,18 +362,24 @@ async function stop(flags) {
   console.log(`evidence kept: ${d.evidence}`);
 }
 
+/** Every run with evidence or scratch, oldest first, so the last line is the newest run. */
 function list() {
-  if (!fs.existsSync(ROOT)) return console.log('no runs');
-  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const run = entry.name;
+  const dirs = (root) =>
+    fs.existsSync(root) ? fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name) : [];
+  const runs = [...new Set([...dirs(EVIDENCE_ROOT), ...dirs(ROOT)])].map((run) => {
     const d = runDirs(run);
+    const meta = fs.existsSync(d.meta) ? JSON.parse(fs.readFileSync(d.meta, 'utf8')) : {};
+    return { run, d, meta };
+  });
+  if (!runs.length) return console.log('no runs');
+  runs.sort((a, b) => (a.meta.startedAt ?? '').localeCompare(b.meta.startedAt ?? ''));
+  for (const { run, d, meta } of runs) {
     if (!fs.existsSync(d.state)) {
-      console.log(`${run}  (stopped; evidence ${d.evidence})`);
+      console.log(`${run}  stopped ${meta.revision ?? '?'} ${meta.startedAt ?? ''}  evidence ${d.evidence}`);
       continue;
     }
     const s = JSON.parse(fs.readFileSync(d.state, 'utf8'));
-    console.log(`${run}  pid=${s.pid} ${pidAlive(s.pid) ? 'alive' : 'DEAD'} ${s.url} ${s.revision}`);
+    console.log(`${run}  pid=${s.pid} ${pidAlive(s.pid) ? 'alive' : 'DEAD'} ${s.url} ${s.revision} ${s.startedAt}`);
   }
 }
 

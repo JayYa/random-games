@@ -1,6 +1,6 @@
 # 是但 verification map
 
-This directory is the maintained source for what to cover when verifying the user-facing behavior of 是但 (random-games). Pick the feature files for the surfaces the change touches and use each as the recipe. Harness commands, driving standards and the done criterion are in [../SKILL.md](../SKILL.md); `$V` below means `node .claude/skills/verify-random-games/verify.mjs`.
+This directory is the maintained source for what to cover when verifying the user-facing behavior of 是但 (random-games). Map the round's changed files to features with the [scope map](#scope-map) and use each feature file in scope as the recipe. Harness commands, driving standards and the done criterion are in [../SKILL.md](../SKILL.md); `$V` below means `node .claude/skills/verify-random-games/verify.mjs`.
 
 Source reviewed at: fb92f32
 
@@ -10,6 +10,26 @@ Source reviewed at: fb92f32
 - `$V doctor --run <id>` exits 0 (including "build is current").
 - Each `$V drive` starts in a fresh browser context: `localStorage` has no `random-games:*` keys.
 - `public/` has the three committed themes: `breakfast.csv` (早餐吃什么), `free-time.csv` (做点什么呢), `go-out.csv` (今天去哪玩).
+
+## Scope map
+
+Scope map reviewed at: eb4a934
+
+Match each changed file against the first row whose path fits, top to bottom. "all" means all seven features. A file under `src/`, `public/`, `index.html` or `vite.config.ts` with no row of its own lands on the last row, so a module the map hasn't caught up with widens the scope instead of dropping out of it. When a new module appears, give it a row and bump the line above.
+
+| Path | Features |
+| --- | --- |
+| `*.test.ts`, `src/testHelpers.ts`, `src/vite-env.d.ts`, anything outside the four roots below | none |
+| `src/games/wheel/` | wheel-draw |
+| `src/games/pinball/` | pinball-draw |
+| `src/games/sticks/` | sticks-draw |
+| `src/games/die/` | die-draw |
+| `src/games/motion*.ts` | sticks-draw, die-draw |
+| `src/cooldown/`, `src/browser/browserStorage.ts` | cooldown, wheel-draw, pinball-draw, sticks-draw, die-draw |
+| `src/browser/resultCard.ts`, `src/browser/confetti.ts`, `src/gamePage/` | wheel-draw, pinball-draw, sticks-draw, die-draw |
+| `src/browser/loadRoster.ts`, `src/theme/roster*.ts` | roster-errors, cooldown |
+| `src/navigation/` | theme-picker, roster-errors |
+| everything else under `src/`, `public/`, `index.html`, `vite.config.ts` | all |
 
 ## Feature entry contract
 
@@ -24,7 +44,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 
 ## Features
 
-Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run all seven with `for f in theme-picker wheel-draw pinball-draw sticks-draw die-draw cooldown roster-errors; do $V drive --run <id> --feature $f .claude/skills/verify-random-games/scenarios/$f.mjs --quiet; done` (Git Bash).
+Every feature has a proven scenario in `../scenarios/<feature-id>.mjs`; run the features in scope with `for f in <feature-ids>; do $V drive --run <id> --feature $f .claude/skills/verify-random-games/scenarios/$f.mjs --quiet; done` (Git Bash).
 
 - [Theme picker and routing](./theme-picker.md) covers the picker, the game roll from `#/<theme>` (picker link or shared link), bookmarked `#/<theme>/<game>`, middle-/Ctrl-click new tabs, Back, unknown-route fallback (including wrong case and stray `/`), and `← 换个主题` (also after a reload). Scenario: `scenarios/theme-picker.mjs`.
 - [Wheel draw](./wheel-draw.md) covers 转, the lock, the reveal and card, 再来一次, the stored winner, keyboard entry, the modal card (Tab stays, Escape closes), and a direct link. Scenario: `scenarios/wheel-draw.mjs`.
