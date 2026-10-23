@@ -26,10 +26,11 @@ export interface FittedCanvas {
 const MAX_PIXEL_RATIO = 3;
 
 /**
- * 对齐像素缓冲，交回上下文与 CSS 宽高。高度只由宽度推出。CSS 宽度为 0 或拿不到上下文时
- * 交回空，这一帧就不画。
+ * 对齐像素缓冲，交回清空的上下文与 CSS 宽高。高度只由宽度推出。CSS 宽度为 0 或拿不到
+ * 上下文时交回空，这一帧就不画。
  *
- * 每次都把变换重设成只按像素比缩放，调用方可以每帧在上面叠自己的变换。
+ * 每次都清空整块缓冲，并把变换重设成只按像素比缩放，调用方可以每帧在上面叠自己的变换，
+ * 不必自己清。
  *
  * @param heightPerWidth 高 ÷ 宽，转盘传 1。
  * @param devicePixelRatio 缺省或为 0 当 1，超过 `MAX_PIXEL_RATIO` 封顶。
@@ -53,6 +54,10 @@ export function fitCanvas(
     canvas.width = pixelWidth;
     canvas.height = pixelHeight;
   }
+  // 按设备像素清整块缓冲。像素比不是整数时缓冲取整，比盘面多出不到一个像素；按 CSS 像素
+  // 清会漏掉最后一列，半透明的影子逐帧叠成一道黑线。
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, pixelWidth, pixelHeight);
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   return { context, width, height };
 }

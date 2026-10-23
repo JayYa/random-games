@@ -41,16 +41,23 @@
   --slap-ease: cubic-bezier(0.2, 1.4, 0.4, 1);
   /* 「啪」落下前悬在纸上的影子，要比贴住时大一圈；大贴纸自己给更大的。 */
   --lift-shadow: 0 40px 56px var(--shadow-lift);
-  /* 盘面。褪淡是往台面色褪。 */
-  --board-field: #fff;
-  --board-wall: #d9e2f3;
-  --board-wall-edge: #b4c3e0;
-  --board-metal: #6c7699;
-  --board-bumper: var(--sticker);
-  /* 钉和风车叶片是调色板贴纸色（ui.ts），两套主题不换；只有球是墨水，跟着换。 */
-  --board-ball: #22253a;
-  --board-ball-shine: rgba(255, 255, 255, 0.75);
-  --board-fade: rgba(255, 255, 255, 0.68);
+  /*
+   * 弹球机是一台瓦楞纸板玩具：机身、台面（亮一档）、隔格的纸口袋、凹槽和楞、切边、折痕。
+   * 偏暖黄，不偏灰褐，压暗只往深一档的纸板色走。深色主题整体压暗一档，夜里不刺眼。
+   */
+  --carton: #ddb57c;
+  --carton-field: #ecd09f;
+  --carton-pocket: #e3c38e;
+  --carton-shade: #c0935a;
+  --carton-cut: #a77c45;
+  --carton-line: rgba(110, 70, 30, 0.45);
+  /* 两脚钉的黄铜，两套主题不换。 */
+  --brad: #e6bd52;
+  --brad-rim: #b98a26;
+  --brad-shine: #fff3cc;
+  /* 钢珠压在纸板上，两套主题都是深色。 */
+  --pinball-ball: #22253a;
+  --pinball-ball-shine: rgba(255, 255, 255, 0.8);
   /* 转盘的奶白盘面：两种深浅隔格交替，格缝一道细线。盘面平时不上色，开抽前看不出任何东西。 */
   --wheel-disk: #fffaf0;
   --wheel-disk-alt: #f5eddc;
@@ -97,13 +104,12 @@
     --highlight: rgba(178, 148, 255, 0.45);
     --focus: #b294ff;
     --scrim: rgba(23, 23, 28, 0.82);
-    --board-field: #23232b;
-    --board-wall: #31313d;
-    --board-wall-edge: #4a4a5c;
-    --board-metal: #a3a0b4;
-    --board-ball: #f3f0e8;
-    --board-ball-shine: rgba(255, 255, 255, 0.95);
-    --board-fade: rgba(35, 35, 43, 0.8);
+    --carton: #c9a26b;
+    --carton-field: #d8b886;
+    --carton-pocket: #cead78;
+    --carton-shade: #a47a45;
+    --carton-cut: #8e6738;
+    --carton-line: rgba(80, 50, 20, 0.5);
     --wheel-disk: #f3eee2;
     --wheel-disk-alt: #e7dfcc;
     --wheel-divider: #d6cbb2;
@@ -499,47 +505,24 @@ body {
   align-items: center;
 }
 
-/* 盘面是一张用胶带贴进本子里的贴纸：白边、影子、上面两个角各一截胶带。 */
-.pinball__frame {
-  position: relative;
-  padding: 5px;
-  border-radius: 23px;
-  background: var(--sticker);
-  box-shadow: 0 8px 18px var(--shadow);
-}
-
-.pinball__frame .tape {
-  width: 78px;
-  top: -8px;
-}
-
-.pinball__frame .tape:first-child {
-  left: -22px;
-  --tape: #ff8cc0;
-  transform: rotate(-38deg);
-}
-
-.pinball__frame .tape:nth-child(2) {
-  right: -22px;
-  --tape: #ffcf3d;
-  transform: rotate(36deg);
-}
-
+/*
+ * 弹球机是一台纸板玩具，跟转盘一样直接放在纸上，不贴胶带。机身、影子和底下伸出的拉片都画在
+ * 画布里，画布四周留着影子的位置，所以宽度只扣掉一点页边距。
+ */
 .pinball__board {
   display: block;
-  /* 宽度取容器宽度和首屏剩余高度换算的宽度的小者，减去白边。宽高比与 ui.ts 的可视区域一致（360×540）。 */
-  width: min(calc(100vw - 42px), 630px, max(160px, calc((100vh - var(--pinball-chrome)) * 360 / 540)));
-  width: min(calc(100vw - 42px), 630px, max(160px, calc((100svh - var(--pinball-chrome)) * 360 / 540)));
+  /* 宽度取容器宽度和首屏剩余高度换算的宽度的小者。宽高比与 pinballCanvas.ts 的可视区域一致（400×638）。 */
+  width: min(calc(100vw - 20px), 660px, max(160px, calc((100vh - var(--pinball-chrome)) * 400 / 638)));
+  width: min(calc(100vw - 20px), 660px, max(160px, calc((100svh - var(--pinball-chrome)) * 400 / 638)));
   height: auto;
-  aspect-ratio: 360 / 540;
-  border-radius: 18px;
+  aspect-ratio: 400 / 638;
   /* 拉柱塞是竖向拖拽，用 manipulation 会被浏览器当成滚动抢走。 */
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
   cursor: grab;
 }
 
-/* 骰子照弹球机的贴纸画框。 */
+/* 骰子是一张用胶带贴进本子里的贴纸画框：白边、影子、上面两个角各一截胶带。 */
 .die {
   /* 盘面之外的部件大致占掉的高度，让整块盘面在首屏内。 */
   --die-chrome: 204px;
@@ -590,7 +573,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 求签筒照弹球机的贴纸画框。 */
+/* 求签筒照骰子的贴纸画框。 */
 .sticks {
   /* 盘面之外的部件大致占掉的高度，让整只签筒在首屏内。 */
   --sticks-chrome: 204px;

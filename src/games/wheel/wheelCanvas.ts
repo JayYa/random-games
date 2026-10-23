@@ -132,8 +132,6 @@ export function drawWheel(ctx: CanvasRenderingContext2D, options: DrawOptions): 
   const g = wheelGeometry(size);
   const { cx, cy } = g;
 
-  ctx.clearRect(0, 0, size, size);
-
   // 模切白边连同侧壁一起包住，带贴住的影子。
   withShadow(ctx, colors, size * 0.035, size * 0.014);
   disc(ctx, cx, cy + g.wall / 2, g.body + g.border + g.wall / 2, colors.sticker);

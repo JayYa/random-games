@@ -170,7 +170,6 @@ function drawBoard(
   colors: DieColors,
 ): void {
   // 游戏垫铺满整块画布：骰子撞墙、抛高时模切白边也总压在垫子上，不会和白画框混成一片。
-  ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = colors.mat;
   ctx.fillRect(0, 0, width, height);
 

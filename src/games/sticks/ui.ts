@@ -368,7 +368,6 @@ function drawVerticalName(
 }
 
 function drawBoard(ctx: CanvasRenderingContext2D, view: SticksView, colors: SticksColors): void {
-  ctx.clearRect(0, 0, STICKS.width, STICKS.height);
   ctx.fillStyle = colors.field;
   ctx.fillRect(0, 0, STICKS.width, STICKS.height);
 
