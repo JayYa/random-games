@@ -10,9 +10,9 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
   const board = page.locator('#sticks-board');
   const card = page.locator('#card');
 
-  // One press, `trips` round trips of the tube to its ±70 limit, release. The tube travels
-  // 70 + 140·(2·trips − 1) board units and the lead stick rises 1/1200 per unit, so
-  // 2 trips ≈ 0.41, 3 ≈ 0.64, 6 ≈ 1.34 (a stick drops).
+  // One press, `trips` round trips of the tube to its ±56 limit, release. The tube travels
+  // 56 + 112·(2·trips − 1) board units and the lead stick rises 1/1200 per unit, so
+  // 2 trips ≈ 0.33, 3 ≈ 0.51, 6 ≈ 1.07 (a stick drops).
   async function shake(trips = 6) {
     const b = await board.boundingBox();
     const x = b.x + b.width / 2;
@@ -36,27 +36,24 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     return (await page.locator('#card-name').textContent())?.trim();
   }
 
-  // The card's fill, and the dropped stick's head colour read off the board. The dropped
-  // stick stands centred in front of the tube, so going down the board's centre column the
-  // first long run that isn't background is its head. Pixels are read, not compared to a
-  // fixed position, so which stick dropped doesn't matter.
+  // The card's fill, and the dropped stick's colour read off the board. The dropped stick
+  // always stands in the same spot right of the box (board x≈281, bottom at 446), wherever
+  // it came from; the pixel just above its foot is below the name. The stick is shaded, so
+  // the pixel is matched to the nearest palette colour (src/palette.ts) rather than taken
+  // as is.
   function cardAndHeadColour() {
     return page.evaluate(() => {
+      const palette = ['#ff7a5c', '#ffcf3d', '#3fd0a8', '#6f9bff', '#ff8cc0', '#b294ff'].map((hex) =>
+        [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)),
+      );
       const fill = getComputedStyle(document.querySelector('#card .card__inner')).backgroundColor;
       const c = document.querySelector('#sticks-board');
-      const px = c.getContext('2d').getImageData(Math.round(c.width / 2), 0, 1, c.height).data;
-      const at = (y) => `rgb(${px[y * 4]}, ${px[y * 4 + 1]}, ${px[y * 4 + 2]})`;
-      const background = at(0);
-      let head = null;
-      for (let y = 0, start = 0; y <= c.height; y += 1) {
-        if (y < c.height && at(y) === at(start)) continue;
-        if (y - start >= 40 && at(start) !== background) {
-          head = at(start);
-          break;
-        }
-        start = y;
-      }
-      return { fill, head };
+      const scale = c.width / 360;
+      const px = c.getContext('2d').getImageData(Math.round(281 * scale), Math.round(434 * scale), 1, 1).data;
+      const distance = (rgb) => rgb.reduce((sum, v, i) => sum + (v - px[i]) ** 2, 0);
+      const nearest = palette.reduce((best, rgb) => (distance(rgb) < distance(best) ? rgb : best));
+      const head = px[3] === 255 ? `rgb(${nearest.join(', ')})` : null;
+      return { fill, head, pixel: `rgba(${px.join(', ')})` };
     });
   }
 
