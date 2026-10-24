@@ -35,9 +35,9 @@ export const STICKS = {
   /** 筒里看得见几根签：盘面自己的常量，与名单大小无关（ADR-0010）。 */
   stickCount: 9,
   /** 签筒左右最多离开正中多远（盘面单位）。 */
-  tubeLimit: 70,
+  tubeLimit: 56,
   /** 签筒在限位上倾斜多少（弧度，往右为正）；中间按离正中的距离成比例。 */
-  tubeMaxTilt: 0.22,
+  tubeMaxTilt: 0.14,
   /** 松手后签筒回正：离正中的距离每过这么久减半。 */
   tubeReturnHalfLifeMs: 70,
   /** 离正中不到这么远就当已经回正，画面不再变。 */

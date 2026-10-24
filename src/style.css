@@ -67,19 +67,6 @@
   --die-stitch: #9edcc9;
   /* 揭晓时其余面往骰子自己的贴纸白褪成浅彩，深色主题也一样：骰子是贴纸，不往夜里的台面褪成脏色。 */
   --die-fade: rgba(255, 255, 255, 0.68);
-  /*
-   * 求签筒和签是实物，两套主题都不换色：一只番茄色的筒贴纸，向日葵黄的箍，筒口里是砖红的暗处。
-   * 签是原木色的冰棍棍，签头蘸了调色板的颜色。
-   */
-  --sticks-tube: #ff7a5c;
-  --sticks-tube-inside: #b4321f;
-  --sticks-tube-band: #ffcf3d;
-  /* 筒身左边那道反光：平涂的半透明白，像贴纸覆膜，不打渐变。 */
-  --sticks-tube-shine: rgba(255, 255, 255, 0.42);
-  --sticks-stick: #f6e3b4;
-  --sticks-stick-edge: #d6b878;
-  /* 求签筒的台面：浅色铺一层淡天空色，筒的模切白边贴在上面才看得出来。 */
-  --sticks-mat: #e6eeff;
   font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--ink);
   background-color: var(--page);
@@ -116,7 +103,6 @@
     --die-mat: #1f2e2c;
     --die-stitch: #3d6b60;
     --die-fade: rgba(246, 243, 236, 0.62);
-    --sticks-mat: #23232b;
     background-image: radial-gradient(var(--grid) 1.2px, transparent 1.6px);
     background-position: 0 0;
   }
@@ -573,7 +559,10 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 求签筒照骰子的贴纸画框。 */
+/*
+ * 求签筒是一只薯条盒玩具，跟转盘、弹球机一样直接立在纸上，不贴胶带、不包画框。盒子、签和影子
+ * 都画在画布里，盒子和签每次进页面从调色板发色（games/sticks/ui.ts）。
+ */
 .sticks {
   /* 盘面之外的部件大致占掉的高度，让整只签筒在首屏内。 */
   --sticks-chrome: 204px;
@@ -586,39 +575,13 @@ body {
   align-items: center;
 }
 
-.sticks__frame {
-  position: relative;
-  padding: 5px;
-  border-radius: 23px;
-  background: var(--sticker);
-  box-shadow: 0 8px 18px var(--shadow);
-}
-
-.sticks__frame .tape {
-  width: 78px;
-  top: -8px;
-}
-
-.sticks__frame .tape:first-child {
-  left: -22px;
-  --tape: #6f9bff;
-  transform: rotate(-38deg);
-}
-
-.sticks__frame .tape:nth-child(2) {
-  right: -22px;
-  --tape: #ff8cc0;
-  transform: rotate(36deg);
-}
-
 .sticks__board {
   display: block;
   /* 宽高比与 machine.ts 的 STICKS 一致（360×480）。 */
-  width: min(calc(100vw - 42px), 540px, max(160px, calc((100vh - var(--sticks-chrome)) * 360 / 480)));
-  width: min(calc(100vw - 42px), 540px, max(160px, calc((100svh - var(--sticks-chrome)) * 360 / 480)));
+  width: min(calc(100vw - 20px), 540px, max(160px, calc((100vh - var(--sticks-chrome)) * 360 / 480)));
+  width: min(calc(100vw - 20px), 540px, max(160px, calc((100svh - var(--sticks-chrome)) * 360 / 480)));
   height: auto;
   aspect-ratio: 360 / 480;
-  border-radius: 18px;
   /* 左右拖着甩，不让浏览器当成滚动或手势抢走。 */
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
