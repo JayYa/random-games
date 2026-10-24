@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-24T03:34:30.013Z",
+  "generatedAt": "2026-10-24T09:17:52.500Z",
   "title": "Design System: 是但",
   "extensions": {
-    "seedKey": "202c587b",
+    "seedKey": "seed:b392096b24243ca6",
     "colorMeta": {
       "tomato": {
         "role": "primary",
@@ -820,108 +820,6 @@
           "oklch(83.6% 0.036 87.1)",
           "oklch(95.0% 0.036 87.1)"
         ]
-      },
-      "die-mat": {
-        "role": "neutral",
-        "displayName": "薄荷游戏垫 Mint Play Mat",
-        "canonical": "#e3f6ef",
-        "oklch": "oklch(95.7% 0.022 171.8)",
-        "source": "--die-mat (light)",
-        "tonalRamp": [
-          "oklch(15.0% 0.022 171.8)",
-          "oklch(26.4% 0.022 171.8)",
-          "oklch(37.9% 0.022 171.8)",
-          "oklch(49.3% 0.022 171.8)",
-          "oklch(60.7% 0.022 171.8)",
-          "oklch(72.1% 0.022 171.8)",
-          "oklch(83.6% 0.022 171.8)",
-          "oklch(95.0% 0.022 171.8)"
-        ]
-      },
-      "die-stitch": {
-        "role": "neutral",
-        "displayName": "垫子缝线 Mat Stitch",
-        "canonical": "#9edcc9",
-        "oklch": "oklch(84.7% 0.069 173.6)",
-        "source": "--die-stitch (light)",
-        "tonalRamp": [
-          "oklch(15.0% 0.069 173.6)",
-          "oklch(26.4% 0.069 173.6)",
-          "oklch(37.9% 0.069 173.6)",
-          "oklch(49.3% 0.069 173.6)",
-          "oklch(60.7% 0.069 173.6)",
-          "oklch(72.1% 0.069 173.6)",
-          "oklch(83.6% 0.069 173.6)",
-          "oklch(95.0% 0.069 173.6)"
-        ]
-      },
-      "die-fade": {
-        "role": "neutral",
-        "displayName": "骰子褪白 Die Fade",
-        "canonical": "rgba(255, 255, 255, 0.68)",
-        "oklch": "oklch(100.0% 0.000 0.0 / 0.68)",
-        "source": "--die-fade (light)",
-        "tonalRamp": [
-          "oklch(15.0% 0.000 0.0)",
-          "oklch(26.4% 0.000 0.0)",
-          "oklch(37.9% 0.000 0.0)",
-          "oklch(49.3% 0.000 0.0)",
-          "oklch(60.7% 0.000 0.0)",
-          "oklch(72.1% 0.000 0.0)",
-          "oklch(83.6% 0.000 0.0)",
-          "oklch(95.0% 0.000 0.0)"
-        ]
-      },
-      "die-mat-night": {
-        "role": "neutral",
-        "displayName": "薄荷游戏垫·夜 Mint Play Mat Night",
-        "canonical": "#1f2e2c",
-        "oklch": "oklch(28.7% 0.020 185.9)",
-        "source": "--die-mat (dark)",
-        "tonalRamp": [
-          "oklch(15.0% 0.020 185.9)",
-          "oklch(26.4% 0.020 185.9)",
-          "oklch(37.9% 0.020 185.9)",
-          "oklch(49.3% 0.020 185.9)",
-          "oklch(60.7% 0.020 185.9)",
-          "oklch(72.1% 0.020 185.9)",
-          "oklch(83.6% 0.020 185.9)",
-          "oklch(95.0% 0.020 185.9)"
-        ]
-      },
-      "die-stitch-night": {
-        "role": "neutral",
-        "displayName": "垫子缝线·夜 Mat Stitch Night",
-        "canonical": "#3d6b60",
-        "oklch": "oklch(49.1% 0.054 176.9)",
-        "source": "--die-stitch (dark)",
-        "tonalRamp": [
-          "oklch(15.0% 0.054 176.9)",
-          "oklch(26.4% 0.054 176.9)",
-          "oklch(37.9% 0.054 176.9)",
-          "oklch(49.3% 0.054 176.9)",
-          "oklch(60.7% 0.054 176.9)",
-          "oklch(72.1% 0.054 176.9)",
-          "oklch(83.6% 0.054 176.9)",
-          "oklch(95.0% 0.054 176.9)"
-        ]
-      },
-      "die-fade-night": {
-        "role": "neutral",
-        "displayName": "骰子褪白·夜 Die Fade Night",
-        "canonical": "rgba(246, 243, 236, 0.62)",
-        "oklch": "oklch(96.5% 0.010 87.5 / 0.62)",
-        "source": "--die-fade (dark)",
-        "tonalRamp": [
-          "oklch(15.0% 0.010 87.5)",
-          "oklch(26.4% 0.010 87.5)",
-          "oklch(37.9% 0.010 87.5)",
-          "oklch(49.3% 0.010 87.5)",
-          "oklch(60.7% 0.010 87.5)",
-          "oklch(72.1% 0.010 87.5)",
-          "oklch(83.6% 0.010 87.5)",
-          "oklch(95.0% 0.010 87.5)"
-        ]
       }
     },
     "typographyMeta": {
@@ -1124,6 +1022,14 @@
       "css": ".ds-tape { position: absolute; pointer-events: none; height: 24px; background-color: var(--tape, #6f9bff); background-image: radial-gradient(rgba(255,255,255,0.55) 1.4px, transparent 1.8px); background-size: 8px 8px; opacity: 0.82; -webkit-mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; mask: conic-gradient(from 45deg at left, #0000, #000 1deg 89deg, #0000 90deg) left / 51% 6px repeat-y, conic-gradient(from -135deg at right, #0000, #000 1deg 89deg, #0000 90deg) right / 51% 6px repeat-y; } .ds-note { --rest: rotate(-1.5deg); position: relative; width: 100%; max-width: 32rem; padding: 26px 20px 20px; background: var(--note, #fff1a6); color: var(--note-ink, #3b3320); text-align: left; transform: var(--rest); box-shadow: 0 10px 20px var(--shadow, rgba(30,42,90,0.2)); } .ds-note .ds-tape { top: -12px; left: calc(50% - 48px); width: 96px; transform: rotate(-3deg); } .ds-note__title { margin: 0 0 0.6rem; font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 1.35rem; color: var(--note-title, #b4321f); } .ds-note__detail { margin: 0 0 0.6rem; font-size: 0.95rem; line-height: 1.55; } .ds-note__hint { margin: 0; font-size: 0.85rem; line-height: 1.5; opacity: 0.8; }"
     },
     {
+      "name": "积木平砖名牌（骰子揭晓）",
+      "kind": "custom",
+      "refersTo": "die-tile",
+      "description": "骰子揭晓时「啪」地拍在骰子上方的 1×N 乐高平砖：中选色砖框带 5px 厚度，白色印字区，深墨手写名字；原件画在画布上，这里用 CSS 近似。",
+      "html": "<div class=\"ds-die-tile\"><span class=\"ds-die-tile__print\">三明治</span></div>",
+      "css": ".ds-die-tile { --rest: rotate(-2.9deg); display: inline-block; padding: 6px; border-radius: 6px; background: linear-gradient(rgba(255,255,255,0.35), rgba(255,255,255,0) 3px), var(--win, #ffcf3d); box-shadow: 0 5px 0 color-mix(in srgb, var(--win, #ffcf3d) 74%, #22253a), 0 10px 14px var(--shadow, rgba(30,42,90,0.2)); transform: var(--rest); animation: ds-die-tile-slap 480ms var(--slap-ease, cubic-bezier(0.2,1.4,0.4,1)) both; } .ds-die-tile__print { display: block; padding: 6px 14px; border-radius: 3px; background: #fff; color: var(--on-palette, #22253a); font-family: var(--hand, 'Shidan Hand', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif); font-weight: 400; font-size: 28px; line-height: 1.2; white-space: nowrap; } @keyframes ds-die-tile-slap { 0% { opacity: 0; transform: var(--rest) translateY(-36px) scale(1.25); } 15% { opacity: 1; } 100% { transform: var(--rest); } }"
+    },
+    {
       "name": "摇手机提示条",
       "kind": "custom",
       "refersTo": "motion-offer",
@@ -1134,7 +1040,7 @@
   ],
   "narrative": {
     "northStar": "摆着小玩具的手帐",
-    "overview": "整站是她的一本手帐，每个玩法是一件立在本子上的小玩具。浅色是一本蓝格子本：淡蓝纸面、22px 的浅蓝方格。深色是一本黑卡纸本：近黑的纸、白色点阵、白色中性笔写的字。纸面上的东西分两种。一种是贴纸、和纸胶带、便利贴：主题、标题下的荧光笔、换主题的胶带条、中选的结果卡片、名单出错的提示，都是平的、拍在纸上的。另一种是玩具：转盘是一台实心塑料的桌面玩具（参照任天堂的老玩具），弹球机是一台瓦楞纸板折的玩具（参照 Labo），求签筒是一只薯条盒搪胶小摆件，直接立在纸上，有厚度、有材质、有影子。骰子目前还是一枚贴在薄荷垫上的贴纸。\n\n这个世界拒绝这一类小工具的默认长相：粉彩圆角卡片、渐变按钮、白色弹窗加彩带。它也拒绝两种失败：花哨（一个盘面堆满点点带、滴落、反光条这类装饰花纹）和廉价（玩具画成没有厚度的平面剪贴画）。密度很低，一屏只有几样东西，每样都是大块的、能用拇指按的实物。随机性是装饰的一部分：贴纸的歪度、错位、颜色，胶带的颜色，玩具的配色，每次打开都重新发一遍（直接调 `Math.random`，只管装饰，不经过抽签的代码路径），所以每次翻开本子都略有不同。\n\n动效只有两种语法：东西落到纸上用一个「啪」（从上方 1.25 倍大、带一大圈悬空影子落下，压过头一点再回弹），按下去用 60ms 按进、240ms 弹回。玩具各有只属于自己的动作：转盘的拨片被白钉一颗颗拨开再弹回；弹球机拉的时候橡皮筋绷成 V 形，球撞上纸筒时贴纸帽压扁再弹回；薯条盒被甩得歪来歪去，一根签顶出来、飞出盒子立在旁边。唯一不属于这些的是加载态：「正在加载名单…」那行手写字原地左右晃（±2°、上浮 4px，1.4s 一个来回，不回弹）。锁住的控件从不变淡：转盘的轴心按钮一直按在底座里弹不起来，弹球机的拉片缩回机身里拉不出来。",
+    "overview": "整站是她的一本手帐，每个玩法是一件立在本子上的小玩具。浅色是一本蓝格子本：淡蓝纸面、22px 的浅蓝方格。深色是一本黑卡纸本：近黑的纸、白色点阵、白色中性笔写的字。纸面上的东西分两种。一种是贴纸、和纸胶带、便利贴：主题、标题下的荧光笔、换主题的胶带条、中选的结果卡片、名单出错的提示，都是平的、拍在纸上的。另一种是玩具：转盘是一台实心塑料的桌面玩具（参照任天堂的老玩具），弹球机是一台瓦楞纸板折的玩具（参照 Labo），求签筒是一只薯条盒搪胶小摆件，骰子是一只乐高式的积木托盘加一颗注塑骰子，直接立在纸上，有厚度、有材质、有影子。",
     "keyCharacteristics": [
       "纸会变，东西不变：明暗主题只换纸和墨水，贴纸、胶带、便利贴和玩具两套都是同一种颜色。",
       "贴纸平涂，玩具有体积。",
@@ -1185,7 +1091,7 @@
       "**Do** 让贴纸、胶带、便利贴和玩具在两套主题里保持同一种颜色，只翻转纸（graph-paper / night-paper）和墨水（ink / gel-ink）。",
       "**Do** 深色主题下的贴纸白用 sticker-white-night（#f6f3ec），不用纯白。",
       "**Do** 贴纸、玩具、扇区、落格、签面上的字一律用 on-palette 深墨；往调色板里加颜色前先验它对 on-palette 至少 5:1。",
-      "**Do** 把每个玩法做成一件立在纸上的实体玩具：有厚度、有材质、有落在纸上的影子，参照任天堂玩具、Labo、搪胶小摆件。",
+      "**Do** 把每个玩法做成一件立在纸上的实体玩具：有厚度、有材质、有落在纸上的影子，参照任天堂玩具、Labo、搪胶小摆件、乐高积木。",
       "**Do** 东西落到纸上一律用「啪」：从上方 36px、1.25 倍大、带 `--lift-shadow` 落下，`--slap-ease` 压过头再回弹，480 到 520ms。",
       "**Do** 按压用 60ms 按进（ease-out）、240ms 弹回（`--press-ease`），按下时影子收到 `0 1px 2px`。",
       "**Do** 锁住一个控件时用它自己世界里的办法表达「动不了」（转盘按钮卡在底座里，弹球机拉片缩回机身），并保留它的 Tab 序。",
