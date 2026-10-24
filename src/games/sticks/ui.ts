@@ -26,74 +26,100 @@ const CLOSE_LABEL = '再抽一根';
 
 const BOARD_HTML = `
       <div class="sticks__stage">
-        <div class="sticks__frame">
-          <span class="tape"></span><span class="tape"></span>
-          <canvas class="sticks__board" id="sticks-board"></canvas>
-        </div>${motionOfferHtml('sticks')}
+        <canvas class="sticks__board" id="sticks-board"></canvas>${motionOfferHtml('sticks')}
       </div>
     `;
 
 /**
  * 筒里每根签没冒头时签顶在筒口上方多高（逐根错开），一根签一个数：根数和 `STICKS.stickCount`
- * 对不上就编译不过。
+ * 对不上就编译不过。双数号排前排，单数号排后排，后排插在前排的缝里。
  */
-const STICK_BASE_RISE = [34, 52, 44, 60, 40, 56, 48, 30, 50] as const satisfies {
+const STICK_BASE_RISE = [80, 98, 88, 104, 84, 100, 92, 96, 76] as const satisfies {
   readonly length: typeof STICKS.stickCount;
 };
 
 /**
- * 画面几何（盘面单位）。只有渲染层用；机器只管签筒离正中多远、冒头多高。
+ * 画面几何（盘面单位）。只有渲染层用；机器只管签筒离正中多远、冒头多高。签筒是一只薯条盒
+ * 玩具：上口宽、下口窄，前脸上沿往下凹一道弧，签是一把粗方条。盒子的大小让它摇到限位、歪到最大
+ * 时连同签还在画布里。
  */
 const GEOMETRY = {
   centerX: STICKS.width / 2,
-  tubeBottom: 440,
-  tubeTop: 250,
-  tubeWidth: 116,
-  /** 筒口椭圆的半高。 */
-  rimRadiusY: 12,
-  /** 签在筒里时的长与宽。签长不超过筒高加最矮的冒出，签底才藏得住。 */
-  stickLength: 210,
-  stickWidth: 9,
+  boxBottom: 440,
+  boxHeight: 132,
+  /** 盒口、盒底的半宽。 */
+  boxTopHalf: 72,
+  boxBottomHalf: 58,
+  /** 前脸上沿那道弧的控制点比两角低多少（弧的最低处是它的一半）。 */
+  rimDip: 20,
+  /** 盒子的厚度：后壁和右侧面往右上错开这么多。 */
+  boxDepth: 7,
+  /** 盒面上凸起的标：中心在盒高的几成处（从盒口量），按盒口半宽缩放。 */
+  emblemAt: 0.58,
+  /** 签在盒里时的长与宽。签底藏在盒里，超出盒底的部分剪掉。 */
+  stickLength: 230,
+  stickWidth: 18,
+  /** 方签的厚度：顶面和右侧面往右上错开这么多。 */
+  stickDepth: 5,
+  /** 前排相邻两根签隔多远；后排插在缝里。 */
+  stickPitch: 27,
   /** 冒头到顶时，打头那根签比别的签多冒出多少。 */
-  riseTravel: 110,
-  /** 立在筒前的签：底边、长、宽。宽到能竖写名字。 */
-  standingBottom: 466,
-  standingLength: 330,
-  standingWidth: 40,
-  /** 签筒一圈模切白边多宽。 */
-  tubeBorder: 6,
-  /** 两道箍：在筒高的几成处（从筒底量），箍多宽。 */
-  bandsAt: [0.3, 0.72],
-  bandHeight: 14,
+  riseTravel: 100,
+  /** 掉出来的签立在盒子右边：签底中点、长、宽、站定时歪多少。宽到能竖写名字。 */
+  standingX: STICKS.width / 2 + 100,
+  standingBottom: 446,
+  standingLength: 280,
+  standingWidth: 46,
+  standingAngle: 0.07,
+  /** 签立住时盒子往左让出多远。 */
+  boxMakeRoom: 34,
 } as const;
 
-/** 签头蘸色的那一截占签长多少；签在筒里冒头最矮时也露得出一截颜色。 */
-const STICK_TIP_SHARE = 0.18;
+/** 名字在立着的签面上离两头留多少；名字怎么排见 `./nameLayout.ts`。 */
+const NAME_MARGIN_TOP = 22;
+const NAME_MARGIN_BOTTOM = 20;
+
+/** 明暗用的墨色与白（`--on-palette` 的 RGB），叠在盒子和签的本色上。 */
+const SHADE = '34, 37, 58';
+const ink = (alpha: number) => `rgba(${SHADE}, ${alpha})`;
+const light = (alpha: number) => `rgba(255, 255, 255, ${alpha})`;
 
 /**
- * 名字在签面上离两头留多少；名字怎么排见 `./nameLayout.ts`。上头让开蘸色的签头（连同它
- * 波浪边往下垂的那点）再空一点，下头只让开圆头，可用长度和没蘸色时差不多。
+ * 这一次进页面发的色：盒子一色，签一色，两者不撞。签的颜色也是结果卡片的颜色。
  */
-const NAME_MARGIN_TOP = Math.ceil(GEOMETRY.standingLength * STICK_TIP_SHARE) + 14;
-const NAME_MARGIN_BOTTOM = 28;
-
-/** 第几根签蘸哪一色：按序号轮调色板，相邻两根不撞色。结果卡片也照它铺色。 */
-function stickColor(stick: number): string {
-  return PALETTE[stick % PALETTE.length]!;
+interface SticksLivery {
+  readonly box: string;
+  readonly stick: string;
 }
 
-/** 签和筒是实物（同贴纸），两套主题都不换色；只有台面和贴纸白边跟着明暗走。 */
+/**
+ * 挨得太近的两色不配成一对：签插在盒前、凸标压在盒面上，两色要一眼分得开。按调色板的顺序
+ * 写：番茄/粉、天空/丁香、粉/丁香。
+ */
+const CLASHING_PAIRS: readonly (readonly [string, string])[] = [
+  [PALETTE[0]!, PALETTE[4]!],
+  [PALETTE[3]!, PALETTE[5]!],
+  [PALETTE[4]!, PALETTE[5]!],
+];
+
+function clashes(a: string, b: string): boolean {
+  return CLASHING_PAIRS.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+}
+
+/** 每次进页面重新发色，不发撞色的一对。是装饰，与抽签无关，直接用 `Math.random`。 */
+function dealLivery(): SticksLivery {
+  const pick = () => PALETTE[Math.floor(Math.random() * PALETTE.length)]!;
+  const box = pick();
+  let stick = pick();
+  while (stick === box || clashes(box, stick)) stick = pick();
+  return { box, stick };
+}
+
+/** 盒子和签是玩具实物，两套主题都不换色；只有影子跟着明暗走。 */
 interface SticksColors {
-  readonly field: string;
-  readonly sticker: string;
-  readonly tube: string;
-  readonly tubeInside: string;
-  readonly tubeBand: string;
-  readonly tubeShine: string;
-  readonly stick: string;
-  readonly stickEdge: string;
   readonly ink: string;
   readonly shadow: string;
+  readonly shadowLift: string;
   readonly hand: string;
 }
 
@@ -101,231 +127,248 @@ function readSticksColors(element: Element): SticksColors {
   const style = getComputedStyle(element);
   const token = (name: string) => style.getPropertyValue(name).trim();
   return {
-    field: token('--sticks-mat'),
-    sticker: token('--sticker'),
-    tube: token('--sticks-tube'),
-    tubeInside: token('--sticks-tube-inside'),
-    tubeBand: token('--sticks-tube-band'),
-    tubeShine: token('--sticks-tube-shine'),
-    stick: token('--sticks-stick'),
-    stickEdge: token('--sticks-stick-edge'),
     ink: token('--on-palette'),
     shadow: token('--shadow'),
+    shadowLift: token('--shadow-lift'),
     hand: token('--hand'),
   };
 }
 
-/** 一根签画在哪：签底中点、长、宽，`angle` 绕签底转。 */
-interface StickPose {
-  readonly bottomX: number;
-  readonly bottomY: number;
-  readonly length: number;
-  readonly width: number;
-  readonly angle: number;
-}
-
-/** 冰棍棍的轮廓：两头都是圆头，签底中点在原点，往上长。 */
-function traceStick(ctx: CanvasRenderingContext2D, length: number, width: number): void {
-  const r = width / 2;
-  ctx.beginPath();
-  ctx.moveTo(-r, -r);
-  ctx.lineTo(-r, -length + r);
-  ctx.arc(0, -length + r, r, Math.PI, 0);
-  ctx.lineTo(r, -r);
-  ctx.arc(0, -r, r, 0, Math.PI);
-  ctx.closePath();
-}
-
-/** 签的画法：`tip` 是签头蘸的颜色；`border` 大于 0 时外面再包一圈贴纸白边、带贴住的影子。 */
-interface StickLook {
-  readonly tip: string;
-  readonly border?: number;
-  /** 影子的远近，0 到 1：签离纸面多高。 */
-  readonly lift?: number;
-}
-
-/** 从签底往上画：原木色签身，签头一截蘸色，交界是一道颜料往下淌的波浪。 */
-function drawStick(ctx: CanvasRenderingContext2D, pose: StickPose, look: StickLook, colors: SticksColors): void {
-  const { length, width } = pose;
-  const r = width / 2;
+/** 一块落在纸上的软影子：椭圆，中间最深，往外散开。 */
+function drawShadowBlob(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, color: string): void {
   ctx.save();
-  ctx.translate(pose.bottomX, pose.bottomY);
-  ctx.rotate(pose.angle);
+  ctx.translate(x, y);
+  ctx.scale(rx, ry);
+  const fade = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  fade.addColorStop(0, color);
+  fade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = fade;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
 
-  // 贴纸白边连同影子先垫在底下；影子只给这一层，签身、签头不再各投一遍。
-  const border = look.border ?? 0;
-  if (border > 0) {
-    const lift = look.lift ?? 1;
-    traceStick(ctx, length, width);
-    ctx.save();
-    ctx.shadowColor = colors.shadow;
-    ctx.shadowBlur = 12 * lift;
-    ctx.shadowOffsetY = 5 * lift;
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = border * 2;
-    ctx.strokeStyle = colors.sticker;
-    ctx.stroke();
-    ctx.restore();
+/** 先涂本色再叠一层明暗；同色粗描边把尖角磨圆，像注塑件。 */
+function fillRounded(ctx: CanvasRenderingContext2D, path: Path2D, paints: readonly (string | CanvasGradient)[], round: number): void {
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = round;
+  for (const paint of paints) {
+    ctx.fillStyle = paint;
+    ctx.strokeStyle = paint;
+    ctx.fill(path);
+    ctx.stroke(path);
   }
-
-  traceStick(ctx, length, width);
-  ctx.fillStyle = colors.stick;
-  ctx.fill();
-
-  // 签头：剪在签身里面，画一块蘸色，下沿两道弯，像颜料还没干透往下淌了一点。
-  ctx.save();
-  ctx.clip();
-  const dip = -length + length * STICK_TIP_SHARE;
-  const wave = width * 0.16;
-  ctx.beginPath();
-  ctx.moveTo(-r - 1, -length - 1);
-  ctx.lineTo(-r - 1, dip - wave * 0.5);
-  ctx.bezierCurveTo(-r * 0.4, dip + wave * 1.6, r * 0.3, dip - wave * 1.2, r + 1, dip + wave * 0.5);
-  ctx.lineTo(r + 1, -length - 1);
-  ctx.closePath();
-  ctx.fillStyle = look.tip;
-  ctx.fill();
-  ctx.restore();
-
-  traceStick(ctx, length, width);
-  ctx.strokeStyle = colors.stickEdge;
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
-  ctx.restore();
 }
 
 /**
- * 筒身的前脸：上沿是筒口椭圆的前半圈，下面两个小圆角。签筒自身坐标，筒底正中在原点。
+ * 一根方签：签底中点在原点，往上长。正面是圆角长条，右边一道侧面、上头一道顶面，看得出厚度。
+ * `face` 是正面叠的明暗，`dim` 是整根再压暗多少（后排的签）。
  */
-function traceTubeBody(ctx: CanvasRenderingContext2D, halfWidth: number, rimY: number): void {
-  const ry = GEOMETRY.rimRadiusY;
-  ctx.moveTo(-halfWidth, rimY);
-  ctx.ellipse(0, rimY, halfWidth, ry, 0, Math.PI, 0, true);
-  ctx.lineTo(halfWidth, -8);
-  ctx.quadraticCurveTo(halfWidth, 0, halfWidth - 10, 0);
-  ctx.lineTo(-halfWidth + 10, 0);
-  ctx.quadraticCurveTo(-halfWidth, 0, -halfWidth, -8);
-  ctx.closePath();
-}
+function drawSquareStick(
+  ctx: CanvasRenderingContext2D,
+  length: number,
+  width: number,
+  color: string,
+  face: CanvasGradient,
+  dim = 0,
+): void {
+  const d = GEOMETRY.stickDepth;
+  const shade = dim > 0 ? [ink(dim)] : [];
+  const left = -width / 2;
+  const right = width / 2;
+  const top = -length;
 
-/**
- * 一道箍：顺着筒身的弧度弯下去的一条向日葵黄的带子，上面一排小白点（呼应胶带的白点花纹），
- * 点也顺着同一道弧排。
- */
-function drawBand(ctx: CanvasRenderingContext2D, halfWidth: number, centerY: number, colors: SticksColors): void {
-  const ry = GEOMETRY.rimRadiusY * 0.8;
-  const half = GEOMETRY.bandHeight / 2;
+  const side = new Path2D();
+  side.moveTo(right, top + 3);
+  side.lineTo(right + d, top + 3 - d);
+  side.lineTo(right + d, -d);
+  side.lineTo(right, 0);
+  side.closePath();
+  fillRounded(ctx, side, [color, ink(0.22), ...shade], 3);
+
+  const lid = new Path2D();
+  lid.moveTo(left + 2, top);
+  lid.lineTo(left + 2 + d, top - d);
+  lid.lineTo(right + d, top - d);
+  lid.lineTo(right, top);
+  lid.closePath();
+  fillRounded(ctx, lid, [color, light(0.38), ...shade], 3);
+
   ctx.beginPath();
-  ctx.moveTo(halfWidth, centerY - half);
-  ctx.ellipse(0, centerY - half, halfWidth, ry, 0, 0, Math.PI);
-  ctx.lineTo(-halfWidth, centerY + half);
-  ctx.ellipse(0, centerY + half, halfWidth, ry, 0, Math.PI, 0, true);
-  ctx.closePath();
-  ctx.fillStyle = colors.tubeBand;
+  ctx.roundRect(left, top, width, length, 4);
+  ctx.fillStyle = color;
   ctx.fill();
-
-  // 点按横向等距排，纵向落在同一道弧上：靠两边的点跟着弧往上收。
-  const dots = 9;
-  const span = halfWidth - 10;
-  ctx.fillStyle = colors.sticker;
-  for (let i = 0; i < dots; i += 1) {
-    const x = -span + (2 * span * i) / (dots - 1);
-    const y = centerY + ry * Math.sqrt(1 - (x / halfWidth) ** 2);
-    ctx.beginPath();
-    ctx.arc(x, y, 2.1, 0, Math.PI * 2);
+  for (const paint of [face, ...shade]) {
+    ctx.fillStyle = paint;
     ctx.fill();
   }
+
+  // 正面一圈细高光：棱边倒了角，迎光。
+  ctx.beginPath();
+  ctx.roundRect(left + 1.5, top + 1.5, width - 3, length - 1.5, 3);
+  ctx.strokeStyle = light(0.28);
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+}
+
+/** 盒里那根签的正面明暗：签顶迎光，往盒口越来越暗（插在盒里，光照不进去）。 */
+function boxedStickFace(ctx: CanvasRenderingContext2D, length: number, aboveRim: number): CanvasGradient {
+  const face = ctx.createLinearGradient(0, -length, 0, -length + aboveRim + 18);
+  face.addColorStop(0, light(0.26));
+  face.addColorStop(0.5, light(0));
+  face.addColorStop(1, ink(0.45));
+  return face;
+}
+
+/** 签在盒里的横向位置（盒子自身坐标）：前排五根、后排四根插在缝里。 */
+function stickSlot(stick: number): { readonly x: number; readonly back: boolean } {
+  const pitch = GEOMETRY.stickPitch;
+  if (stick % 2 === 0) return { x: (stick / 2 - 2) * pitch, back: false };
+  return { x: ((stick - 1) / 2 - 1.5) * pitch, back: true };
 }
 
 /**
- * 签筒是一枚贴纸：番茄色筒身外一圈模切白边，两道带白点的黄箍，左边一道平涂的反光。筒里的签
- * 签头各蘸一色。连同筒里的签整体绕筒底正中转 `tilt`。
+ * 盒面上凸起的标：两道倒过来的拱连成一个 W，跟签同色，像注塑时一起压出来的。原点是标的中心。
  */
-function drawTube(ctx: CanvasRenderingContext2D, view: SticksView, colors: SticksColors): void {
-  const g = GEOMETRY;
-  const halfWidth = g.tubeWidth / 2;
-  const rimY = g.tubeTop - g.tubeBottom;
+function traceEmblem(): Path2D {
+  const path = new Path2D();
+  path.moveTo(-36, -46);
+  path.bezierCurveTo(-36, 40, -9, 48, 0, -6);
+  path.bezierCurveTo(9, 48, 36, 40, 36, -46);
+  return path;
+}
+
+function drawEmblem(ctx: CanvasRenderingContext2D, color: string, face: CanvasGradient): void {
+  const emblem = traceEmblem();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 13;
+
   ctx.save();
-  ctx.translate(g.centerX + view.tubeOffset, g.tubeBottom);
+  ctx.shadowColor = ink(0.3);
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetX = 1.5;
+  ctx.shadowOffsetY = 3;
+  ctx.strokeStyle = color;
+  ctx.stroke(emblem);
+  ctx.restore();
+
+  ctx.strokeStyle = face;
+  ctx.stroke(emblem);
+
+  // 迎光的一道细高光。
+  ctx.save();
+  ctx.translate(-2.4, -2.4);
+  ctx.lineWidth = 1.6;
+  ctx.strokeStyle = light(0.45);
+  ctx.stroke(emblem);
+  ctx.restore();
+}
+
+/**
+ * 薯条盒：后壁、一把签、右侧面、前脸、盒面上的凸标，按这个次序叠。盒子自身坐标，盒底正中在
+ * 原点，往上为负。连同盒里的签整体绕盒底正中转 `tilt`。
+ */
+function drawBox(ctx: CanvasRenderingContext2D, view: SticksView, livery: SticksLivery, shiftX: number): void {
+  const g = GEOMETRY;
+  const tw = g.boxTopHalf;
+  const bw = g.boxBottomHalf;
+  const d = g.boxDepth;
+  const rimY = -g.boxHeight;
+
+  ctx.save();
+  ctx.translate(g.centerX + view.tubeOffset + shiftX, g.boxBottom);
   ctx.rotate(view.tubeTilt);
 
-  // 模切白边：筒身连同整圈筒口描一道粗白线，影子只投这一层（同贴纸贴在纸上）。
-  ctx.beginPath();
-  traceTubeBody(ctx, halfWidth, rimY);
-  ctx.moveTo(halfWidth, rimY);
-  ctx.ellipse(0, rimY, halfWidth, g.rimRadiusY, 0, 0, Math.PI * 2);
+  const front = new Path2D();
+  front.moveTo(-tw, rimY);
+  front.quadraticCurveTo(0, rimY + g.rimDip, tw, rimY);
+  front.lineTo(bw, 0);
+  front.lineTo(-bw, 0);
+  front.closePath();
+
+  // 后壁：前脸往右上错开一个厚度，压暗，签插在它前面。
   ctx.save();
-  ctx.shadowColor = colors.shadow;
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetY = 6;
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = g.tubeBorder * 2;
-  ctx.strokeStyle = colors.sticker;
-  ctx.stroke();
+  ctx.translate(d, -d);
+  fillRounded(ctx, front, [livery.box, ink(0.3)], 6);
   ctx.restore();
-  ctx.fillStyle = colors.sticker;
-  ctx.fill();
 
-  // 筒口：一圈番茄色的口沿，里面是暗处，签插在它前面。
+  // 一把签：后排先画、压暗一点，前排压在上面。签底剪在盒底以上，藏在盒里。
+  ctx.save();
   ctx.beginPath();
-  ctx.ellipse(0, rimY, halfWidth, g.rimRadiusY, 0, 0, Math.PI * 2);
-  ctx.fillStyle = colors.tube;
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(0, rimY + 1, halfWidth - 6, g.rimRadiusY - 4, 0, 0, Math.PI * 2);
-  ctx.fillStyle = colors.tubeInside;
-  ctx.fill();
-
-  // 筒里的签，从筒口一侧排到另一侧，略微张开。掉出来的那根不画。
+  ctx.rect(-STICKS.width, -STICKS.height, STICKS.width * 2, STICKS.height - 4);
+  ctx.clip();
   const dropped = view.drop !== undefined;
-  for (const [i, baseRise] of STICK_BASE_RISE.entries()) {
-    if (dropped && i === view.leadStick) continue;
-    const spread = (i - (STICKS.stickCount - 1) / 2) / ((STICKS.stickCount - 1) / 2);
-    const x = spread * (halfWidth - 14);
-    const rise = i === view.leadStick ? view.rise : (view.sinking.find(({ stick }) => stick === i)?.rise ?? 0);
-    const lift = baseRise + rise * g.riseTravel;
-    // 签顶比筒口高 `lift`，签底藏在筒身后面。
-    drawStick(
-      ctx,
-      { bottomX: x * 0.55, bottomY: rimY - lift + g.stickLength, length: g.stickLength, width: g.stickWidth, angle: spread * 0.08 },
-      { tip: stickColor(i) },
-      colors,
-    );
+  for (const row of [true, false]) {
+    for (const [i, baseRise] of STICK_BASE_RISE.entries()) {
+      const slot = stickSlot(i);
+      if (slot.back !== row || (dropped && i === view.leadStick)) continue;
+      const rise = i === view.leadStick ? view.rise : (view.sinking.find(({ stick }) => stick === i)?.rise ?? 0);
+      const aboveRim = baseRise + rise * g.riseTravel;
+      ctx.save();
+      // 签顶比盒口两角高 `aboveRim`；签底往中间收一点，一把签略微张开。
+      ctx.translate(slot.x * 0.7, rimY - aboveRim + g.stickLength);
+      ctx.rotate((slot.x / (2 * g.stickPitch)) * 0.09);
+      const face = boxedStickFace(ctx, g.stickLength, aboveRim);
+      drawSquareStick(ctx, g.stickLength, g.stickWidth, livery.stick, face, slot.back ? 0.12 : 0);
+      ctx.restore();
+    }
   }
+  ctx.restore();
 
-  // 筒身：前半圈压住签的下半截。
-  ctx.beginPath();
-  traceTubeBody(ctx, halfWidth, rimY);
-  ctx.fillStyle = colors.tube;
-  ctx.fill();
+  // 右侧面：前脸右边一条，接到后壁上。
+  const side = new Path2D();
+  side.moveTo(tw, rimY);
+  side.lineTo(tw + d, rimY - d);
+  side.lineTo(bw + d, -d);
+  side.lineTo(bw, 0);
+  side.closePath();
+  fillRounded(ctx, side, [livery.box, ink(0.24)], 6);
 
-  for (const at of g.bandsAt) drawBand(ctx, halfWidth, rimY * at, colors);
+  // 前脸：上亮下暗、左亮右暗，哑光塑料。
+  const vertical = ctx.createLinearGradient(0, rimY, 0, 0);
+  vertical.addColorStop(0, light(0.16));
+  vertical.addColorStop(0.6, light(0));
+  vertical.addColorStop(1, ink(0.16));
+  const horizontal = ctx.createLinearGradient(-tw, 0, tw, 0);
+  horizontal.addColorStop(0, light(0.1));
+  horizontal.addColorStop(0.35, light(0));
+  horizontal.addColorStop(1, ink(0.12));
+  fillRounded(ctx, front, [livery.box, vertical, horizontal], 6);
 
-  // 反光：左边一长条加一个小圆点，平涂半透明白，压在箍上面（贴纸覆膜的反光）。
-  const shineX = -halfWidth + 13;
-  const shineTop = rimY + g.rimRadiusY + 12;
-  const shineBottom = -46;
-  ctx.fillStyle = colors.tubeShine;
+  // 盒口那道弧迎光。
   ctx.beginPath();
-  ctx.roundRect(shineX, shineTop, 10, shineBottom - shineTop, 5);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(shineX + 5, shineBottom + 16, 5, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(-tw + 4, rimY + 2);
+  ctx.quadraticCurveTo(0, rimY + g.rimDip + 2, tw - 4, rimY + 2);
+  ctx.strokeStyle = light(0.45);
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(0, rimY + g.boxHeight * g.emblemAt);
+  const scale = tw / 90;
+  ctx.scale(scale, scale);
+  const emblemFace = ctx.createLinearGradient(0, -50, 0, 50);
+  emblemFace.addColorStop(0, light(0.16));
+  emblemFace.addColorStop(0.6, light(0));
+  emblemFace.addColorStop(1, ink(0.16));
+  drawEmblem(ctx, livery.stick, emblemFace);
+  ctx.restore();
 
   ctx.restore();
 }
 
 /**
- * 掉出来的签：前一半从筒口飞到筒前、由细变宽（往使用者这边落），后一半弹一下立住。
- * 位置只由进度算，跟签筒此刻在哪无关：签掉出来时机器已经锁住，签筒在回正。立住的签也是一枚
- * 贴纸：越飞越近，白边和影子跟着长出来。
+ * 掉出来的签：前一半从盒口飞到盒子右边、由细变宽（往使用者这边落），后一半弹一下立住。
+ * 位置只由进度算，跟盒子此刻在哪无关：签掉出来时机器已经锁住，盒子在回正。
  */
 function drawDroppedStick(
   ctx: CanvasRenderingContext2D,
   drop: SticksDrop,
-  tip: string,
+  leadStick: number,
   revealed: string | undefined,
+  livery: SticksLivery,
   colors: SticksColors,
 ): void {
   const g = GEOMETRY;
@@ -336,24 +379,37 @@ function drawDroppedStick(
 
   const width = g.stickWidth + (g.standingWidth - g.stickWidth) * ease;
   const length = g.stickLength + (g.standingLength - g.stickLength) * ease;
-  // 飞的时候从筒口上方往前落，带一点转；立住前弹一下。
-  const startBottom = g.tubeTop - g.riseTravel - 40 + g.stickLength;
-  const arc = Math.sin(fly * Math.PI) * 40;
+  // 从冒到顶的位置飞出来，划一道弧落到盒子右边；立住前弹一下。
+  const startX = g.centerX + stickSlot(leadStick).x;
+  const startBottom = g.boxBottom - g.boxHeight - STICK_BASE_RISE[leadStick]! - g.riseTravel + g.stickLength;
+  const x = startX + (g.standingX - startX) * ease;
+  const arc = Math.sin(fly * Math.PI) * 60;
   const bounce = settle > 0 ? Math.sin(settle * Math.PI) * 18 * (1 - settle) : 0;
   const bottomY = startBottom + (g.standingBottom - startBottom) * ease - arc - bounce;
-  const angle = (1 - ease) * 0.5 + (settle > 0 ? Math.sin(settle * Math.PI * 2) * 0.04 * (1 - settle) : 0);
+  const wobble = settle > 0 ? Math.sin(settle * Math.PI * 2) * 0.04 * (1 - settle) : 0;
+  const angle = (1 - ease) * 0.6 + g.standingAngle * ease + wobble;
 
-  drawStick(ctx, { bottomX: g.centerX, bottomY, length, width, angle }, { tip, border: 5 * ease, lift: ease }, colors);
+  // 影子随着签落地长出来。
+  drawShadowBlob(ctx, x + 10, g.standingBottom + 2, 40 * ease, 9 * ease, colors.shadowLift);
 
+  ctx.save();
+  ctx.translate(x, bottomY);
+  ctx.rotate(angle);
+  const face = ctx.createLinearGradient(0, -length, 0, 0);
+  face.addColorStop(0, light(0.22));
+  face.addColorStop(0.7, light(0));
+  face.addColorStop(1, ink(0.14));
+  drawSquareStick(ctx, length, width, livery.stick, face);
   if (drop.standing && revealed !== undefined) {
-    drawVerticalName(ctx, revealed, g.centerX, bottomY - length + NAME_MARGIN_TOP, length - NAME_MARGIN_TOP - NAME_MARGIN_BOTTOM, g.standingWidth, colors);
+    drawVerticalName(ctx, revealed, -length + NAME_MARGIN_TOP, length - NAME_MARGIN_TOP - NAME_MARGIN_BOTTOM, width, colors);
   }
+  ctx.restore();
 }
 
+/** 名字竖写在签面上；上下文已经移到签底中点、跟着签转好了。 */
 function drawVerticalName(
   ctx: CanvasRenderingContext2D,
   name: string,
-  centerX: number,
   top: number,
   maxLength: number,
   maxWidth: number,
@@ -364,16 +420,23 @@ function drawVerticalName(
   ctx.fillStyle = colors.ink;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (const glyph of layout.glyphs) ctx.fillText(glyph.text, centerX + glyph.x, top + glyph.y);
+  for (const glyph of layout.glyphs) ctx.fillText(glyph.text, glyph.x, top + glyph.y);
 }
 
-function drawBoard(ctx: CanvasRenderingContext2D, view: SticksView, colors: SticksColors): void {
-  ctx.fillStyle = colors.field;
-  ctx.fillRect(0, 0, STICKS.width, STICKS.height);
+/** 盘面不铺底：盒子直接立在格子纸上，画布外面就是本子。 */
+function drawBoard(ctx: CanvasRenderingContext2D, view: SticksView, livery: SticksLivery, colors: SticksColors): void {
+  const g = GEOMETRY;
+  const progress = view.drop?.progress ?? 0;
+  const shiftX = -g.boxMakeRoom * (1 - (1 - Math.min(1, progress / 0.55)) ** 3);
+  const boxX = g.centerX + view.tubeOffset + shiftX;
 
-  drawTube(ctx, view, colors);
+  // 两层影子：一圈宽而淡的投影，加一道紧贴盒底的接触影。
+  drawShadowBlob(ctx, boxX + 14, g.boxBottom + 6, g.boxBottomHalf + 44, 18, colors.shadow);
+  drawShadowBlob(ctx, boxX + 4, g.boxBottom + 1, g.boxBottomHalf + 10, 6, colors.shadowLift);
+
+  drawBox(ctx, view, livery, shiftX);
   if (view.drop && view.leadStick !== undefined) {
-    drawDroppedStick(ctx, view.drop, stickColor(view.leadStick), view.revealed, colors);
+    drawDroppedStick(ctx, view.drop, view.leadStick, view.revealed, livery, colors);
   }
 }
 
@@ -395,6 +458,7 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   const listen = { signal: controller.signal } as const;
   let rafId = 0;
   let colors = readSticksColors(canvas);
+  const livery = dealLivery();
 
   function draw(view: SticksView): void {
     // 宽度由 CSS 决定（.sticks__board）。rAF 常转，不必观察尺寸变化（同弹球机）。
@@ -403,7 +467,7 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
     const { context, width } = fitted;
     const scale = width / STICKS.width;
     context.scale(scale, scale);
-    drawBoard(context, view, colors);
+    drawBoard(context, view, livery, colors);
   }
 
   /** 签筒下方的提示和入口跟着视图走，每帧刷新。拒绝授权时入口留着，拖着甩照样能抽。 */
@@ -475,8 +539,11 @@ function mountSticksBoard(root: HTMLElement, roll: RollHandle): MountedBoard {
   start();
 
   return {
-    // 揭晓时 rAF 还在转，下一帧自然画上。结果卡片照掉出来那根签的签头色铺色。
-    reveal: (winner) => stickColor(machine.reveal(winner)),
+    // 揭晓时 rAF 还在转，下一帧自然画上。结果卡片照签的颜色铺色。
+    reveal: (winner) => {
+      machine.reveal(winner);
+      return livery.stick;
+    },
     // 宿主在结果卡片弹出之后通知：下一帧起机器交回停住的那一帧，帧循环就此停下。
     cover: machine.cover,
     erase: () => {
