@@ -1,6 +1,6 @@
 # Die draw
 
-On a die page (`#/<theme>/die`) one single-colour dodecahedral die (a stud on each face, no numbers) sits in a brick tray on the page. The user throws it by focusing it (a canvas read as the button `掷骰子`) and pressing Enter or Space, by pressing on the die and dragging it into a fling, or (on phones) by shaking. The die tumbles, bounces off the walls and settles; the top face turns the winner colour and the name is printed on a brick tile slapped above the die (below it when the die lies against the top wall), and 0.8 s later the result card pops up with a `再掷一次` button. Closing the card wipes the name, leaves the die where it stopped, returns focus to the die, and does not throw on its own.
+On a die page (`#/<theme>/die`) one single-colour dodecahedral die (a stud on each face, no numbers) sits in a brick tray on the page; the wall, die and winner colours are dealt at random on each page visit. The user throws it by focusing it (a canvas read as the button `掷骰子`) and pressing Enter or Space, by pressing on the die and dragging it into a fling, or (on phones) by shaking. The die tumbles, bounces off the walls and settles; the top face turns the winner colour and the name is printed on a brick tile of that colour slapped above the die (below it when the die lies against the top wall), and 0.8 s later the result card pops up in the same colour with a `再掷一次` button. Closing the card wipes the name, leaves the die where it stopped, returns focus to the die, and does not throw on its own.
 
 ## Sub-features
 
@@ -35,13 +35,13 @@ Preconditions:
 - **Memory.** `recentMemory()` has `random-games:recent-winners:breakfast` = `[<winner>]` and `random-games:recent-games` = `['die']`.
 - **Close.** Click `getByRole('button', {name: '再掷一次'})`: card hidden, `die` focused, card still hidden after 1.5 s.
 - **Blank drag.** Press near the board's top-left corner and drag 200 px: no card after 3 s, storage unchanged.
-- **Slow drag.** After `page.reload()` (the die is back at the centre), press on the board's centre, drag 20 px over 20 steps, hold 300 ms, release: no card after 3 s, storage unchanged.
+- **Slow drag.** After `page.reload()` (the die is back at rest, a little above the canvas centre but within grab reach of it), press on the board's centre, drag 20 px over 20 steps, hold 300 ms, release: no card after 3 s, storage unchanged.
 - **Drag-fling and lock.** Press on the centre, move 160 px up-right in 6 quick steps, release; 300 ms later focus the die and press Enter. Exactly one card appears with a winner different from the first (cooldown); after 1.5 s storage holds two names, newest last.
 - **Escape.** `page.keyboard.press('Escape')`: card hidden, die focused, no auto-throw after 1.5 s, storage unchanged.
 - **Direct link entry.** `localStorage.clear()`, `page.goto('about:blank')`, `page.goto(baseURL + '#/go-out/die')`, focus the die, press Space. Storage holds only `random-games:recent-winners:go-out` = `[<winner>]`.
 
 ## Gotchas
 
-- The die stays where it last stopped, which a scenario can't see; reload before any step that must grab it at the centre.
+- The die stays where it last stopped, which a scenario can't see; reload before any step that must grab it at the centre. At rest it sits slightly above the canvas centre (the tray leaves more margin below); a press at the canvas centre still grabs it.
 - A fling is judged by the pointer speed over the last moments before release; Playwright's `mouse.move` with few `steps` is fast enough, many steps with a pause before `up` is not.
 - The first throw after mount may wait for the physics chunk; allow the 20 s card timeout.

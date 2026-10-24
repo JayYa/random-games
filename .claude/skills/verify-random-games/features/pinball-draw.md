@@ -1,12 +1,12 @@
 # Pinball draw
 
-On a pinball page (`#/<theme>/pinball`) the user pulls the plunger (press on the board, drag down, release); the ball is launched through pegs, two windmills and bumpers into one of 8 unnamed bottom slots. As the ball drops into a slot, the winner's name floats above it, and 0.8 s later the result card pops up with a `再打一发` button. Closing the card resets the board for another shot without firing on its own.
+On a pinball page (`#/<theme>/pinball`) the board is a cardboard cabinet with a pull tab under it. The user pulls the plunger (press on the board, drag down, release); the ball is launched through pegs, two windmills and bumpers (which squash when hit) into one of 8 unnamed bottom pockets. As the ball drops into a pocket, that pocket gets a small sticker dot and the winner's name is slapped above it on a tilted sticker label, and 0.8 s later the result card pops up in the same win colour with a `再打一发` button. The cabinet and win colours are dealt at random on each page visit, so the card colour changes per visit. Closing the card resets the board for another shot without firing on its own.
 
 ## Sub-features
 
 - `pinball-ready` the page shows the theme title and the board canvas `#pinball-board`; no button to fire.
 - `pinball-fire` a downward drag on the board launches the ball; a sideways drag does not.
-- `pinball-lock` from launch until the card is closed, further pulls are ignored.
+- `pinball-lock` from launch until the card is closed, further pulls are ignored; the pull tab tucks up into the cabinet meanwhile and comes back out after close.
 - `pinball-reveal` the card shows a non-empty winner after the ball lands in a slot.
 - `pinball-close` `再打一发` (or `Escape`) hides the card and does not auto-fire.
 - `pinball-again` a second drag fires again and produces a second card.
@@ -28,7 +28,7 @@ Preconditions:
 - **Picker entry.** Run `$V drive --run <id> --feature pinball-draw .claude/skills/verify-random-games/scenarios/pinball-draw.mjs` for this and the next nine bullets. It seeds the recent game and clicks `getByRole('link', {name: '早餐吃什么'})` until `expect(page).toHaveURL(/#\/breakfast\/pinball$/)` holds (at most 20 tries); `#pinball-board` is visible.
 - **Card label.** `await expect(page.locator('#card-close')).toHaveText('再打一发')` (the card is hidden but present).
 - **Pull plunger.** `const b = await page.locator('#pinball-board').boundingBox(); const x = b.x + b.width/2, y = b.y + b.height/2; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 120, {steps: 8}); await page.mouse.up();`. Screenshot shows the ball in play.
-- **Reveal.** `await expect(page.locator('#card')).toBeVisible({timeout: 20_000})`. `#card-name` is non-empty; screenshot shows the name on a label above one slot, washed out to the paper colour behind the card.
+- **Reveal.** `await expect(page.locator('#card')).toBeVisible({timeout: 20_000})`. `#card-name` is non-empty; screenshot shows the name on a sticker label above one pocket, behind the card's scrim (the other pockets don't fade).
 - **Memory.** `await recentMemory()` has `random-games:recent-winners:breakfast` = `[<winner>]`, `random-games:recent-games` = `['pinball']`.
 - **Close.** Click `getByRole('button', {name: '再打一发'})`. `#card` hidden, and still hidden after `page.waitForTimeout(1500)`.
 - **Sideways drag.** Same press, but `page.mouse.move(x + 120, y, {steps: 8})`. `#card` stays hidden after `page.waitForTimeout(3000)`; storage unchanged.
