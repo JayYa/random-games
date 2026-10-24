@@ -1,6 +1,6 @@
 # Die draw
 
-On a die page (`#/<theme>/die`) one dodecahedral die with twelve coloured, unnumbered faces sits on the board. The user throws it by focusing it (a canvas read as the button `掷骰子`) and pressing Enter or Space, by pressing on the die and dragging it into a fling, or (on phones) by shaking. The die tumbles, bounces off the walls and settles; the winner's name is written on the top face, and 0.8 s later the result card pops up with a `再掷一次` button. Closing the card wipes the name, leaves the die where it stopped, returns focus to the die, and does not throw on its own.
+On a die page (`#/<theme>/die`) one single-colour dodecahedral die (a stud on each face, no numbers) sits in a brick tray on the page. The user throws it by focusing it (a canvas read as the button `掷骰子`) and pressing Enter or Space, by pressing on the die and dragging it into a fling, or (on phones) by shaking. The die tumbles, bounces off the walls and settles; the top face turns the winner colour and the name is printed on a brick tile slapped above the die (below it when the die lies against the top wall), and 0.8 s later the result card pops up with a `再掷一次` button. Closing the card wipes the name, leaves the die where it stopped, returns focus to the die, and does not throw on its own.
 
 ## Sub-features
 
@@ -9,7 +9,7 @@ On a die page (`#/<theme>/die`) one dodecahedral die with twelve coloured, unnum
 - `die-key-throw` Enter or Space on the focused die throws it.
 - `die-drag-fling` pressing on the die and flinging it throws it; a drag on blank board or a too-slow release does not.
 - `die-lock` while the die is moving or the card is open, further throws are ignored.
-- `die-reveal` the name lands on the top face, then the card shows a non-empty winner.
+- `die-reveal` the name lands on a tile next to the die, then the card shows a non-empty winner.
 - `die-close` `再掷一次` (or `Escape`) hides the card, puts focus back on the die, and does not auto-throw.
 - `die-memory` each winner is appended to `random-games:recent-winners:<slug>`.
 
@@ -31,7 +31,7 @@ Preconditions:
 - **Lazy physics.** Run `$V drive --run <id> --feature die-draw .claude/skills/verify-random-games/scenarios/die-draw.mjs` for this and every bullet below. It opens `#/breakfast/wheel` first and records script requests: none matches `simulate`.
 - **Picker entry.** It seeds the recent game and clicks `getByRole('link', {name: '早餐吃什么'})` until the URL ends `#/breakfast/die` (at most 20 tries); `getByRole('button', {name: '掷骰子'})` is visible, `#card-close` has text `再掷一次`, and exactly one `simulate-*.js` request was made after the click that landed on the die (earlier tries may land on pinball, which fetches its own `simulate-*.js`).
 - **Keyboard throw.** Tab until the die is focused, `page.keyboard.press('Enter')`. 400 ms later the card is still hidden (screenshot shows the die mid-tumble).
-- **Reveal.** `await expect(page.locator('#card')).toBeVisible({timeout: 20_000})`; `#card-name` is non-empty; screenshot shows the name on the die's top face, washed out behind the card.
+- **Reveal.** `await expect(page.locator('#card')).toBeVisible({timeout: 20_000})`; `#card-name` is non-empty; screenshot shows the name tile beside the die, washed out behind the card.
 - **Memory.** `recentMemory()` has `random-games:recent-winners:breakfast` = `[<winner>]` and `random-games:recent-games` = `['die']`.
 - **Close.** Click `getByRole('button', {name: '再掷一次'})`: card hidden, `die` focused, card still hidden after 1.5 s.
 - **Blank drag.** Press near the board's top-left corner and drag 200 px: no card after 3 s, storage unchanged.
