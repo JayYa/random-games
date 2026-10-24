@@ -8,7 +8,7 @@
 import { IDENTITY, INRADIUS, withFaceUp, type DiePose } from './geometry';
 
 /** 骰子外接球半径。 */
-const DIE_RADIUS = 1.4;
+const DIE_RADIUS = 1.8;
 
 export const TABLE = {
   /** 盘面的半宽与半深（到墙的内面）。 */

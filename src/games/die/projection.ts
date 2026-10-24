@@ -7,12 +7,22 @@
 import type { Vec3 } from './geometry';
 import { TABLE } from './table';
 
-/** 墙外留的边（盘面单位）：贴着墙弹高的骰子透视放大后不出画布。 */
-const VIEW_MARGIN = 0.5;
-const VIEW_HALF_WIDTH = TABLE.halfWidth + VIEW_MARGIN;
+/** 托盘一圈砖墙的厚度（盘面单位），画在墙的内面以外。只是画面，不进物理。 */
+export const WALL_THICKNESS = 1;
+/**
+ * 砖墙外再留的边（盘面单位）。上边只放透视外扩的墙顶；下边还要放往下错开的侧壁和落在纸上的影子，
+ * 所以留得多，画面中心随之比盘面中心低一点。左右的边由宽高比定。
+ */
+const VIEW_MARGIN_TOP = 0.45;
+const VIEW_MARGIN_BOTTOM = 1.6;
 
-/** 画布的宽高比，与 style.css 的 `.die__board` 一致（11 × 14）。 */
-export const HEIGHT_PER_WIDTH = (TABLE.halfDepth + VIEW_MARGIN) / VIEW_HALF_WIDTH;
+/** 画布的宽高比，与 style.css 的 `.die__board` 一致（13 × 16）。 */
+export const HEIGHT_PER_WIDTH = 16 / 13;
+
+const VIEW_HALF_DEPTH = TABLE.halfDepth + WALL_THICKNESS + (VIEW_MARGIN_TOP + VIEW_MARGIN_BOTTOM) / 2;
+const VIEW_HALF_WIDTH = VIEW_HALF_DEPTH / HEIGHT_PER_WIDTH;
+/** 画面中心落在盘面上 y 多少处（往下为正）。 */
+const VIEW_CENTER_Y = (VIEW_MARGIN_BOTTOM - VIEW_MARGIN_TOP) / 2;
 
 /** 相机在盘面正中上方多高（盘面单位）。越低透视越重。 */
 export const CAMERA_HEIGHT = 36;
@@ -32,12 +42,16 @@ export function projector(width: number, height: number): (p: Vec3) => Point {
   const scale = pixelsPerUnit(width);
   return (p) => {
     const f = CAMERA_HEIGHT / (CAMERA_HEIGHT - p.z);
-    return { x: width / 2 + p.x * scale * f, y: height / 2 + p.y * scale * f };
+    return { x: width / 2 + p.x * scale * f, y: height / 2 + (p.y * f - VIEW_CENTER_Y) * scale };
   };
 }
 
 /** `projector` 的反函数：画布像素落到高度 `z` 的水平面上，交回盘面上的 `(x, y)`。 */
 export function unproject(width: number, height: number, point: Point, z: number): Point {
-  const scale = pixelsPerUnit(width) * (CAMERA_HEIGHT / (CAMERA_HEIGHT - z));
-  return { x: (point.x - width / 2) / scale, y: (point.y - height / 2) / scale };
+  const scale = pixelsPerUnit(width);
+  const f = CAMERA_HEIGHT / (CAMERA_HEIGHT - z);
+  return {
+    x: (point.x - width / 2) / (scale * f),
+    y: ((point.y - height / 2) / scale + VIEW_CENTER_Y) / f,
+  };
 }

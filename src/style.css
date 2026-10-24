@@ -62,11 +62,6 @@
   --wheel-disk: #fffaf0;
   --wheel-disk-alt: #f5eddc;
   --wheel-divider: #e6dac2;
-  /* 骰子的台面是一张铺满画布的薄荷色游戏垫，墙那里一圈虚线缝线。不用白：模切白边的骰子贴在上面才看得出白边。 */
-  --die-mat: #e3f6ef;
-  --die-stitch: #9edcc9;
-  /* 揭晓时其余面往骰子自己的贴纸白褪成浅彩，深色主题也一样：骰子是贴纸，不往夜里的台面褪成脏色。 */
-  --die-fade: rgba(255, 255, 255, 0.68);
   font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--ink);
   background-color: var(--page);
@@ -100,9 +95,6 @@
     --wheel-disk: #f3eee2;
     --wheel-disk-alt: #e7dfcc;
     --wheel-divider: #d6cbb2;
-    --die-mat: #1f2e2c;
-    --die-stitch: #3d6b60;
-    --die-fade: rgba(246, 243, 236, 0.62);
     background-image: radial-gradient(var(--grid) 1.2px, transparent 1.6px);
     background-position: 0 0;
   }
@@ -508,7 +500,10 @@ body {
   cursor: grab;
 }
 
-/* 骰子是一张用胶带贴进本子里的贴纸画框：白边、影子、上面两个角各一截胶带。 */
+/*
+ * 骰子是一只积木托盘玩具，跟其余玩法一样直接立在纸上，不贴胶带、不包画框。砖墙、奶白底面、
+ * 骰子和影子都画在画布里，颜色每次进页面从调色板发（games/die/ui.ts）。
+ */
 .die {
   /* 盘面之外的部件大致占掉的高度，让整块盘面在首屏内。 */
   --die-chrome: 204px;
@@ -521,38 +516,13 @@ body {
   align-items: center;
 }
 
-.die__frame {
-  position: relative;
-  padding: 5px;
-  border-radius: 23px;
-  background: var(--sticker);
-  box-shadow: 0 8px 18px var(--shadow);
-}
-
-.die__frame .tape {
-  width: 78px;
-  top: -8px;
-}
-
-.die__frame .tape:first-child {
-  left: -22px;
-  --tape: #3fd0a8;
-  transform: rotate(-38deg);
-}
-
-.die__frame .tape:nth-child(2) {
-  right: -22px;
-  --tape: #b294ff;
-  transform: rotate(36deg);
-}
-
 .die__board {
   display: block;
-  /* 宽高比与 ui.ts 的画布一致（11 × 14）。 */
-  width: min(calc(100vw - 42px), 540px, max(160px, calc((100vh - var(--die-chrome)) * 11 / 14)));
-  width: min(calc(100vw - 42px), 540px, max(160px, calc((100svh - var(--die-chrome)) * 11 / 14)));
+  /* 宽高比与 projection.ts 的可视区域一致（13 × 16）。 */
+  width: min(calc(100vw - 20px), 540px, max(160px, calc((100vh - var(--die-chrome)) * 13 / 16)));
+  width: min(calc(100vw - 20px), 540px, max(160px, calc((100svh - var(--die-chrome)) * 13 / 16)));
   height: auto;
-  aspect-ratio: 11 / 14;
+  aspect-ratio: 13 / 16;
   border-radius: 18px;
   /* 拖着骰子时页面别跟着滚、别缩放。 */
   touch-action: none;

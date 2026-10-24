@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { topFace } from './geometry';
 import type { DieMachine, DieView, PhysicsSource, PointerSample } from './machine';
-import { projector } from './projection';
+import { pixelsPerUnit, projector } from './projection';
 import { simulateThrow } from './simulate';
 import { restingPose } from './table';
 import { FAR_MS, FRAME_MS, NAMES, dieBoard, stepEvery, throwToStop, travelled } from './testHarness';
@@ -228,12 +228,14 @@ describe('骰子机器', () => {
   });
 });
 
-/** 画布的屏幕矩形，宽高比同盘面（11 × 14）。骰子平躺在正中时就在矩形中心。 */
-const RECT = { left: 100, top: 50, right: 430, bottom: 470 } as const;
-const MID_X = (RECT.left + RECT.right) / 2;
-const MID_Y = (RECT.top + RECT.bottom) / 2;
-/** 地面上每盘面单位多少像素：画布宽 330，盘面连墙外的边宽 11。 */
-const PX_PER_UNIT = 30;
+/** 画布的屏幕矩形，宽高比同可视区域（13 × 16）。 */
+const RECT = { left: 100, top: 50, right: 490, bottom: 530 } as const;
+/** 盘面中心画在屏幕上的位置：画面下边留得多，它比矩形中心略高。骰子一开始就平躺在这儿。 */
+const MID = screenOf(restingPose(0, 0));
+const MID_X = MID.x;
+const MID_Y = MID.y;
+/** 地面上每盘面单位多少像素，照渲染层的投影。 */
+const PX_PER_UNIT = pixelsPerUnit(RECT.right - RECT.left);
 
 const FINGER = 1;
 const OTHER_FINGER = 2;
@@ -253,11 +255,11 @@ describe('拖着抛', () => {
     const { machine } = setup();
     machine.tick(0);
 
-    // 骰子外接球半径 1.4 单位；3 单位开外是盘面空白处。
+    // 骰子外接球半径 1.8 单位，接得住的范围 2.7；3 单位开外是盘面空白处。
     expect(machine.press(pointerAt(MID_X + 3 * PX_PER_UNIT, MID_Y, 0))).toBe(false);
     expect(machine.press(pointerAt(MID_X, MID_Y - 3 * PX_PER_UNIT, 0))).toBe(false);
-    // 1.8 单位：画出来的骰子外面一点，手指按偏了也算。
-    expect(machine.press(pointerAt(MID_X + 1.8 * PX_PER_UNIT, MID_Y, 0))).toBe(true);
+    // 2.4 单位：画出来的骰子外面一点，手指按偏了也算。
+    expect(machine.press(pointerAt(MID_X + 2.4 * PX_PER_UNIT, MID_Y, 0))).toBe(true);
   });
 
   it('拖动时骰子跟手：画出来的骰子中心与手指保持按下时的相对位置', () => {
