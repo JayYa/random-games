@@ -12,7 +12,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
 
   // One press, `trips` round trips of the tube to its ±56 limit, release. The tube travels
   // 56 + 112·(2·trips − 1) board units and the lead stick rises 1/1200 per unit, so
-  // 2 trips ≈ 0.33, 3 ≈ 0.51, 6 ≈ 1.07 (a stick drops).
+  // 2 trips ≈ 0.33, 3 ≈ 0.51, 4 ≈ 0.70, 6 ≈ 1.07 (a stick drops).
   async function shake(trips = 6) {
     const b = await board.boundingBox();
     const x = b.x + b.width / 2;
@@ -52,8 +52,8 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
       const px = c.getContext('2d').getImageData(Math.round(281 * scale), Math.round(434 * scale), 1, 1).data;
       const distance = (rgb) => rgb.reduce((sum, v, i) => sum + (v - px[i]) ** 2, 0);
       const nearest = palette.reduce((best, rgb) => (distance(rgb) < distance(best) ? rgb : best));
-      const head = px[3] === 255 ? `rgb(${nearest.join(', ')})` : null;
-      return { fill, head, pixel: `rgba(${px.join(', ')})` };
+      const stick = px[3] === 255 ? `rgb(${nearest.join(', ')})` : null;
+      return { fill, stick, pixel: `rgba(${px.join(', ')})` };
     });
   }
 
@@ -92,14 +92,15 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     return mem;
   });
 
-  // ≈0.82 high, then a 1 s pause slides it back to ≈0.57. Kept going, the old lead would
-  // drop with another ≈0.64; a new lead starts from 0 and stays in the tube.
+  // ≈0.65 high, then a 1 s pause (0.5 s still, 0.5 s sliding) brings it back to ≈0.4.
+  // Kept going, the old lead would drop with another ≈0.70; a new lead starts from 0 and
+  // stays in the tube.
   await step('shaking again after a slide-back leads with another stick', async () => {
     await shake(2);
     await shake(2);
     await shot('sticks-high');
     await page.waitForTimeout(1_000);
-    await shake(3);
+    await shake(4);
     await shot('sticks-new-lead');
     await page.waitForTimeout(2_500);
     await expect(card).toBeHidden();
@@ -114,10 +115,10 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     return name;
   });
 
-  await step("card takes the dropped stick's head colour", async () => {
+  await step("card takes the dropped stick's colour", async () => {
     const colours = await cardAndHeadColour();
-    expect(colours.head).toBeTruthy();
-    expect(colours.fill).toBe(colours.head);
+    expect(colours.stick).toBeTruthy();
+    expect(colours.fill).toBe(colours.stick);
     return colours;
   });
 
@@ -134,7 +135,7 @@ export default async function ({ page, expect, baseURL, step, shot, aria, recent
     await page.waitForTimeout(1_500);
     await expect(card).toBeHidden();
     await shot('sticks-after-close');
-    // The head colour goes with the card: the card is back to its default fill.
+    // The stick colour goes with the card: the card is back to its default fill.
     const fill = await page.evaluate(
       () => getComputedStyle(document.querySelector('#card .card__inner')).backgroundColor,
     );
