@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "packageManager": "pnpm@12.16.0",
+  "packageManager": "pnpm@12.16.1",
   "devEngines": {
     "runtime": {
       "name": "node",
@@ -24,7 +24,7 @@
     "@playwright/test": "1.64.1",
     "@types/matter-js": "0.20.2",
     "@types/node": "26.6.5",
-    "oxlint": "1.89.0",
+    "oxlint": "1.90.0",
     "subset-font": "2.9.0",
     "typescript": "7.0.2",
     "vite": "8.3.5",
