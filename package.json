@@ -23,7 +23,7 @@
   "devDependencies": {
     "@playwright/test": "1.64.1",
     "@types/matter-js": "0.20.2",
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "oxlint": "1.90.0",
     "subset-font": "2.9.0",
     "typescript": "7.0.2",
