@@ -24,7 +24,7 @@
     "@playwright/test": "1.65.0",
     "@types/matter-js": "0.20.2",
     "@types/node": "26.6.6",
-    "oxlint": "1.91.0",
+    "oxlint": "1.92.0",
     "subset-font": "2.9.0",
     "typescript": "7.0.2",
     "vite": "8.3.6",
